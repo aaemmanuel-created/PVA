@@ -7,7 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
 <script type="text/babel" data-type="module">
-const { useState, useEffect, useCallback, useRef, useMemo } = React;
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 // ─── CONSTANTS ───
 const LEVELS = [
@@ -106,23 +106,32 @@ const catColors = (th) => ({
 // ─── DEFAULT TASKS ───
 const DEFAULT_TASKS = {
   person: { label: "Person", subtitle: "Spirit \u2192 Soul \u2192 Body", sections: [
-    { name: "SPIRIT", time: "04:00\u201305:00", tasks: [
-      { id: "bible", label: "Bible Reading (1 Chapter + Notes)", xp: 25, type: "check", hasNotes: true, notesPlaceholder: "Chapter & reflections..." },
-      { id: "prayer", label: "Prayer (ACTS)", xp: 20, type: "check" },
-      { id: "worship", label: "Worship", xp: 15, type: "check" },
+    { name: "SECRET PLACE", time: "05:00\u201306:00", tasks: [
+      { id: "secret_place", label: "Seeking His Face", xp: 30, type: "check", hasNotes: true, notesPlaceholder: "What did the Lord reveal today?" },
     ]},
-    { name: "SOUL", time: "05:00\u201306:00", tasks: [
-      { id: "journal", label: "Journalling", xp: 15, type: "check", hasNotes: true, notesPlaceholder: "Reflections & gratitude..." },
-      { id: "decrees", label: "Decrees & Declarations", xp: 15, type: "check" },
-      { id: "ideas", label: "Stream of Ideas", xp: 10, type: "check", hasNotes: true, notesPlaceholder: "Capture ideas..." },
+    { name: "EXERCISE", time: "06:00\u201307:00", tasks: [
+      { id: "exercise", label: "Exercise", xp: 20, type: "check" },
     ]},
-    { name: "BODY", time: "06:00\u201307:00", tasks: [
-      { id: "pushups", label: "Push-ups", xp: 15, type: "counter", target: 100 },
-      { id: "kettlebell", label: "Kettlebell Workout", xp: 20, type: "check" },
-      { id: "stretch", label: "Stretch / Cool-down", xp: 5, type: "check" },
+    { name: "THE FORMAT PRAYER ALTAR", time: "07:00\u201307:15", tasks: [
+      { id: "format_prayer_altar", label: "The Format Prayer Altar", xp: 15, type: "check" },
     ]},
-    { name: "NOURISH", time: "11:00", tasks: [
-      { id: "firstmeal", label: "First Meal", xp: 5, type: "check" },
+    { name: "GET READY", time: "07:30\u201308:15", tasks: [
+      { id: "get_ready", label: "Get Ready & Exit the House", xp: 10, type: "check" },
+    ]},
+    { name: "PRAYER 1", time: "09:00\u201309:15", tasks: [
+      { id: "prayer_1", label: "Prayer 1 (P)", xp: 15, type: "check" },
+    ]},
+    { name: "PRAYER 2", time: "12:00\u201312:15", tasks: [
+      { id: "prayer_2", label: "Prayer 2 (V)", xp: 15, type: "check" },
+    ]},
+    { name: "PRAYER 3", time: "15:00\u201315:15", tasks: [
+      { id: "prayer_3", label: "Prayer 3 (A)", xp: 15, type: "check" },
+    ]},
+    { name: "MEDITATION", time: "21:30\u201322:00", tasks: [
+      { id: "meditation", label: "Meditation", xp: 20, type: "check" },
+    ]},
+    { name: "SECRET PLACE — EVENING", time: "22:00\u201323:00", tasks: [
+      { id: "secret_place_evening", label: "Governmental Intercession & Courts of Heaven", xp: 30, type: "check", hasNotes: true, notesPlaceholder: "What did you bring before the Courts?" },
     ]},
   ]},
   people: { label: "People", subtitle: "Family & Community", sections: [
@@ -1813,7 +1822,7 @@ function SettingsView({ profile, onSave, onBack, th }) {
 }
 
 // ─── MAIN APP ───
-function PPPPApp() {
+export default function PPPPApp() {
   const [profile, setProfile] = useState(loadProfile);
   const [themeMode, setThemeMode] = useState(getAutoTheme);
   const [autoTheme, setAutoTheme] = useState(true);
@@ -2086,49 +2095,56 @@ function PPPPApp() {
                 ))}
               </div>
 
-              {/* First 3 tasks per tile — card style */}
-              <div style={{ padding: "8px 20px 0" }}>
-                {catKeys.map((k) => {
-                  const c = colors[k];
-                  const allTasks = tasks[k].sections.flatMap(s => s.tasks).filter(t => t.type === "check");
-                  const first3 = allTasks.slice(0, 1);
-                  if (first3.length === 0) return null;
-                  return (
-                    <div key={k} style={{ marginBottom: 10 }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: c.accent, letterSpacing: "0.14em", marginBottom: 6 }}>
-                        {tasks[k].label.toUpperCase()}
+              {/* Daily Schedule — timings from all categories */}
+              <div style={{ padding: "12px 20px 0" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>TODAY'S SCHEDULE</div>
+                {(() => {
+                  const allItems = [];
+                  catKeys.forEach(k => {
+                    const c = colors[k];
+                    tasks[k].sections.forEach(s => {
+                      s.tasks.forEach(t => {
+                        allItems.push({ time: s.time, label: t.label, id: t.id, accent: c.accent, catKey: k });
+                      });
+                    });
+                  });
+                  /* Sort by time string (works for HH:MM format) */
+                  allItems.sort((a, b) => {
+                    const ta = (a.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+                    const tb = (b.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+                    return ta.localeCompare(tb);
+                  });
+                  return allItems.map((item) => {
+                    const done = state.completed?.[item.id];
+                    return (
+                      <div key={item.id} onClick={() => toggleHomeTask(item.id)} style={{
+                        display: "flex", alignItems: "center", gap: 12, padding: "9px 0",
+                        borderBottom: `1px solid ${th.glassBorder || "rgba(255,255,255,0.06)"}`,
+                        cursor: "pointer", transition: "all 0.2s ease",
+                      }}>
+                        <div style={{
+                          fontSize: 10, fontWeight: 600, color: item.accent, minWidth: 80,
+                          fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em",
+                        }}>{item.time}</div>
+                        <div style={{
+                          fontSize: 12, fontWeight: 500, color: done ? th.dim : th.text,
+                          textDecoration: done ? "line-through" : "none",
+                          flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>{item.label}</div>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                          border: `1.5px solid ${done ? item.accent : th.dim}`,
+                          background: done ? item.accent : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "all 0.25s ease",
+                          boxShadow: done ? `0 0 10px ${item.accent}30` : "none",
+                        }}>
+                          {done && <span style={{ color: th.check || "#fff", fontSize: 10, fontWeight: 800 }}>{"\u2713"}</span>}
+                        </div>
                       </div>
-                      {first3.map((t) => {
-                        const done = state.completed?.[t.id];
-                        return (
-                          <div key={t.id} onClick={() => toggleHomeTask(t.id)} style={{
-                            ...glassStyle(th), padding: "10px 14px", marginBottom: 6, cursor: "pointer",
-                            border: `1px solid ${done ? c.accent + "40" : th.glassBorder}`,
-                            background: done ? c.accent + "08" : th.glass,
-                            display: "flex", alignItems: "center", justifyContent: "space-between",
-                            transition: "all 0.2s ease",
-                          }}>
-                            <div style={{
-                              fontSize: 12, fontWeight: 500, color: done ? th.dim : th.text,
-                              textDecoration: done ? "line-through" : "none",
-                              flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            }}>{t.label}</div>
-                            <div style={{
-                              width: 22, height: 22, borderRadius: 7, flexShrink: 0, marginLeft: 10,
-                              border: `1.5px solid ${done ? c.accent : th.dim}`,
-                              background: done ? c.accent : "transparent",
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              transition: "all 0.25s ease",
-                              boxShadow: done ? `0 0 10px ${c.accent}30` : "none",
-                            }}>
-                              {done && <span style={{ color: th.check || "#fff", fontSize: 11, fontWeight: 800 }}>{"\u2713"}</span>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
 
@@ -2194,6 +2210,4 @@ function PPPPApp() {
   );
 }
 
-
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode, null, React.createElement(PPPPApp)));
 </script></body></html>
