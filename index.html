@@ -1,0 +1,2199 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#050508"/><meta name="apple-mobile-web-app-capable" content="yes"/><title>PVA</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{width:100%;min-height:100vh;-webkit-font-smoothing:antialiased}body{overscroll-behavior:none}</style>
+</head><body><div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script type="text/babel" data-type="module">
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
+
+// ─── CONSTANTS ───
+const LEVELS = [
+  { name: "Seed", xp: 0, icon: "\u{1F331}", temple: 0 },
+  { name: "Sprout", xp: 100, icon: "\u{1F33F}", temple: 1 },
+  { name: "Sapling", xp: 300, icon: "\u{1F333}", temple: 2 },
+  { name: "Warrior", xp: 600, icon: "\u2694\uFE0F", temple: 3 },
+  { name: "Guardian", xp: 1000, icon: "\u{1F6E1}\uFE0F", temple: 4 },
+  { name: "Champion", xp: 1500, icon: "\u{1F3C6}", temple: 5 },
+  { name: "Commander", xp: 2200, icon: "\u{1F451}", temple: 6 },
+  { name: "Legend", xp: 3000, icon: "\u{1F525}", temple: 7 },
+  { name: "Overcomer", xp: 4000, icon: "\u271E\uFE0F", temple: 8 },
+];
+const STREAK_MULT = { 0:1, 3:1.2, 7:1.5, 14:1.8, 30:2, 60:2.5 };
+const getMult = (s) => { let m=1; for(const[t,v] of Object.entries(STREAK_MULT)) if(s>=+t) m=v; return m; };
+const getLevel = (xp) => { let c=LEVELS[0],n=LEVELS[1]; for(let i=0;i<LEVELS.length;i++) if(xp>=LEVELS[i].xp){c=LEVELS[i];n=LEVELS[i+1]||null;} return{cur:c,nxt:n,idx:LEVELS.indexOf(c)}; };
+const FONT = "'JetBrains Mono', 'Fira Code', monospace";
+const TODAY = new Date().toISOString().slice(0,10);
+const HP_MAX = 100;
+
+// ─── DAILY CHALLENGES ───
+const DAILY_CHALLENGES = [
+  { id: "dc_bible2", label: "Read 2 Bible chapters today", xp: 50 },
+  { id: "dc_nophone", label: "No phone before 7am", xp: 40 },
+  { id: "dc_phd500", label: "Write 500 words for PhD", xp: 60 },
+  { id: "dc_worship30", label: "30 min extra worship", xp: 50 },
+  { id: "dc_pray_family", label: "Pray for 5 family members by name", xp: 40 },
+  { id: "dc_no_social", label: "No social media until 5pm", xp: 50 },
+  { id: "dc_pushups150", label: "Hit 150 push-ups today", xp: 60 },
+  { id: "dc_journal_long", label: "Write a full-page journal entry", xp: 50 },
+  { id: "dc_mentor", label: "Reach out to a mentor or mentee", xp: 40 },
+  { id: "dc_memorize", label: "Memorize a Bible verse", xp: 50 },
+  { id: "dc_fast_meal", label: "Skip one meal (mini fast)", xp: 60 },
+  { id: "dc_gratitude10", label: "Write 10 things you're grateful for", xp: 40 },
+  { id: "dc_early_bed", label: "In bed by 10pm", xp: 40 },
+  { id: "dc_cold_shower", label: "Take a cold shower", xp: 50 },
+  { id: "dc_read30", label: "30 min non-PhD reading", xp: 40 },
+  { id: "dc_walk", label: "Go for a 30-min walk", xp: 40 },
+  { id: "dc_tidy_deep", label: "Deep clean one room", xp: 50 },
+  { id: "dc_kindness", label: "Do an act of kindness for a stranger", xp: 50 },
+  { id: "dc_teach", label: "Teach someone something new", xp: 50 },
+  { id: "dc_psalm", label: "Read an entire Psalm aloud", xp: 40 },
+  { id: "dc_budget", label: "Review your budget/finances", xp: 40 },
+];
+
+// Deterministic daily challenge based on date
+const getDailyChallenge = (date) => {
+  const seed = date.split("-").join("").split("").reduce((a,c) => a + c.charCodeAt(0), 0);
+  return DAILY_CHALLENGES[seed % DAILY_CHALLENGES.length];
+};
+
+// ─── WEEKLY BOSS BATTLES ───
+const BOSS_BATTLES = [
+  { id: "bb_person5", label: "Complete all Person tasks 5/7 days", xp: 150, check: (hist) => (hist || []).filter(d => (d?.cats?.person || 0) === 100).length >= 5 },
+  { id: "bb_90pct4", label: "Hit 90% overall 4 days this week", xp: 200, check: (hist) => (hist || []).filter(d => (d?.pct || 0) >= 90).length >= 4 },
+  { id: "bb_streak7", label: "Maintain a 7-day streak", xp: 150, check: (_, state) => (state?.streak || 0) >= 7 },
+  { id: "bb_allcats3", label: "100% in all categories 3 days", xp: 200, check: (hist) => (hist || []).filter(d => d?.cats && Object.values(d.cats).every(v => v === 100)).length >= 3 },
+  { id: "bb_spirit7", label: "Complete Spirit section every day", xp: 150, check: (hist) => (hist || []).filter(d => (d?.cats?.person || 0) >= 50).length >= 7 },
+  { id: "bb_xp500", label: "Earn 500+ XP in a single day", xp: 100, check: (_, state) => (state?.xp || 0) >= 500 },
+];
+
+const getWeeklyBoss = (date) => {
+  const d = new Date(date);
+  const weekNum = Math.floor(d.getTime() / (7 * 24 * 60 * 60 * 1000));
+  return BOSS_BATTLES[weekNum % BOSS_BATTLES.length];
+};
+
+// ─── THEME ───
+const dark = {
+  bg: "#050508", surface: "rgba(255,255,255,0.03)", glass: "rgba(255,255,255,0.04)",
+  glassBorder: "rgba(255,255,255,0.08)", text: "rgba(255,255,255,0.92)", mid: "rgba(255,255,255,0.55)",
+  dim: "rgba(255,255,255,0.28)", ghost: "rgba(255,255,255,0.12)", blue: "#3B82F6", red: "#EF4444",
+  blueDim: "rgba(59,130,246,0.15)", redDim: "rgba(239,68,68,0.12)",
+  check: "#050508", cardHover: "rgba(255,255,255,0.05)",
+  grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.08) 0%, transparent 50%), #050508",
+  gold: "#F59E0B", goldDim: "rgba(245,158,11,0.12)",
+};
+const light = {
+  bg: "#F8F9FC", surface: "rgba(0,0,0,0.02)", glass: "rgba(255,255,255,0.7)",
+  glassBorder: "rgba(0,0,0,0.08)", text: "rgba(0,0,0,0.88)", mid: "rgba(0,0,0,0.55)",
+  dim: "rgba(0,0,0,0.3)", ghost: "rgba(0,0,0,0.1)", blue: "#2563EB", red: "#DC2626",
+  blueDim: "rgba(37,99,235,0.1)", redDim: "rgba(220,38,38,0.08)",
+  check: "#FFFFFF", cardHover: "rgba(0,0,0,0.03)",
+  grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37,99,235,0.06) 0%, transparent 50%), #F8F9FC",
+  gold: "#D97706", goldDim: "rgba(217,119,6,0.1)",
+};
+const getAutoTheme = () => { const h = new Date().getHours(); return h >= 6 && h < 18 ? "light" : "dark"; };
+
+const catColors = (th) => ({
+  person:  { accent: "#DC2626", dim: "rgba(220,38,38,0.1)", border: "rgba(220,38,38,0.4)" },
+  people:  { accent: "#7C3AED", dim: "rgba(124,58,237,0.1)", border: "rgba(124,58,237,0.4)" },
+  process: { accent: "#16A34A", dim: "rgba(22,163,74,0.1)", border: "rgba(22,163,74,0.4)" },
+  product: { accent: th.blue, dim: th.blueDim, border: `${th.blue}40` },
+});
+
+// ─── DEFAULT TASKS ───
+const DEFAULT_TASKS = {
+  person: { label: "Person", subtitle: "Spirit \u2192 Soul \u2192 Body", sections: [
+    { name: "SPIRIT", time: "04:00\u201305:00", tasks: [
+      { id: "bible", label: "Bible Reading (1 Chapter + Notes)", xp: 25, type: "check", hasNotes: true, notesPlaceholder: "Chapter & reflections..." },
+      { id: "prayer", label: "Prayer (ACTS)", xp: 20, type: "check" },
+      { id: "worship", label: "Worship", xp: 15, type: "check" },
+    ]},
+    { name: "SOUL", time: "05:00\u201306:00", tasks: [
+      { id: "journal", label: "Journalling", xp: 15, type: "check", hasNotes: true, notesPlaceholder: "Reflections & gratitude..." },
+      { id: "decrees", label: "Decrees & Declarations", xp: 15, type: "check" },
+      { id: "ideas", label: "Stream of Ideas", xp: 10, type: "check", hasNotes: true, notesPlaceholder: "Capture ideas..." },
+    ]},
+    { name: "BODY", time: "06:00\u201307:00", tasks: [
+      { id: "pushups", label: "Push-ups", xp: 15, type: "counter", target: 100 },
+      { id: "kettlebell", label: "Kettlebell Workout", xp: 20, type: "check" },
+      { id: "stretch", label: "Stretch / Cool-down", xp: 5, type: "check" },
+    ]},
+    { name: "NOURISH", time: "11:00", tasks: [
+      { id: "firstmeal", label: "First Meal", xp: 5, type: "check" },
+    ]},
+  ]},
+  people: { label: "People", subtitle: "Family & Community", sections: [
+    { name: "FAMILY", time: "Flexible", tasks: [
+      { id: "family_call", label: "Family Check-in / Call", xp: 15, type: "check" },
+      { id: "family_prayer", label: "Pray for Family", xp: 10, type: "check" },
+    ]},
+    { name: "COMMUNITY", time: "Flexible", tasks: [
+      { id: "mentoring", label: "Mentoring / Discipleship", xp: 20, type: "check" },
+      { id: "community_engage", label: "Community Engagement", xp: 15, type: "check" },
+      { id: "messages", label: "Reply to Messages", xp: 5, type: "check" },
+    ]},
+  ]},
+  process: { label: "Process", subtitle: "Systems & Workflows", sections: [
+    { name: "HOME", time: "AM / PM", tasks: [
+      { id: "tidy", label: "Tidy Up / Clean Space", xp: 10, type: "check" },
+      { id: "admin", label: "Personal Admin", xp: 10, type: "check" },
+    ]},
+    { name: "COMMONWEALTH", time: "09:00\u201317:00", tasks: [
+      { id: "comsec_briefs", label: "Briefing Notes & Country Briefs", xp: 25, type: "check" },
+      { id: "comsec_cmag", label: "CMAG / Good Offices", xp: 25, type: "check" },
+      { id: "comsec_meetings", label: "Meetings & Correspondence", xp: 15, type: "check" },
+      { id: "comsec_elections", label: "Elections / Negotiations Prep", xp: 20, type: "check" },
+    ]},
+    { name: "PHD", time: "Evening", tasks: [
+      { id: "phd_reading", label: "PhD Reading", xp: 20, type: "check", hasNotes: true, notesPlaceholder: "What did you read?" },
+      { id: "phd_writing", label: "PhD Writing", xp: 30, type: "check", hasNotes: true, notesPlaceholder: "What did you write?" },
+      { id: "phd_data", label: "Data Collection / Analysis", xp: 25, type: "check" },
+    ]},
+  ]},
+  product: { label: "Product", subtitle: "Output & Creation", sections: [
+    { name: "THE FORMAT \u2014 PRIESTHOOD", time: "Flexible", tasks: [
+      { id: "format_prayer", label: "Group Prayer / Fellowship", xp: 20, type: "check" },
+      { id: "format_teaching", label: "Teaching Prep / Delivery", xp: 25, type: "check" },
+      { id: "format_worship_lead", label: "Worship Leading", xp: 20, type: "check" },
+      { id: "format_fasting", label: "Fasting Day", xp: 30, type: "check" },
+    ]},
+    { name: "THE FORMAT \u2014 OCCUPY", time: "Flexible", tasks: [
+      { id: "format_music", label: "Music Production / Writing", xp: 25, type: "check" },
+      { id: "format_visual", label: "Visual Design / Creative", xp: 20, type: "check" },
+      { id: "format_content", label: "Content Creation", xp: 20, type: "check" },
+    ]},
+    { name: "THE FORMAT \u2014 ADMIN", time: "Flexible", tasks: [
+      { id: "format_planning", label: "Event Planning", xp: 15, type: "check" },
+      { id: "format_comms", label: "Comms & Social Media", xp: 10, type: "check" },
+    ]},
+  ]},
+};
+
+// ─── SOUND ───
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+const getCtx = () => { if (!audioCtx) audioCtx = new AudioCtx(); return audioCtx; };
+
+function playTick() {
+  try {
+    const ctx = getCtx(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.setValueAtTime(880, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.05);
+    g.gain.setValueAtTime(0.08, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.12);
+  } catch {}
+}
+function playCelebrate() {
+  try {
+    const ctx = getCtx();
+    [523, 659, 784, 1047].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.setValueAtTime(f, ctx.currentTime + i * 0.12);
+      g.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.12);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.3);
+      o.start(ctx.currentTime + i * 0.12); o.stop(ctx.currentTime + i * 0.12 + 0.3);
+    });
+  } catch {}
+}
+function playDamage() {
+  try {
+    const ctx = getCtx(), o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.setValueAtTime(200, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.3);
+    g.gain.setValueAtTime(0.12, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.3);
+  } catch {}
+}
+function playLevelUp() {
+  try {
+    const ctx = getCtx();
+    [440, 554, 659, 880, 1109, 1319].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.setValueAtTime(f, ctx.currentTime + i * 0.1);
+      g.gain.setValueAtTime(0.08, ctx.currentTime + i * 0.1);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.4);
+      o.start(ctx.currentTime + i * 0.1); o.stop(ctx.currentTime + i * 0.1 + 0.4);
+    });
+  } catch {}
+}
+
+// ─── STATE ───
+// ─── STATE (localStorage-backed) ───
+const STORAGE_KEY = "pppp_state";
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const r = JSON.parse(raw || "null");
+    if (r && r.date === TODAY) return r;
+    if (r) {
+      const prevPct = r.history?.[r.history.length - 1]?.pct ?? 0;
+      const newStreak = prevPct >= 50 ? (r.streak || 0) + 1 : 1;
+      const newHp = prevPct >= 80 ? Math.min(HP_MAX, (r.hp || HP_MAX) + 10) : (r.hp || HP_MAX);
+      const hist = [...(r.history || [])];
+      if (hist.length >= 7) hist.shift();
+      hist.push({ date: TODAY, pct: 0, cats: { person: 0, people: 0, process: 0, product: 0 } });
+      return {
+        date: TODAY, completed: {}, counters: {}, notes: {}, timers: {},
+        xp: 0, totalXp: r.totalXp || 0,
+        streak: newStreak, bestStreak: Math.max(r.bestStreak || 0, newStreak),
+        daysCompleted: (r.daysCompleted || 0) + (prevPct >= 50 ? 1 : 0),
+        hp: newHp, redemptionMode: newHp <= 0,
+        challengeCompleted: false, bossCompleted: false,
+        customTasks: r.customTasks || null, history: hist,
+      };
+    }
+  } catch (e) { console.warn("PPPP load error", e); }
+  return {
+    date: TODAY, completed: {}, counters: {}, notes: {}, timers: {},
+    xp: 0, totalXp: 0, streak: 1, bestStreak: 1, daysCompleted: 0,
+    hp: HP_MAX, redemptionMode: false,
+    challengeCompleted: false, bossCompleted: false,
+    customTasks: null,
+    history: Array(7).fill(null).map((_,i) => {
+      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+      return { date: d.toISOString().slice(0,10), pct: 0,
+        cats: { person: 0, people: 0, process: 0, product: 0 }};
+    })
+  };
+}
+
+function saveState(s) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch(e) {}
+}
+
+// ─── TIMER HOOK ───
+function useTimer(taskId, state, setState) {
+  const [running, setRunning] = useState(false);
+  const [secs, setSecs] = useState(state.timers?.[taskId] || 0);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (running) { ref.current = setInterval(() => setSecs(s => s + 1), 1000); }
+    else { clearInterval(ref.current); }
+    return () => clearInterval(ref.current);
+  }, [running]);
+  useEffect(() => {
+    setState(p => ({ ...p, timers: { ...p.timers, [taskId]: secs } }));
+  }, [secs]);
+  const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  return { secs, running, toggle: () => setRunning(r => !r), reset: () => { setSecs(0); setRunning(false); }, fmt: fmt(secs) };
+}
+
+// ─── TEMPLE SVG ───
+function TempleVisual({ stage, th }) {
+  // stage: 0 = bare ground, 1 = foundation, 2 = walls rising, 3 = walls complete,
+  // 4 = pillars, 5 = roof structure, 6 = roof complete, 7 = golden dome, 8 = radiant temple
+  const isDark = th === dark;
+  const stone = isDark ? "#4B5563" : "#9CA3AF";
+  const stoneLight = isDark ? "#6B7280" : "#D1D5DB";
+  const pillarColor = isDark ? "#E5E7EB" : "#374151";
+  const roofColor = isDark ? "#3B82F6" : "#2563EB";
+  const goldColor = "#F59E0B";
+  const groundColor = isDark ? "#1F2937" : "#E5E7EB";
+  const glowColor = isDark ? "rgba(245,158,11,0.3)" : "rgba(245,158,11,0.2)";
+
+  const stageName = LEVELS[stage]?.name || "Seed";
+
+  return (
+    <div style={{ textAlign: "center", marginBottom: 8 }}>
+      <svg viewBox="0 0 300 200" width="100%" style={{ maxWidth: 360, display: "block", margin: "0 auto" }}>
+        <defs>
+          <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={isDark ? "#0F172A" : "#DBEAFE"} />
+            <stop offset="100%" stopColor={isDark ? "#050508" : "#F8F9FC"} />
+          </linearGradient>
+          <radialGradient id="domeGold" cx="50%" cy="30%" r="50%">
+            <stop offset="0%" stopColor="#FCD34D" />
+            <stop offset="100%" stopColor="#D97706" />
+          </radialGradient>
+          <radialGradient id="radiance" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={goldColor} stopOpacity="0.6" />
+            <stop offset="60%" stopColor={goldColor} stopOpacity="0.1" />
+            <stop offset="100%" stopColor={goldColor} stopOpacity="0" />
+          </radialGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+
+        {/* Sky background */}
+        <rect x="0" y="0" width="300" height="200" fill="url(#skyGrad)" />
+
+        {/* Ground */}
+        <rect x="0" y="170" width="300" height="30" fill={groundColor} rx="2" />
+        <line x1="40" y1="170" x2="260" y2="170" stroke={isDark ? "#374151" : "#D1D5DB"} strokeWidth="1" />
+
+        {/* Stage 0: Bare ground / scattered stones */}
+        {stage >= 0 && (
+          <g>
+            <rect x="90" y="162" width="20" height="10" fill={stone} rx="2" opacity="0.6" />
+            <rect x="130" y="164" width="15" height="8" fill={stoneLight} rx="2" opacity="0.5" />
+            <rect x="180" y="160" width="22" height="12" fill={stone} rx="2" opacity="0.6" />
+            <rect x="210" y="165" width="12" height="7" fill={stoneLight} rx="2" opacity="0.4" />
+            <rect x="70" y="166" width="14" height="6" fill={stone} rx="1" opacity="0.4" />
+          </g>
+        )}
+
+        {/* Stage 1: Foundation complete */}
+        {stage >= 1 && (
+          <g>
+            <rect x="70" y="155" width="160" height="18" fill={stone} rx="3" stroke={stoneLight} strokeWidth="0.5" />
+            <rect x="75" y="157" width="30" height="14" fill={stoneLight} rx="1" opacity="0.3" />
+            <rect x="115" y="157" width="25" height="14" fill={stoneLight} rx="1" opacity="0.2" />
+            <rect x="155" y="157" width="35" height="14" fill={stoneLight} rx="1" opacity="0.3" />
+            <rect x="200" y="157" width="25" height="14" fill={stoneLight} rx="1" opacity="0.2" />
+          </g>
+        )}
+
+        {/* Stage 2: Walls rising (half height) */}
+        {stage >= 2 && (
+          <g>
+            <rect x="78" y="125" width="14" height="30" fill={stone} rx="2" />
+            <rect x="208" y="125" width="14" height="30" fill={stone} rx="2" />
+            <rect x="78" y="125" width="144" height="4" fill={stoneLight} rx="1" opacity="0.5" />
+            {/* Wall blocks */}
+            <rect x="78" y="130" width="144" height="6" fill={stone} rx="1" opacity="0.4" />
+            <rect x="78" y="138" width="144" height="6" fill={stoneLight} rx="1" opacity="0.25" />
+            <rect x="78" y="146" width="144" height="6" fill={stone} rx="1" opacity="0.3" />
+          </g>
+        )}
+
+        {/* Stage 3: Walls complete */}
+        {stage >= 3 && (
+          <g>
+            <rect x="78" y="95" width="14" height="60" fill={stone} rx="2" />
+            <rect x="208" y="95" width="14" height="60" fill={stone} rx="2" />
+            {/* Back wall */}
+            <rect x="92" y="95" width="116" height="60" fill={isDark ? "#374151" : "#D1D5DB"} rx="1" />
+            {/* Wall texture lines */}
+            {[100, 108, 116, 124, 132, 140, 148].map(y => (
+              <line key={y} x1="92" y1={y} x2="208" y2={y} stroke={stoneLight} strokeWidth="0.5" opacity="0.3" />
+            ))}
+            {/* Door opening */}
+            <rect x="135" y="120" width="30" height="35" fill={isDark ? "#111827" : "#F3F4F6"} rx="2" />
+            <path d="M135 120 Q150 108 165 120" fill={isDark ? "#374151" : "#D1D5DB"} />
+          </g>
+        )}
+
+        {/* Stage 4: Pillars added */}
+        {stage >= 4 && (
+          <g>
+            {/* Left pillar pair */}
+            <rect x="82" y="100" width="8" height="55" fill={pillarColor} rx="2" />
+            <rect x="82" y="97" width="8" height="5" fill={pillarColor} rx="1" />
+            <rect x="100" y="100" width="8" height="55" fill={pillarColor} rx="2" />
+            <rect x="100" y="97" width="8" height="5" fill={pillarColor} rx="1" />
+            {/* Right pillar pair */}
+            <rect x="192" y="100" width="8" height="55" fill={pillarColor} rx="2" />
+            <rect x="192" y="97" width="8" height="5" fill={pillarColor} rx="1" />
+            <rect x="210" y="100" width="8" height="55" fill={pillarColor} rx="2" />
+            <rect x="210" y="97" width="8" height="5" fill={pillarColor} rx="1" />
+            {/* Pillar bases */}
+            <rect x="80" y="153" width="12" height="4" fill={pillarColor} rx="1" />
+            <rect x="98" y="153" width="12" height="4" fill={pillarColor} rx="1" />
+            <rect x="190" y="153" width="12" height="4" fill={pillarColor} rx="1" />
+            <rect x="208" y="153" width="12" height="4" fill={pillarColor} rx="1" />
+          </g>
+        )}
+
+        {/* Stage 5: Roof structure (frame) */}
+        {stage >= 5 && (
+          <g>
+            {/* Horizontal beam */}
+            <rect x="70" y="90" width="160" height="8" fill={stone} rx="2" stroke={stoneLight} strokeWidth="0.5" />
+            {/* Triangular roof frame */}
+            <line x1="70" y1="90" x2="150" y2="55" stroke={roofColor} strokeWidth="3" opacity="0.7" />
+            <line x1="230" y1="90" x2="150" y2="55" stroke={roofColor} strokeWidth="3" opacity="0.7" />
+            <line x1="70" y1="90" x2="230" y2="90" stroke={roofColor} strokeWidth="2" opacity="0.5" />
+          </g>
+        )}
+
+        {/* Stage 6: Roof complete */}
+        {stage >= 6 && (
+          <g>
+            <polygon points="65,92 150,50 235,92" fill={roofColor} opacity="0.85" />
+            <polygon points="65,92 150,50 235,92" fill="none" stroke={isDark ? "#60A5FA" : "#1D4ED8"} strokeWidth="1" />
+            {/* Roof texture */}
+            <line x1="85" y1="85" x2="150" y2="56" stroke={isDark ? "#60A5FA" : "#1D4ED8"} strokeWidth="0.5" opacity="0.3" />
+            <line x1="215" y1="85" x2="150" y2="56" stroke={isDark ? "#60A5FA" : "#1D4ED8"} strokeWidth="0.5" opacity="0.3" />
+          </g>
+        )}
+
+        {/* Stage 7: Golden dome */}
+        {stage >= 7 && (
+          <g filter="url(#glow)">
+            <ellipse cx="150" cy="52" rx="18" ry="14" fill="url(#domeGold)" />
+            <ellipse cx="150" cy="52" rx="18" ry="14" fill="none" stroke="#FCD34D" strokeWidth="1" />
+            {/* Cross on top */}
+            <line x1="150" y1="32" x2="150" y2="42" stroke={goldColor} strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="145" y1="36" x2="155" y2="36" stroke={goldColor} strokeWidth="2.5" strokeLinecap="round" />
+          </g>
+        )}
+
+        {/* Stage 8: Radiant light */}
+        {stage >= 8 && (
+          <g>
+            <circle cx="150" cy="50" r="60" fill="url(#radiance)" opacity="0.7">
+              <animate attributeName="r" values="55;65;55" dur="3s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.5;0.8;0.5" dur="3s" repeatCount="indefinite" />
+            </circle>
+            {/* Light rays */}
+            {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(angle => {
+              const rad = (angle * Math.PI) / 180;
+              const x1 = 150 + Math.cos(rad) * 30;
+              const y1 = 50 + Math.sin(rad) * 25;
+              const x2 = 150 + Math.cos(rad) * 70;
+              const y2 = 50 + Math.sin(rad) * 55;
+              return (
+                <line key={angle} x1={x1} y1={y1} x2={x2} y2={y2}
+                  stroke={goldColor} strokeWidth="1" opacity="0.25" strokeLinecap="round">
+                  <animate attributeName="opacity" values="0.15;0.35;0.15" dur={`${2 + (angle % 3)}s`} repeatCount="indefinite" />
+                </line>
+              );
+            })}
+            {/* Sparkle dots */}
+            {[{x:120,y:35},{x:180,y:40},{x:130,y:70},{x:170,y:65},{x:100,y:55},{x:200,y:50}].map((p,i) => (
+              <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#FCD34D" opacity="0.6">
+                <animate attributeName="opacity" values="0.2;0.8;0.2" dur={`${1.5 + i * 0.3}s`} repeatCount="indefinite" />
+              </circle>
+            ))}
+          </g>
+        )}
+      </svg>
+      <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.15em", marginTop: 4 }}>
+        {stageName.toUpperCase()} TEMPLE
+      </div>
+    </div>
+  );
+}
+
+// ─── HEALTH BAR ───
+function HealthBar({ hp, th }) {
+  const pct = Math.max(0, Math.min(100, hp));
+  const color = pct > 60 ? "#22C55E" : pct > 30 ? th.gold : th.red;
+  const bgColor = pct > 60 ? "rgba(34,197,94,0.12)" : pct > 30 ? th.goldDim : th.redDim;
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em" }}>HP</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: color }}>{pct}/{HP_MAX}</span>
+      </div>
+      <div style={{
+        width: "100%", height: 10, borderRadius: 5, background: th.ghost, overflow: "hidden",
+        border: `1px solid ${pct <= 30 ? th.red + "40" : th.ghost}`,
+      }}>
+        <div style={{
+          height: "100%", borderRadius: 5, width: `${pct}%`, background: color,
+          boxShadow: `0 0 12px ${color}50`,
+          transition: "width 0.8s cubic-bezier(0.16,1,0.3,1), background 0.5s ease",
+        }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── REDEMPTION MODE OVERLAY ───
+function RedemptionMode({ state, setState, th }) {
+  const spiritTasks = [
+    { id: "redeem_bible", label: "Read a Bible Chapter", hp: 25 },
+    { id: "redeem_prayer", label: "15 Minutes of Prayer", hp: 25 },
+    { id: "redeem_worship", label: "10 Minutes of Worship", hp: 25 },
+    { id: "redeem_psalm", label: "Read a Psalm Aloud", hp: 25 },
+  ];
+
+  const completed = state.redemptionCompleted || {};
+  const totalRecovered = Object.values(completed).filter(Boolean).length * 25;
+
+  const toggleRedeem = (id, hpVal) => {
+    setState(p => {
+      const was = p.redemptionCompleted?.[id];
+      const newCompleted = { ...p.redemptionCompleted, [id]: !was };
+      const newHp = Math.min(HP_MAX, p.hp + (was ? -hpVal : hpVal));
+      const allDone = Object.values(newCompleted).filter(Boolean).length >= 4;
+      if (!was) playTick();
+      return {
+        ...p,
+        hp: newHp,
+        redemptionCompleted: newCompleted,
+        redemptionMode: allDone ? false : true,
+      };
+    });
+  };
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000,
+      background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center",
+      backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+    }}>
+      <div style={{
+        maxWidth: 400, width: "90%", padding: "32px 28px", borderRadius: 20,
+        background: th === dark ? "#111827" : "#FFFFFF",
+        border: `1px solid ${th.red}40`, boxShadow: `0 0 60px ${th.red}20`,
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>{"\u271E"}</div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: th.red, margin: "0 0 8px", letterSpacing: "-0.02em", fontFamily: FONT }}>
+            REDEMPTION MODE
+          </h2>
+          <p style={{ fontSize: 12, color: th.mid, margin: 0, fontFamily: FONT, lineHeight: 1.5 }}>
+            Your HP has fallen to 0. Complete these spirit tasks to restore your strength and return to battle.
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <HealthBar hp={state.hp} th={th} />
+        </div>
+
+        {spiritTasks.map(t => {
+          const done = completed[t.id];
+          return (
+            <div key={t.id} onClick={() => toggleRedeem(t.id, t.hp)} style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "14px 16px", borderRadius: 12, marginBottom: 8, cursor: "pointer",
+              background: done ? `${th.blue}10` : th.glass,
+              border: `1px solid ${done ? th.blue + "30" : th.glassBorder}`,
+              transition: "all 0.25s ease",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                  border: `1.5px solid ${done ? th.blue : th.dim}`,
+                  background: done ? th.blue : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {done && <span style={{ color: th.check, fontSize: 12, fontWeight: 800 }}>{"\u2713"}</span>}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 500, color: done ? th.dim : th.text, fontFamily: FONT,
+                  textDecoration: done ? "line-through" : "none" }}>{t.label}</span>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: done ? "#22C55E" : th.ghost, fontFamily: FONT }}>+{t.hp} HP</span>
+            </div>
+          );
+        })}
+
+        <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: th.dim, fontFamily: FONT }}>
+          {totalRecovered >= 100 ? "HP fully restored! Returning to battle..." : `${totalRecovered}/100 HP recovered`}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DAILY CHALLENGE CARD ───
+function DailyChallengeCard({ challenge, completed, onToggle, th }) {
+  const xp = challenge.xp;
+  return (
+    <div style={{
+      ...glassStyle(th), padding: "16px 20px", marginBottom: 12,
+      border: `1px solid ${completed ? th.gold + "40" : th.gold + "25"}`,
+      background: completed ? `${th.gold}08` : th.glass,
+      boxShadow: `0 0 24px ${th.gold}10`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+            background: th.goldDim, border: `1px solid ${th.gold}30`,
+            fontSize: 14,
+          }}>{"\u2605"}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", marginBottom: 3 }}>DAILY CHALLENGE</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: completed ? th.dim : th.text,
+              textDecoration: completed ? "line-through" : "none" }}>{challenge.label}</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: th.gold, padding: "3px 10px",
+            borderRadius: 20, background: th.goldDim }}>2x +{xp}</div>
+          <div onClick={onToggle} style={{
+            width: 24, height: 24, borderRadius: 8, cursor: "pointer",
+            border: `1.5px solid ${completed ? th.gold : th.dim}`,
+            background: completed ? th.gold : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.25s ease", boxShadow: completed ? `0 0 12px ${th.gold}40` : "none",
+          }}>
+            {completed && <span style={{ color: th.check, fontSize: 12, fontWeight: 800 }}>{"\u2713"}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WEEKLY BOSS BATTLE CARD ───
+function BossBattleCard({ boss, completed, progress, th }) {
+  return (
+    <div style={{
+      ...glassStyle(th), padding: "16px 20px", marginBottom: 12,
+      border: `1px solid ${completed ? "#22C55E40" : th.red + "25"}`,
+      background: completed ? "rgba(34,197,94,0.06)" : `${th.red}06`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+          background: completed ? "rgba(34,197,94,0.12)" : th.redDim,
+          border: `1px solid ${completed ? "#22C55E30" : th.red + "30"}`,
+          fontSize: 18,
+        }}>{completed ? "\u{1F3C6}" : "\u{1F47E}"}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: completed ? "#22C55E" : th.red, letterSpacing: "0.14em", marginBottom: 2 }}>
+            WEEKLY BOSS BATTLE
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{boss.label}</div>
+        </div>
+        <div style={{
+          fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 20,
+          color: completed ? "#22C55E" : th.red,
+          background: completed ? "rgba(34,197,94,0.12)" : th.redDim,
+        }}>+{boss.xp} XP</div>
+      </div>
+      <div style={{ fontSize: 11, color: completed ? "#22C55E" : th.dim, fontWeight: 600 }}>
+        {completed ? "\u2713 BOSS DEFEATED!" : progress || "In progress..."}
+      </div>
+    </div>
+  );
+}
+
+// ─── SHAREABLE SUMMARY CARD ───
+function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }) {
+  const challenge = getDailyChallenge(TODAY);
+  const stageNames = LEVELS.map(l => l.name);
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000,
+      background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
+      backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        maxWidth: 380, width: "90%", borderRadius: 20, overflow: "hidden",
+        background: th === dark ? "#0F172A" : "#FFFFFF",
+        border: `1px solid ${th.glassBorder}`,
+        boxShadow: "0 24px 80px rgba(0,0,0,0.3)",
+      }}>
+        {/* Card header */}
+        <div style={{
+          padding: "24px 24px 16px", textAlign: "center",
+          background: th === dark ? "linear-gradient(180deg, #1E293B 0%, #0F172A 100%)" : "linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 100%)",
+        }}>
+          <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.24em", marginBottom: 8 }}>PVA DAILY REPORT</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", fontFamily: FONT }}>{TODAY}</div>
+        </div>
+
+        {/* Stats grid */}
+        <div style={{ padding: "0 24px 24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginTop: 16 }}>
+            {[
+              { label: "COMPLETION", value: `${dayPct}%`, color: dayPct >= 80 ? "#22C55E" : dayPct >= 50 ? th.gold : th.red },
+              { label: "XP EARNED", value: `${dayXp}`, color: th.blue },
+              { label: "STREAK", value: `${state.streak} days`, color: th.red },
+              { label: "LEVEL", value: `Lv.${levelIdx + 1}`, color: th.text },
+              { label: "RANK", value: level.name, color: th.blue },
+              { label: "TEMPLE", value: stageNames[levelIdx], color: th.gold },
+              { label: "HP", value: `${state.hp}/${HP_MAX}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red },
+              { label: "MULTIPLIER", value: `x${getMult(state.streak)}`, color: th.text },
+            ].map(s => (
+              <div key={s.label} style={{
+                padding: "12px", borderRadius: 10, textAlign: "center",
+                background: th === dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                border: `1px solid ${th.ghost}`,
+              }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+                <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.12em", marginTop: 4 }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 16, textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: th.ghost, letterSpacing: "0.2em" }}>PERSON {"\u00B7"} VEHICLE {"\u00B7"} ASSIGNMENT</div>
+          </div>
+
+          <button onClick={onClose} style={{
+            display: "block", width: "100%", marginTop: 16, padding: "12px", borderRadius: 10,
+            border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.mid,
+            fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
+          }}>CLOSE</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── COMPONENTS ───
+function Bar({ value, max, color, h = 4, th }) {
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+  return (
+    <div style={{ width: "100%", height: h, borderRadius: h/2, background: th.ghost, overflow: "hidden" }}>
+      <div style={{ height: "100%", borderRadius: h/2, width: `${pct}%`, background: color,
+        boxShadow: `0 0 14px ${color}40`, transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)" }} />
+    </div>
+  );
+}
+
+function TimerButton({ taskId, state, setState, th }) {
+  const { running, toggle, reset, fmt } = useTimer(taskId, state, setState);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+      <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, color: running ? th.blue : th.dim, minWidth: 44 }}>{fmt}</span>
+      <button onClick={(e) => { e.stopPropagation(); toggle(); }} style={{
+        padding: "2px 8px", borderRadius: 6, border: `1px solid ${running ? th.red+"40" : th.blue+"30"}`,
+        background: running ? th.redDim : th.blueDim, color: running ? th.red : th.blue,
+        fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+      }}>{running ? "STOP" : "START"}</button>
+      {!running && state.timers?.[taskId] > 0 && (
+        <button onClick={(e) => { e.stopPropagation(); reset(); }} style={{
+          padding: "2px 6px", borderRadius: 6, border: `1px solid ${th.ghost}`, background: "transparent",
+          color: th.dim, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT,
+        }}>RST</button>
+      )}
+    </div>
+  );
+}
+
+// ─── EDITABLE TASK ───
+function Task({ task, done, counter, note, onToggle, onCount, onNote, onEdit, onDelete, mult, accent, th, state, setState }) {
+  const xp = Math.round(task.xp * mult);
+  const isDone = task.type === "check" ? done : (counter || 0) >= (task.target || 1);
+  const [showNotes, setShowNotes] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editLabel, setEditLabel] = useState(task.label);
+  const [showMenu, setShowMenu] = useState(false);
+
+  const saveEdit = () => {
+    if (editLabel.trim() && editLabel !== task.label) {
+      onEdit(task.id, editLabel.trim());
+    }
+    setEditing(false);
+  };
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+        background: isDone ? `${accent}08` : "transparent",
+        border: `1px solid ${isDone ? `${accent}20` : th.ghost}`,
+        transition: "all 0.25s ease",
+      }}>
+        <div onClick={() => { if (task.type === "check" && !editing) { onToggle(task.id); playTick(); }}}
+          style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+          <div style={{
+            width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+            border: `1.5px solid ${isDone ? accent : th.dim}`,
+            background: isDone ? accent : "transparent",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.25s ease", boxShadow: isDone ? `0 0 12px ${accent}30` : "none",
+          }}>
+            {isDone && <span style={{ color: th.check, fontSize: 11, fontWeight: 800 }}>{"\u2713"}</span>}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <input value={editLabel} onChange={e => setEditLabel(e.target.value)}
+                onBlur={saveEdit} onKeyDown={e => { if(e.key === "Enter") saveEdit(); if(e.key === "Escape") setEditing(false); }}
+                autoFocus onClick={e => e.stopPropagation()}
+                style={{
+                  width: "100%", fontSize: 13, fontWeight: 500, color: th.text, fontFamily: FONT,
+                  background: "transparent", border: `1px solid ${th.blue}40`, borderRadius: 6,
+                  padding: "4px 8px", outline: "none",
+                }} />
+            ) : (
+              <div style={{ fontSize: 13, fontWeight: 500, color: isDone ? th.dim : th.mid,
+                textDecoration: isDone ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>{task.label}</div>
+            )}
+            {task.type === "counter" && !editing && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <button onClick={e => { e.stopPropagation(); onCount(task.id, -10); }} style={{
+                  width: 26, height: 26, borderRadius: 6, border: `1px solid ${th.glassBorder}`,
+                  background: th.glass, color: th.mid, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                }}>{"\u2212"}</button>
+                <span style={{ fontSize: 12, fontWeight: 600, color: th.mid }}>{counter||0}<span style={{ color: th.dim }}>/{task.target}</span></span>
+                <button onClick={e => { e.stopPropagation(); onCount(task.id, 10); }} style={{
+                  width: 26, height: 26, borderRadius: 6, border: `1px solid ${accent}30`,
+                  background: `${accent}10`, color: accent, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                }}>+</button>
+              </div>
+            )}
+            {!editing && <TimerButton taskId={task.id} state={state} setState={setState} th={th} />}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+          {task.hasNotes && !editing && (
+            <button onClick={e => { e.stopPropagation(); setShowNotes(!showNotes); }} style={{
+              width: 24, height: 24, borderRadius: 6, border: `1px solid ${note ? accent+"40" : th.ghost}`,
+              background: note ? `${accent}10` : "transparent", color: note ? accent : th.dim,
+              fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            }}>{"\u270E"}</button>
+          )}
+          {!editing && (
+            <div style={{ position: "relative" }}>
+              <button onClick={e => { e.stopPropagation(); setShowMenu(!showMenu); }} style={{
+                width: 24, height: 24, borderRadius: 6, border: `1px solid ${th.ghost}`,
+                background: "transparent", color: th.dim, fontSize: 14, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT,
+              }}>{"\u22EE"}</button>
+              {showMenu && (
+                <div style={{
+                  position: "absolute", right: 0, top: 28, zIndex: 50,
+                  background: th === dark ? "#1F2937" : "#FFFFFF", borderRadius: 10,
+                  border: `1px solid ${th.glassBorder}`, boxShadow: "0 8px 30px rgba(0,0,0,0.2)",
+                  overflow: "hidden", minWidth: 120,
+                }}>
+                  <div onClick={e => { e.stopPropagation(); setShowMenu(false); setEditing(true); setEditLabel(task.label); }} style={{
+                    padding: "10px 14px", fontSize: 12, color: th.text, cursor: "pointer", fontFamily: FONT,
+                    borderBottom: `1px solid ${th.ghost}`,
+                  }}>Rename</div>
+                  <div onClick={e => { e.stopPropagation(); setShowMenu(false);
+                    if(confirm(`Delete "${task.label}"?`)) onDelete(task.id);
+                  }} style={{
+                    padding: "10px 14px", fontSize: 12, color: th.red, cursor: "pointer", fontFamily: FONT,
+                  }}>Delete</div>
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20,
+            background: isDone ? `${accent}15` : th === dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+            color: isDone ? accent : th.ghost,
+          }}>+{xp}</div>
+        </div>
+      </div>
+      {showNotes && task.hasNotes && (
+        <textarea value={note || ""} onChange={e => onNote(task.id, e.target.value)}
+          placeholder={task.notesPlaceholder || "Notes..."}
+          onClick={e => e.stopPropagation()}
+          style={{
+            width: "100%", boxSizing: "border-box", marginTop: 4, padding: "10px 14px",
+            borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass,
+            color: th.text, fontFamily: FONT, fontSize: 12, resize: "vertical", minHeight: 60,
+            outline: "none",
+          }} />
+      )}
+    </div>
+  );
+}
+
+// ─── ADD TASK BUTTON ───
+function AddTaskButton({ onAdd, th }) {
+  const [adding, setAdding] = useState(false);
+  const [label, setLabel] = useState("");
+
+  const doAdd = () => {
+    if (label.trim()) {
+      onAdd(label.trim());
+      setLabel("");
+      setAdding(false);
+    }
+  };
+
+  if (!adding) {
+    return (
+      <button onClick={() => setAdding(true)} style={{
+        width: "100%", padding: "10px", borderRadius: 10, marginTop: 4,
+        border: `1px dashed ${th.ghost}`, background: "transparent",
+        color: th.dim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT,
+        letterSpacing: "0.04em",
+      }}>+ ADD TASK</button>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+      <input value={label} onChange={e => setLabel(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") doAdd(); if (e.key === "Escape") setAdding(false); }}
+        autoFocus placeholder="Task name..."
+        style={{
+          flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${th.blue}30`,
+          background: th.glass, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none",
+        }} />
+      <button onClick={doAdd} style={{
+        padding: "8px 14px", borderRadius: 8, border: `1px solid ${th.blue}40`,
+        background: th.blueDim, color: th.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+      }}>ADD</button>
+      <button onClick={() => setAdding(false)} style={{
+        padding: "8px 10px", borderRadius: 8, border: `1px solid ${th.ghost}`,
+        background: "transparent", color: th.dim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT,
+      }}>X</button>
+    </div>
+  );
+}
+
+function Category({ catKey, cat, state, setState, mult, expanded, onExpand, th, colors, onEditTask, onDeleteTask, onAddTask }) {
+  const c = colors[catKey];
+  const all = cat.sections.flatMap(s => s.tasks);
+  const doneN = all.filter(t => t.type === "check" ? state.completed[t.id] : (state.counters[t.id]||0) >= (t.target||1)).length;
+  const pct = all.length > 0 ? Math.round((doneN / all.length) * 100) : 0;
+
+  const onToggle = useCallback(id => {
+    setState(p => {
+      const t = all.find(x => x.id === id); const was = p.completed[id];
+      const dx = t ? Math.round(t.xp * mult) : 0;
+      const newCompleted = { ...p.completed, [id]: !was };
+      const secDone = cat.sections.some(sec => sec.tasks.every(tk =>
+        tk.type === "check" ? newCompleted[tk.id] : (p.counters[tk.id]||0) >= (tk.target||1)
+      ) && sec.tasks.some(tk => tk.id === id));
+      if (secDone && !was) setTimeout(playCelebrate, 100);
+      return { ...p, completed: newCompleted, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
+    });
+  }, [mult, cat, all]);
+
+  const onCount = useCallback((id, delta) => {
+    setState(p => {
+      const t = all.find(x => x.id === id); const old = p.counters[id]||0;
+      const nv = Math.max(0, Math.min(old + delta, t?.target||100));
+      const wasDone = old >= (t?.target||1), isDone = nv >= (t?.target||1);
+      const dx = t ? Math.round(t.xp * mult) : 0;
+      let xd = 0; if (!wasDone && isDone) { xd = dx; playTick(); } if (wasDone && !isDone) xd = -dx;
+      return { ...p, counters: { ...p.counters, [id]: nv }, xp: p.xp + xd, totalXp: p.totalXp + xd };
+    });
+  }, [mult, all]);
+
+  const onNote = useCallback((id, val) => {
+    setState(p => ({ ...p, notes: { ...p.notes, [id]: val } }));
+  }, []);
+
+  return (
+    <div style={{
+      borderRadius: 16, overflow: "hidden", marginBottom: 10,
+      background: expanded ? `${c.accent}06` : th.glass,
+      border: `1px solid ${expanded ? c.border : th.glassBorder}`,
+      backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+      transition: "all 0.4s cubic-bezier(0.16,1,0.3,1)",
+      boxShadow: expanded ? `0 0 40px ${c.accent}10` : "none",
+    }}>
+      <div onClick={() => onExpand(catKey)} style={{
+        padding: "18px 20px", cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center",
+            background: c.dim, border: `1px solid ${c.border}`,
+            fontSize: 11, fontWeight: 700, color: c.accent, letterSpacing: "0.04em",
+          }}>{"P" + (Object.keys(colors).indexOf(catKey) + 1)}</div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: th.text, letterSpacing: "-0.02em" }}>{cat.label}</div>
+            <div style={{ fontSize: 11, color: th.dim, letterSpacing: "0.03em", marginTop: 2 }}>{cat.subtitle}</div>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: pct === 100 ? c.accent : th.mid, letterSpacing: "-0.04em" }}>{pct}%</div>
+          <div style={{ fontSize: 10, color: th.dim }}>{doneN}/{all.length}</div>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ padding: "0 20px 18px" }}>
+          <Bar value={doneN} max={all.length} color={c.accent} h={3} th={th} />
+          {cat.sections.map((sec, secIdx) => (
+            <div key={sec.name} style={{ marginTop: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "0 4px" }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.12em" }}>{sec.name}</span>
+                <span style={{ fontSize: 10, color: th.ghost }}>{sec.time}</span>
+              </div>
+              {sec.tasks.map(task => (
+                <Task key={task.id} task={task} done={state.completed[task.id]} counter={state.counters[task.id]}
+                  note={state.notes?.[task.id]} onToggle={onToggle} onCount={onCount} onNote={onNote}
+                  onEdit={(id, newLabel) => onEditTask(catKey, secIdx, id, newLabel)}
+                  onDelete={(id) => onDeleteTask(catKey, secIdx, id)}
+                  mult={mult} accent={c.accent} th={th} state={state} setState={setState} />
+              ))}
+              <AddTaskButton onAdd={(label) => onAddTask(catKey, secIdx, label)} th={th} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── WEEKLY VIEW ───
+function WeeklyView({ state, th, tasks, boss }) {
+  const hist = state.history || [];
+  const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const catKeys = ["person","people","process","product"];
+  const catLabels = { person: "Person", people: "People", process: "Process", product: "Product" };
+  const allTasks = Object.values(tasks).flatMap(c => c.sections.flatMap(s => s.tasks));
+  const notDone = allTasks.filter(t => t.type === "check" ? !state.completed[t.id] : (state.counters[t.id]||0) < (t.target||1));
+
+  const bossDefeated = boss.check(hist, state);
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      {/* Boss Battle */}
+      <BossBattleCard boss={boss} completed={bossDefeated || state.bossCompleted} th={th} />
+
+      {/* Heatmap */}
+      <div style={{ ...glassStyle(th), padding: "16px 20px", marginBottom: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 12 }}>7-DAY HEATMAP</div>
+        <div style={{ display: "flex", gap: 6, justifyContent: "space-between" }}>
+          {hist.map((d, i) => {
+            const pct = d?.pct || 0;
+            const opacity = Math.max(0.15, pct / 100);
+            const isToday = d?.date === TODAY;
+            return (
+              <div key={i} style={{ flex: 1, textAlign: "center" }}>
+                <div style={{
+                  height: 36, borderRadius: 8,
+                  background: pct === 100 ? th.blue : pct > 0 ? `${th.blue}` : th.ghost,
+                  opacity: pct === 100 ? 1 : opacity,
+                  border: isToday ? `2px solid ${th.blue}` : `1px solid ${th.ghost}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 700, color: pct > 50 ? "#fff" : th.mid,
+                }}>{pct > 0 ? `${pct}%` : "\u2013"}</div>
+                <div style={{ fontSize: 9, color: isToday ? th.blue : th.dim, marginTop: 4, fontWeight: isToday ? 700 : 400 }}>
+                  {days[(new Date(d?.date || TODAY).getDay() + 6) % 7]}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Category Breakdown */}
+      <div style={{ ...glassStyle(th), padding: "16px 20px", marginBottom: 10 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 12 }}>CATEGORY BREAKDOWN (TODAY)</div>
+        {catKeys.map(k => {
+          const all = tasks[k].sections.flatMap(s => s.tasks);
+          const done = all.filter(t => t.type === "check" ? state.completed[t.id] : (state.counters[t.id]||0) >= (t.target||1)).length;
+          const pct = all.length > 0 ? Math.round((done / all.length) * 100) : 0;
+          return (
+            <div key={k} style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: th.mid }}>{catLabels[k]}</span>
+                <span style={{ fontSize: 11, color: th.dim }}>{pct}%</span>
+              </div>
+              <Bar value={done} max={all.length} color={k === "product" ? th.red : th.blue} h={4} th={th} />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Missed Tasks */}
+      {notDone.length > 0 && (
+        <div style={{ ...glassStyle(th), padding: "16px 20px", borderColor: `${th.red}20` }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: th.red, letterSpacing: "0.1em", marginBottom: 10 }}>
+            {"\u26A0"} INCOMPLETE ({notDone.length})
+          </div>
+          {notDone.slice(0, 8).map(t => (
+            <div key={t.id} style={{ fontSize: 12, color: th.dim, padding: "4px 0", borderBottom: `1px solid ${th.ghost}` }}>
+              {t.label}
+            </div>
+          ))}
+          {notDone.length > 8 && <div style={{ fontSize: 11, color: th.ghost, marginTop: 6 }}>+{notDone.length - 8} more</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const glassStyle = (th) => ({
+  background: th.glass, border: `1px solid ${th.glassBorder}`,
+  borderRadius: 16, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+});
+
+// ─── MAIN ───
+// ─── HUMAN AVATAR ───
+function HumanAvatar({ pct, th }) {
+  // pct = daily completion 0-100, controls glow intensity
+  const isDark = th === dark;
+  const glowStrength = Math.max(0.05, pct / 100);
+  const baseColor = isDark ? "#E5E7EB" : "#374151";
+  const glowColor = pct >= 80 ? "#3B82F6" : pct >= 50 ? "#60A5FA" : isDark ? "#6B7280" : "#9CA3AF";
+  const auraColor = pct >= 90 ? "#F59E0B" : pct >= 60 ? "#3B82F6" : "transparent";
+  const auraOpacity = pct >= 60 ? glowStrength * 0.5 : 0;
+
+  return (
+    <svg viewBox="0 0 60 80" width="52" height="70">
+      <defs>
+        <radialGradient id="avatarGlow" cx="50%" cy="40%" r="50%">
+          <stop offset="0%" stopColor={glowColor} stopOpacity={glowStrength * 0.7} />
+          <stop offset="70%" stopColor={glowColor} stopOpacity={glowStrength * 0.2} />
+          <stop offset="100%" stopColor={glowColor} stopOpacity="0" />
+        </radialGradient>
+        <filter id="avatarBlur">
+          <feGaussianBlur stdDeviation={2 + glowStrength * 4} result="blur" />
+          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      {/* Aura / outer glow — appears at 60%+ */}
+      {pct >= 60 && (
+        <ellipse cx="30" cy="40" rx={24 + glowStrength * 6} ry={34 + glowStrength * 6}
+          fill="none" stroke={auraColor} strokeWidth="1.5" opacity={auraOpacity}>
+          <animate attributeName="rx" values={`${24 + glowStrength*4};${28 + glowStrength*6};${24 + glowStrength*4}`}
+            dur="3s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values={`${auraOpacity*0.6};${auraOpacity};${auraOpacity*0.6}`}
+            dur="3s" repeatCount="indefinite" />
+        </ellipse>
+      )}
+      {/* Inner glow field */}
+      <ellipse cx="30" cy="40" rx="20" ry="30" fill="url(#avatarGlow)">
+        {pct >= 40 && (
+          <animate attributeName="rx" values="18;22;18" dur="4s" repeatCount="indefinite" />
+        )}
+      </ellipse>
+      {/* Head */}
+      <circle cx="30" cy="20" r="8" fill={baseColor} opacity={0.6 + glowStrength * 0.4}
+        filter={pct >= 50 ? "url(#avatarBlur)" : undefined} />
+      {/* Body */}
+      <line x1="30" y1="28" x2="30" y2="50" stroke={baseColor} strokeWidth="2.5"
+        strokeLinecap="round" opacity={0.6 + glowStrength * 0.4} />
+      {/* Arms */}
+      <line x1="30" y1="34" x2="18" y2="44" stroke={baseColor} strokeWidth="2"
+        strokeLinecap="round" opacity={0.5 + glowStrength * 0.4} />
+      <line x1="30" y1="34" x2="42" y2="44" stroke={baseColor} strokeWidth="2"
+        strokeLinecap="round" opacity={0.5 + glowStrength * 0.4} />
+      {/* Legs */}
+      <line x1="30" y1="50" x2="20" y2="66" stroke={baseColor} strokeWidth="2"
+        strokeLinecap="round" opacity={0.5 + glowStrength * 0.4} />
+      <line x1="30" y1="50" x2="40" y2="66" stroke={baseColor} strokeWidth="2"
+        strokeLinecap="round" opacity={0.5 + glowStrength * 0.4} />
+      {/* Completion sparkles at 80%+ */}
+      {pct >= 80 && (
+        <g>
+          {[{x:14,y:16},{x:46,y:18},{x:12,y:50},{x:48,y:48},{x:20,y:68},{x:40,y:70}].map((p,i) => (
+            <circle key={i} cx={p.x} cy={p.y} r="1.2" fill={pct >= 90 ? "#FCD34D" : "#60A5FA"} opacity="0.5">
+              <animate attributeName="opacity" values="0.2;0.7;0.2" dur={`${1.5 + i * 0.3}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+        </g>
+      )}
+    </svg>
+  );
+}
+
+// ─── SCRIPTURE SECTION ───
+function ScriptureHeader({ level, levelIdx, dayPct, th }) {
+  return (
+    <div style={{ padding: "40px 20px 20px" }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 16,
+        padding: "24px 28px", borderRadius: 16,
+        background: th.glass, border: `1px solid ${th.glassBorder}`,
+        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+      }}>
+        {/* Scripture text — left / center */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.2em", marginBottom: 10 }}>SCRIPTURE OF THE DAY</div>
+          <div style={{
+            fontSize: 15, fontStyle: "italic", color: th.mid, lineHeight: 1.7,
+            fontFamily: "'Georgia', 'Times New Roman', serif",
+          }}>
+            {"\u201C"}Your scripture here{"\u201D"}
+          </div>
+          <div style={{ fontSize: 10, color: th.ghost, marginTop: 10, letterSpacing: "0.06em" }}>
+            {"\u2014"} Book Chapter:Verse
+          </div>
+        </div>
+        {/* Avatar — right */}
+        <div style={{ flexShrink: 0, textAlign: "center" }}>
+          <HumanAvatar pct={dayPct} th={th} />
+          <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginTop: 4, letterSpacing: "-0.01em" }}>{level.name}</div>
+          <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.08em" }}>LV.{levelIdx + 1}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── P TILE CARD ───
+function PTile({ catKey, cat, index, pct, th, colors, onClick }) {
+  const c = colors[catKey];
+  const tileGradients = {
+    person: `linear-gradient(135deg, ${c.accent}18 0%, ${c.accent}06 100%)`,
+    people: `linear-gradient(135deg, ${c.accent}18 0%, ${c.accent}06 100%)`,
+    process: `linear-gradient(135deg, ${c.accent}12 0%, ${c.accent}04 100%)`,
+    product: `linear-gradient(135deg, ${c.accent}18 0%, ${c.accent}06 100%)`,
+  };
+
+  return (
+    <div onClick={onClick} style={{
+      flex: "0 0 280px", height: 400, borderRadius: 24, cursor: "pointer",
+      position: "relative", overflow: "hidden",
+      background: tileGradients[catKey],
+      border: `1px solid ${c.border}`,
+      backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+      scrollSnapAlign: "center",
+      transition: "transform 0.3s ease, box-shadow 0.3s ease",
+      boxShadow: `0 8px 40px ${c.accent}10`,
+      display: "flex", flexDirection: "column", justifyContent: "space-between",
+      padding: "28px 24px",
+    }}>
+      {/* Giant background number */}
+      <div style={{
+        position: "absolute", top: -20, right: -10,
+        fontSize: 200, fontWeight: 900, color: c.accent,
+        opacity: th === dark ? 0.06 : 0.07,
+        lineHeight: 1, letterSpacing: "-0.06em",
+        pointerEvents: "none", userSelect: "none",
+      }}>{index + 1}</div>
+
+      {/* Top: Category number pill */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+      }}>
+        <div style={{
+          padding: "6px 14px", borderRadius: 20,
+          background: `${c.accent}15`, border: `1px solid ${c.accent}25`,
+          fontSize: 10, fontWeight: 700, color: c.accent, letterSpacing: "0.1em",
+        }}>P{index + 1}</div>
+      </div>
+
+      {/* Bottom: Label, subtitle, progress */}
+      <div>
+        <div style={{
+          fontSize: 28, fontWeight: 800, color: th.text,
+          letterSpacing: "-0.04em", marginBottom: 6, lineHeight: 1.1,
+        }}>{cat.label}</div>
+        <div style={{
+          fontSize: 12, color: th.dim, letterSpacing: "0.04em", marginBottom: 20,
+        }}>{cat.subtitle}</div>
+
+        {/* Progress bar */}
+        <div style={{
+          width: "100%", height: 6, borderRadius: 3,
+          background: th.ghost, overflow: "hidden", marginBottom: 10,
+        }}>
+          <div style={{
+            height: "100%", borderRadius: 3, width: `${pct}%`,
+            background: c.accent, boxShadow: `0 0 12px ${c.accent}40`,
+            transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)",
+          }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 32, fontWeight: 800, color: pct === 100 ? c.accent : th.mid, letterSpacing: "-0.04em" }}>
+            {pct}%
+          </span>
+          <span style={{ fontSize: 11, color: th.dim, fontWeight: 600 }}>
+            {pct === 100 ? "\u2713 DONE" : "TAP TO OPEN"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TASK VIEW (inside a category) ───
+function TaskView({ catKey, cat, state, setState, mult, th, colors, onBack, onEditTask, onDeleteTask, onAddTask, dailyChallenge, challengeCompleted, toggleChallenge }) {
+  const c = colors[catKey];
+  const all = cat.sections.flatMap(s => s.tasks);
+  const doneN = all.filter(t => t.type === "check" ? state.completed[t.id] : (state.counters[t.id]||0) >= (t.target||1)).length;
+  const pct = all.length > 0 ? Math.round((doneN / all.length) * 100) : 0;
+  const catIndex = ["person","people","process","product"].indexOf(catKey);
+
+  const onToggle = useCallback(id => {
+    setState(p => {
+      const t = all.find(x => x.id === id); const was = p.completed[id];
+      const dx = t ? Math.round(t.xp * mult) : 0;
+      const newCompleted = { ...p.completed, [id]: !was };
+      const secDone = cat.sections.some(sec => sec.tasks.every(tk =>
+        tk.type === "check" ? newCompleted[tk.id] : (p.counters[tk.id]||0) >= (tk.target||1)
+      ) && sec.tasks.some(tk => tk.id === id));
+      if (secDone && !was) setTimeout(playCelebrate, 100);
+      return { ...p, completed: newCompleted, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
+    });
+  }, [mult, cat, all]);
+
+  const onCount = useCallback((id, delta) => {
+    setState(p => {
+      const t = all.find(x => x.id === id); const old = p.counters[id]||0;
+      const nv = Math.max(0, Math.min(old + delta, t?.target||100));
+      const wasDone = old >= (t?.target||1), isDone = nv >= (t?.target||1);
+      const dx = t ? Math.round(t.xp * mult) : 0;
+      let xd = 0; if (!wasDone && isDone) { xd = dx; playTick(); } if (wasDone && !isDone) xd = -dx;
+      return { ...p, counters: { ...p.counters, [id]: nv }, xp: p.xp + xd, totalXp: p.totalXp + xd };
+    });
+  }, [mult, all]);
+
+  const onNote = useCallback((id, val) => {
+    setState(p => ({ ...p, notes: { ...p.notes, [id]: val } }));
+  }, []);
+
+  return (
+    <div style={{ padding: "0 20px 40px" }}>
+      {/* Back button + header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "24px 0 16px" }}>
+        <button onClick={onBack} style={{
+          width: 40, height: 40, borderRadius: 12, cursor: "pointer",
+          border: `1px solid ${th.glassBorder}`, background: th.glass,
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: FONT,
+        }}>{"\u2190"}</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: c.accent, letterSpacing: "0.1em",
+              padding: "3px 10px", borderRadius: 12, background: `${c.accent}15`,
+            }}>P{catIndex + 1}</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>{cat.label}</span>
+          </div>
+          <div style={{ fontSize: 11, color: th.dim, marginTop: 2 }}>{cat.subtitle}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: pct === 100 ? c.accent : th.mid }}>{pct}%</div>
+          <div style={{ fontSize: 10, color: th.dim }}>{doneN}/{all.length}</div>
+        </div>
+      </div>
+
+      {/* Health bar */}
+      <div style={{ ...glassStyle(th), padding: "12px 18px", marginBottom: 12 }}>
+        <HealthBar hp={state.hp} th={th} />
+      </div>
+
+      {/* Daily challenge */}
+      <DailyChallengeCard challenge={dailyChallenge} completed={challengeCompleted} onToggle={toggleChallenge} th={th} />
+
+      {/* Progress bar */}
+      <div style={{ ...glassStyle(th), padding: "14px 18px", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.08em" }}>PROGRESS</span>
+          <span style={{ fontSize: 10, color: th.dim }}>{doneN}/{all.length}</span>
+        </div>
+        <Bar value={doneN} max={all.length} color={pct === 100 ? th.red : c.accent} h={5} th={th} />
+        {pct === 100 && (
+          <div style={{ marginTop: 10, padding: "8px 0", borderRadius: 8, textAlign: "center",
+            background: th.redDim, border: `1px solid ${th.red}20` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: th.red, letterSpacing: "0.06em" }}>
+              {"\u2726"} SECTION COMPLETE {"\u2726"}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Sections and tasks */}
+      {cat.sections.map((sec, secIdx) => (
+        <div key={sec.name} style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "0 4px" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.12em" }}>{sec.name}</span>
+            <span style={{ fontSize: 10, color: th.ghost }}>{sec.time}</span>
+          </div>
+          {sec.tasks.map(task => (
+            <Task key={task.id} task={task} done={state.completed[task.id]} counter={state.counters[task.id]}
+              note={state.notes?.[task.id]} onToggle={onToggle} onCount={onCount} onNote={onNote}
+              onEdit={(id, newLabel) => onEditTask(catKey, secIdx, id, newLabel)}
+              onDelete={(id) => onDeleteTask(catKey, secIdx, id)}
+              mult={mult} accent={c.accent} th={th} state={state} setState={setState} />
+          ))}
+          <AddTaskButton onAdd={(label) => onAddTask(catKey, secIdx, label)} th={th} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── PVA AT A GLANCE (Network Visualization) ───
+function PVAGlanceView({ state, dayPct, th, onBack }) {
+  const isDark = th === dark;
+  const nodes = [
+    { id: "person", label: "Person", x: 150, y: 60, color: th.blue },
+    { id: "vehicle", label: "Vehicle", x: 60, y: 200, color: th.gold },
+    { id: "assignment", label: "Assignment", x: 240, y: 200, color: th.red },
+  ];
+  // Sub-nodes radiating from each main node
+  const subNodes = {
+    person: [
+      { label: "Spirit", x: 80, y: 20 }, { label: "Soul", x: 220, y: 20 },
+      { label: "Body", x: 150, y: 10 },
+    ],
+    vehicle: [
+      { label: "Family", x: 15, y: 160 }, { label: "Community", x: 15, y: 240 },
+      { label: "Church", x: 60, y: 270 },
+    ],
+    assignment: [
+      { label: "Work", x: 285, y: 160 }, { label: "PhD", x: 285, y: 240 },
+      { label: "Ministry", x: 240, y: 270 },
+    ],
+  };
+  const glow = Math.max(0.15, dayPct / 100);
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+        <button onClick={onBack} style={{
+          width: 40, height: 40, borderRadius: 12, cursor: "pointer",
+          border: `1px solid ${th.glassBorder}`, background: th.glass,
+          color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: FONT, backdropFilter: "blur(20px)",
+        }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>PVA at a Glance</div>
+          <div style={{ fontSize: 10, color: th.dim }}>Person {"\u00B7"} Vehicle {"\u00B7"} Assignment</div>
+        </div>
+      </div>
+
+      <div style={{ ...glassStyle(th), padding: "24px 16px", marginBottom: 20 }}>
+        <svg viewBox="0 0 300 290" width="100%" style={{ display: "block", margin: "0 auto", maxWidth: 400 }}>
+          <defs>
+            <filter id="nodeGlow">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+          {/* Connection lines between main nodes */}
+          {[[0,1],[1,2],[0,2]].map(([a,b], i) => (
+            <line key={i} x1={nodes[a].x} y1={nodes[a].y} x2={nodes[b].x} y2={nodes[b].y}
+              stroke={th.dim} strokeWidth="1" opacity={0.2 + glow * 0.3} strokeDasharray="4,4">
+              <animate attributeName="opacity" values={`${0.15 + glow*0.2};${0.3 + glow*0.4};${0.15 + glow*0.2}`}
+                dur="3s" repeatCount="indefinite" />
+            </line>
+          ))}
+          {/* Sub-node connections and labels */}
+          {nodes.map(node => (
+            subNodes[node.id].map((sub, i) => (
+              <g key={`${node.id}-${i}`}>
+                <line x1={node.x} y1={node.y} x2={sub.x} y2={sub.y}
+                  stroke={node.color} strokeWidth="0.8" opacity={0.15 + glow * 0.2} />
+                <circle cx={sub.x} cy={sub.y} r="4" fill={node.color} opacity={0.3 + glow * 0.4} />
+                <text x={sub.x} y={sub.y - 8} textAnchor="middle" fill={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)"}
+                  fontSize="7" fontFamily="system-ui">{sub.label}</text>
+              </g>
+            ))
+          ))}
+          {/* Main nodes */}
+          {nodes.map(node => (
+            <g key={node.id}>
+              <circle cx={node.x} cy={node.y} r={20 + glow * 6} fill={node.color} opacity={0.08 + glow * 0.12}>
+                <animate attributeName="r" values={`${18 + glow*4};${22 + glow*8};${18 + glow*4}`}
+                  dur="4s" repeatCount="indefinite" />
+              </circle>
+              <circle cx={node.x} cy={node.y} r="14" fill={node.color} opacity={0.6 + glow * 0.4}
+                filter="url(#nodeGlow)" />
+              <text x={node.x} y={node.y + 4} textAnchor="middle" fill={isDark ? "#fff" : "#fff"}
+                fontSize="8" fontWeight="700" fontFamily="system-ui">{node.label[0]}</text>
+              <text x={node.x} y={node.y + 34} textAnchor="middle" fill={th.mid}
+                fontSize="9" fontWeight="600" fontFamily="system-ui">{node.label}</text>
+            </g>
+          ))}
+          {/* Center triangle pulse */}
+          <polygon points="150,60 60,200 240,200" fill="none" stroke={th.blue}
+            strokeWidth="0.5" opacity={0.1 + glow * 0.15}>
+            <animate attributeName="opacity" values={`${0.05 + glow*0.1};${0.2 + glow*0.2};${0.05 + glow*0.1}`}
+              dur="5s" repeatCount="indefinite" />
+          </polygon>
+        </svg>
+      </div>
+
+      {/* Summary stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        {[
+          { label: "COMPLETION", value: `${dayPct}%`, color: dayPct >= 80 ? "#22C55E" : dayPct >= 50 ? th.gold : th.red },
+          { label: "STREAK", value: `${state.streak}d`, color: th.red },
+          { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red },
+        ].map(s => (
+          <div key={s.label} style={{ ...glassStyle(th), padding: "14px 0", textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.12em", marginTop: 3 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── NETWORK OF INTERCESSION ───
+const DEFAULT_PRAYER_PEOPLE = [
+  { id: "p1", name: "Family", prayed: false },
+  { id: "p2", name: "Church leaders", prayed: false },
+  { id: "p3", name: "Friends", prayed: false },
+  { id: "p4", name: "Colleagues", prayed: false },
+  { id: "p5", name: "Nations", prayed: false },
+];
+
+function IntercessionView({ state, setState, th, onBack }) {
+  const isDark = th === dark;
+  const people = state.prayerPeople || DEFAULT_PRAYER_PEOPLE;
+  const prayedCount = people.filter(p => p.prayed).length;
+
+  const togglePrayed = (id) => {
+    setState(p => {
+      const pp = (p.prayerPeople || DEFAULT_PRAYER_PEOPLE).map(person =>
+        person.id === id ? { ...person, prayed: !person.prayed } : person
+      );
+      return { ...p, prayerPeople: pp };
+    });
+  };
+
+  const addPerson = (name) => {
+    setState(p => {
+      const pp = [...(p.prayerPeople || DEFAULT_PRAYER_PEOPLE)];
+      pp.push({ id: `pray_${Date.now()}`, name, prayed: false });
+      return { ...p, prayerPeople: pp };
+    });
+  };
+
+  const removePerson = (id) => {
+    setState(p => {
+      const pp = (p.prayerPeople || DEFAULT_PRAYER_PEOPLE).filter(person => person.id !== id);
+      return { ...p, prayerPeople: pp };
+    });
+  };
+
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  // Network visualization: place people in a circle
+  const centerX = 150, centerY = 120, radius = 80;
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+        <button onClick={onBack} style={{
+          width: 40, height: 40, borderRadius: 12, cursor: "pointer",
+          border: `1px solid ${th.glassBorder}`, background: th.glass,
+          color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: FONT, backdropFilter: "blur(20px)",
+        }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>Network of Intercession</div>
+          <div style={{ fontSize: 10, color: th.dim }}>{prayedCount}/{people.length} prayed for today</div>
+        </div>
+      </div>
+
+      {/* Network visualization */}
+      <div style={{ ...glassStyle(th), padding: "20px 16px", marginBottom: 16 }}>
+        <svg viewBox="0 0 300 240" width="100%" style={{ display: "block", margin: "0 auto", maxWidth: 400 }}>
+          <defs>
+            <radialGradient id="prayerGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor={th.gold} stopOpacity="0.4" />
+              <stop offset="100%" stopColor={th.gold} stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          {/* Center cross */}
+          <line x1={centerX} y1={centerY - 16} x2={centerX} y2={centerY + 16} stroke={th.gold} strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
+          <line x1={centerX - 10} y1={centerY - 6} x2={centerX + 10} y2={centerY - 6} stroke={th.gold} strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
+          {/* Connection lines to each person */}
+          {people.map((p, i) => {
+            const angle = (i / people.length) * Math.PI * 2 - Math.PI / 2;
+            const px = centerX + Math.cos(angle) * radius;
+            const py = centerY + Math.sin(angle) * radius;
+            return (
+              <line key={`line-${p.id}`} x1={centerX} y1={centerY} x2={px} y2={py}
+                stroke={p.prayed ? th.gold : th.dim} strokeWidth={p.prayed ? 1.5 : 0.8}
+                opacity={p.prayed ? 0.6 : 0.2} strokeDasharray={p.prayed ? "none" : "3,3"}>
+                {p.prayed && <animate attributeName="opacity" values="0.4;0.7;0.4" dur="3s" repeatCount="indefinite" />}
+              </line>
+            );
+          })}
+          {/* Person nodes */}
+          {people.map((p, i) => {
+            const angle = (i / people.length) * Math.PI * 2 - Math.PI / 2;
+            const px = centerX + Math.cos(angle) * radius;
+            const py = centerY + Math.sin(angle) * radius;
+            return (
+              <g key={p.id}>
+                {p.prayed && (
+                  <circle cx={px} cy={py} r="18" fill="url(#prayerGlow)">
+                    <animate attributeName="r" values="15;20;15" dur="3s" repeatCount="indefinite" />
+                  </circle>
+                )}
+                <circle cx={px} cy={py} r="10" fill={p.prayed ? th.gold : isDark ? "#374151" : "#D1D5DB"}
+                  opacity={p.prayed ? 0.9 : 0.5} />
+                {/* Simple human icon inside */}
+                <circle cx={px} cy={py - 3} r="2.5" fill={p.prayed ? (isDark ? "#050508" : "#fff") : th.dim} />
+                <line x1={px} y1={py} x2={px} y2={py + 4} stroke={p.prayed ? (isDark ? "#050508" : "#fff") : th.dim}
+                  strokeWidth="1.5" strokeLinecap="round" />
+                <text x={px} y={py + 24} textAnchor="middle" fill={p.prayed ? th.gold : th.dim}
+                  fontSize="7" fontWeight="600" fontFamily="system-ui">{p.name}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Prayer list */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.12em", marginBottom: 10 }}>PRAYER LIST</div>
+      {people.map(p => (
+        <div key={p.id} style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 14px", borderRadius: 12, marginBottom: 6,
+          background: p.prayed ? `${th.gold}08` : th.glass,
+          border: `1px solid ${p.prayed ? th.gold + "25" : th.glassBorder}`,
+          cursor: "pointer", transition: "all 0.25s ease",
+        }}>
+          <div onClick={() => { togglePrayed(p.id); if (!p.prayed) playTick(); }}
+            style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+            <div style={{
+              width: 22, height: 22, borderRadius: 7, flexShrink: 0,
+              border: `1.5px solid ${p.prayed ? th.gold : th.dim}`,
+              background: p.prayed ? th.gold : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.25s ease", boxShadow: p.prayed ? `0 0 10px ${th.gold}30` : "none",
+            }}>
+              {p.prayed && <span style={{ color: th.check, fontSize: 12, fontWeight: 800 }}>{"\u2713"}</span>}
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 500, color: p.prayed ? th.dim : th.text,
+              textDecoration: p.prayed ? "line-through" : "none" }}>{p.name}</span>
+          </div>
+          <button onClick={() => { if (confirm(`Remove "${p.name}" from prayer list?`)) removePerson(p.id); }} style={{
+            background: "none", border: "none", color: th.dim, cursor: "pointer",
+            fontSize: 14, padding: "2px 6px", fontFamily: FONT,
+          }}>{"\u00D7"}</button>
+        </div>
+      ))}
+
+      {/* Add person */}
+      {adding ? (
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          <input value={newName} onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && newName.trim()) { addPerson(newName.trim()); setNewName(""); setAdding(false); }
+              if (e.key === "Escape") setAdding(false); }}
+            autoFocus placeholder="Name or group..."
+            style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${th.gold}30`,
+              background: th.glass, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none" }} />
+          <button onClick={() => { if (newName.trim()) { addPerson(newName.trim()); setNewName(""); setAdding(false); }}} style={{
+            padding: "8px 14px", borderRadius: 8, border: `1px solid ${th.gold}40`,
+            background: th.goldDim, color: th.gold, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+          }}>ADD</button>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={{
+          width: "100%", padding: "10px", borderRadius: 10, marginTop: 8,
+          border: `1px dashed ${th.gold}30`, background: "transparent",
+          color: th.gold, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT,
+        }}>+ ADD TO PRAYER LIST</button>
+      )}
+    </div>
+  );
+}
+
+// ─── USER PROFILE ───
+const PROFILE_KEY = "pva_profile";
+function loadProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || "null"); } catch { return null; }
+}
+function saveProfile(p) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+}
+
+// ─── ONBOARDING SCREEN ───
+function OnboardingScreen({ onComplete }) {
+  const [name, setName] = useState("");
+  const [step, setStep] = useState(0);
+  const th = getAutoTheme() === "dark" ? dark : light;
+
+  const doComplete = () => {
+    if (name.trim()) {
+      const profile = { name: name.trim(), createdAt: TODAY };
+      saveProfile(profile);
+      onComplete(profile);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh", fontFamily: FONT, color: th.text, background: th.grad,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');`}</style>
+      <div style={{ maxWidth: 420, width: "90%", textAlign: "center", padding: "40px 0" }}>
+        {step === 0 && (
+          <>
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 8 }}>PVA</h1>
+            <p style={{ fontSize: 12, color: th.dim, letterSpacing: "0.12em", marginBottom: 40 }}>
+              PERSON {"\u00B7"} VEHICLE {"\u00B7"} ASSIGNMENT
+            </p>
+            <div style={{
+              padding: "24px 28px", borderRadius: 16, marginBottom: 24,
+              background: "rgba(255,255,255,0.12)", border: `1px solid rgba(255,255,255,0.25)`,
+              backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.3)",
+              textAlign: "left",
+            }}>
+              <p style={{ fontSize: 13, color: th.mid, lineHeight: 1.7, marginBottom: 16 }}>
+                A daily discipline system that uses 4P prioritisation.
+              </p>
+              <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
+                <span style={{ color: "#000", fontWeight: 700 }}>PERSON</span> {"\u2014"} this is you.
+              </div>
+              <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
+                <span style={{ color: "#000", fontWeight: 700 }}>PEOPLE</span> {"\u2014"} this is your family and community.
+              </div>
+              <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
+                <span style={{ color: "#000", fontWeight: 700 }}>PROCESS</span> {"\u2014"} this is the system and workflow.
+              </div>
+              <div style={{ fontSize: 12, color: th.text, marginBottom: 0 }}>
+                <span style={{ color: "#000", fontWeight: 700 }}>PRODUCT</span> {"\u2014"} this is the output and creation.
+              </div>
+            </div>
+            <button onClick={() => setStep(1)} style={{
+              width: "100%", padding: "14px", borderRadius: 12,
+              border: `1px solid ${th.blue}40`, background: th.blueDim,
+              color: th.blue, fontSize: 13, fontWeight: 700, cursor: "pointer",
+              fontFamily: FONT, letterSpacing: "0.04em",
+            }}>GET STARTED</button>
+          </>
+        )}
+
+        {step === 1 && (
+          <>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>What{"\u2019"}s your name?</h2>
+            <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>This will personalise your PVA model</p>
+            <input value={name} onChange={e => setName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") doComplete(); }}
+              autoFocus placeholder="Your first name..."
+              style={{
+                width: "100%", padding: "14px 18px", borderRadius: 12, marginBottom: 16,
+                border: `1px solid ${th.blue}30`, background: th.glass,
+                color: th.text, fontSize: 16, fontWeight: 600, fontFamily: FONT,
+                outline: "none", textAlign: "center",
+                backdropFilter: "blur(20px)",
+              }} />
+            <button onClick={doComplete} disabled={!name.trim()} style={{
+              width: "100%", padding: "14px", borderRadius: 12,
+              border: `1px solid ${name.trim() ? th.blue + "40" : th.ghost}`,
+              background: name.trim() ? th.blueDim : th.glass,
+              color: name.trim() ? th.blue : th.ghost,
+              fontSize: 13, fontWeight: 700, cursor: name.trim() ? "pointer" : "default",
+              fontFamily: FONT, letterSpacing: "0.04em",
+              transition: "all 0.25s ease",
+            }}>ENTER YOUR PVA MODEL</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── SETTINGS VIEW ───
+function SettingsView({ profile, onSave, onBack, th }) {
+  const [name, setName] = useState(profile.name);
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+        <button onClick={onBack} style={{
+          width: 40, height: 40, borderRadius: 12, cursor: "pointer",
+          border: `1px solid ${th.glassBorder}`, background: th.glass,
+          color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: FONT, backdropFilter: "blur(20px)",
+        }}>{"\u2190"}</button>
+        <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>Settings</div>
+      </div>
+
+      <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 10 }}>YOUR NAME</div>
+        <input value={name} onChange={e => setName(e.target.value)}
+          style={{
+            width: "100%", padding: "12px 14px", borderRadius: 10,
+            border: `1px solid ${th.blue}30`, background: th.glass,
+            color: th.text, fontSize: 14, fontWeight: 600, fontFamily: FONT, outline: "none",
+          }} />
+        <button onClick={() => { if (name.trim()) { onSave({ ...profile, name: name.trim() }); onBack(); }}} style={{
+          width: "100%", padding: "12px", borderRadius: 10, marginTop: 12,
+          border: `1px solid ${th.blue}40`, background: th.blueDim,
+          color: th.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+        }}>SAVE</button>
+      </div>
+
+      <div style={{ ...glassStyle(th), padding: "20px" }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 10 }}>ABOUT</div>
+        <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6 }}>
+          PVA {"\u2014"} Person, Vehicle, Assignment
+        </div>
+        <div style={{ fontSize: 11, color: th.dim, marginTop: 6 }}>
+          A gamified daily discipline tracker.
+        </div>
+        <div style={{ fontSize: 10, color: th.ghost, marginTop: 10 }}>
+          Member since {profile.createdAt || "today"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN APP ───
+function PPPPApp() {
+  const [profile, setProfile] = useState(loadProfile);
+  const [themeMode, setThemeMode] = useState(getAutoTheme);
+  const [autoTheme, setAutoTheme] = useState(true);
+  const [state, setState] = useState(loadState);
+  const [view, setView] = useState("home"); // "home" | "category" | "weekly" | "pva_glance" | "intercession" | "settings"
+  const [activeCat, setActiveCat] = useState(null);
+  const [celebrate, setCelebrate] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+
+  // If no profile, show onboarding
+  if (!profile) {
+    return <OnboardingScreen onComplete={(p) => setProfile(p)} />;
+  }
+
+  const userName = profile.name;
+  const scrollRef = useRef(null);
+
+  const th = themeMode === "dark" ? dark : light;
+  const isDark = themeMode === "dark";
+  const colors = catColors(th);
+
+  // Task management
+  const tasks = useMemo(() => {
+    return state.customTasks || DEFAULT_TASKS;
+  }, [state.customTasks]);
+
+  const getEditableTasks = () => {
+    return state.customTasks ? JSON.parse(JSON.stringify(state.customTasks)) : JSON.parse(JSON.stringify(DEFAULT_TASKS));
+  };
+
+  const onEditTask = useCallback((catKey, secIdx, taskId, newLabel) => {
+    setState(p => {
+      const t = p.customTasks ? JSON.parse(JSON.stringify(p.customTasks)) : JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      const sec = t[catKey]?.sections?.[secIdx];
+      if (sec) { const task = sec.tasks.find(tk => tk.id === taskId); if (task) task.label = newLabel; }
+      return { ...p, customTasks: t };
+    });
+  }, []);
+
+  const onDeleteTask = useCallback((catKey, secIdx, taskId) => {
+    setState(p => {
+      const t = p.customTasks ? JSON.parse(JSON.stringify(p.customTasks)) : JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      const sec = t[catKey]?.sections?.[secIdx];
+      if (sec) sec.tasks = sec.tasks.filter(tk => tk.id !== taskId);
+      const nc = { ...p.completed }; delete nc[taskId];
+      return { ...p, customTasks: t, completed: nc };
+    });
+  }, []);
+
+  const onAddTask = useCallback((catKey, secIdx, label) => {
+    setState(p => {
+      const t = p.customTasks ? JSON.parse(JSON.stringify(p.customTasks)) : JSON.parse(JSON.stringify(DEFAULT_TASKS));
+      const sec = t[catKey]?.sections?.[secIdx];
+      if (sec) {
+        const id = `custom_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+        sec.tasks.push({ id, label, xp: 15, type: "check", hasNotes: true, notesPlaceholder: "Notes..." });
+      }
+      return { ...p, customTasks: t };
+    });
+  }, []);
+
+  useEffect(() => { saveState(state); }, [state]);
+  useEffect(() => {
+    if (autoTheme) {
+      const id = setInterval(() => setThemeMode(getAutoTheme()), 60000);
+      setThemeMode(getAutoTheme());
+      return () => clearInterval(id);
+    }
+  }, [autoTheme]);
+
+  const mult = getMult(state.streak);
+  const { cur: level, nxt: nextLevel, idx: levelIdx } = getLevel(state.totalXp);
+
+  const all = Object.values(tasks).flatMap(c => c.sections.flatMap(s => s.tasks));
+  const doneN = all.filter(t => t.type === "check" ? state.completed[t.id] : (state.counters[t.id]||0) >= (t.target||1)).length;
+  const dayPct = all.length > 0 ? Math.round((doneN / all.length) * 100) : 0;
+  const dayXp = all.reduce((s, t) => {
+    const d = t.type === "check" ? state.completed[t.id] : (state.counters[t.id]||0) >= (t.target||1);
+    return s + (d ? Math.round(t.xp * mult) : 0);
+  }, 0);
+
+  // Per-category completion
+  const getCatPct = (catKey) => {
+    const a = tasks[catKey].sections.flatMap(s => s.tasks);
+    const d = a.filter(t => t.type === "check" ? state.completed[t.id] : (state.counters[t.id]||0) >= (t.target||1)).length;
+    return a.length > 0 ? Math.round((d / a.length) * 100) : 0;
+  };
+
+  // Daily Challenge
+  const dailyChallenge = getDailyChallenge(TODAY);
+  const toggleChallenge = () => {
+    setState(p => {
+      const was = p.challengeCompleted; const dx = dailyChallenge.xp;
+      if (!was) playTick();
+      return { ...p, challengeCompleted: !was, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
+    });
+  };
+
+  const toggleHomeTask = useCallback((id) => {
+    const allT = Object.values(tasks).flatMap(c => c.sections.flatMap(s => s.tasks));
+    setState(p => {
+      const t = allT.find(x => x.id === id); const was = p.completed[id];
+      const dx = t ? Math.round(t.xp * mult) : 0;
+      if (!was) playTick();
+      return { ...p, completed: { ...p.completed, [id]: !was }, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
+    });
+  }, [tasks, mult]);
+
+  // Weekly Boss
+  const boss = getWeeklyBoss(TODAY);
+
+  // HP system
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour >= 23 && dayPct < 100 && !state._hpDrained) {
+      const missedXp = all.reduce((s, t) => {
+        const d = t.type === "check" ? state.completed[t.id] : (state.counters[t.id]||0) >= (t.target||1);
+        return s + (d ? 0 : t.xp);
+      }, 0);
+      const totalXpPool = all.reduce((s,t) => s + t.xp, 0);
+      const hpLoss = totalXpPool > 0 ? Math.round((missedXp / totalXpPool) * 30) : 0;
+      if (hpLoss > 0) {
+        playDamage();
+        setState(p => {
+          const newHp = Math.max(0, p.hp - hpLoss);
+          return { ...p, hp: newHp, _hpDrained: true, redemptionMode: newHp <= 0 };
+        });
+      }
+    }
+    if (dayPct >= 80 && !state._hpRegen) {
+      setState(p => ({ ...p, hp: Math.min(HP_MAX, p.hp + 10), _hpRegen: true }));
+    }
+  }, [dayPct, state._hpDrained, state._hpRegen]);
+
+  useEffect(() => {
+    if (dayPct === 100 && !celebrate) { setCelebrate(true); playCelebrate(); }
+  }, [dayPct]);
+
+  const toggleTheme = () => { setAutoTheme(false); setThemeMode(m => m === "dark" ? "light" : "dark"); };
+
+  const openCategory = (catKey) => { setActiveCat(catKey); setView("category"); };
+  const goHome = () => { setView("home"); setActiveCat(null); };
+
+  const catKeys = ["person", "people", "process", "product"];
+
+  return (
+    <div style={{ minHeight: "100vh", fontFamily: FONT, color: th.text, background: th.grad, transition: "background 0.5s ease" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
+        .pppp-tiles::-webkit-scrollbar { display: none; }
+        .pppp-tiles { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
+      {/* Redemption Mode Overlay */}
+      {state.redemptionMode && <RedemptionMode state={state} setState={setState} th={th} />}
+
+      {/* Shareable Summary */}
+      {showSummary && <ShareableSummary state={state} dayPct={dayPct} dayXp={dayXp} level={level}
+        levelIdx={levelIdx} th={th} onClose={() => setShowSummary(false)} />}
+
+      <div style={{ maxWidth: 640, margin: "0 auto" }}>
+
+        {/* ─── TOP BAR ─── */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 0" }}>
+          <div style={{
+            padding: "6px 16px", borderRadius: 20,
+            background: th.glass, border: `1px solid ${th.glassBorder}`,
+            backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: th.text, letterSpacing: "-0.02em" }}>{userName}{"\u2019"}s PVA Model</span>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {view !== "home" && (
+              <button onClick={goHome} style={{
+                padding: "6px 14px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
+                background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600,
+                cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
+              }}>HOME</button>
+            )}
+            <button onClick={() => setView(view === "weekly" ? "home" : "weekly")} style={{
+              padding: "6px 14px", borderRadius: 20, border: `1px solid ${view === "weekly" ? th.blue + "40" : th.glassBorder}`,
+              background: view === "weekly" ? th.blueDim : th.glass, color: view === "weekly" ? th.blue : th.mid,
+              fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
+            }}>WEEKLY</button>
+            <button onClick={() => setShowSummary(true)} style={{
+              padding: "6px 14px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
+              background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600,
+              cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
+            }}>SHARE</button>
+            <button onClick={() => setView("settings")} style={{
+              width: 36, height: 36, borderRadius: 18, border: `1px solid ${th.glassBorder}`,
+              background: th.glass, color: th.mid, fontSize: 14, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+            }}>{"\u2699"}</button>
+            <button onClick={toggleTheme} style={{
+              width: 36, height: 36, borderRadius: 18, border: `1px solid ${th.glassBorder}`,
+              background: th.glass, color: th.mid, fontSize: 14, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+            }}>{themeMode === "dark" ? "\u2600" : "\u263D"}</button>
+          </div>
+        </div>
+
+        {/* ─── HOME VIEW ─── */}
+        {view === "home" && (
+          <>
+            {/* Scripture + Avatar (right-aligned) */}
+            <ScriptureHeader level={level} levelIdx={levelIdx} dayPct={dayPct} th={th} />
+
+            {/* Stats bar */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, padding: "0 20px", marginBottom: 20 }}>
+              {[
+                { label: "TODAY", value: `${dayPct}%`, color: th.blue },
+                { label: "STREAK", value: `${state.streak}`, color: th.red },
+                { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red },
+                { label: "XP", value: `${dayXp}`, color: th.blue },
+              ].map(x => (
+                <div key={x.label} style={{ ...glassStyle(th), padding: "12px 0", textAlign: "center" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: x.color, letterSpacing: "-0.04em" }}>{x.value}</div>
+                  <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.14em", marginTop: 3 }}>{x.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* ─── PVA + DECREES + INTERCESSION TILES ─── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "0 20px", marginBottom: 20 }}>
+              <div onClick={() => setView("pva_glance")} style={{
+                ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
+                border: `1px solid ${th.blue}25`,
+                background: `linear-gradient(135deg, ${th.blue}10 0%, transparent 100%)`,
+                transition: "all 0.3s ease", textAlign: "center",
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: th.text, marginBottom: 4 }}>PVA AT A GLANCE</div>
+                <div style={{ fontSize: 9, color: th.dim }}>Person {"\u00B7"} Vehicle {"\u00B7"} Assignment</div>
+              </div>
+              <div onClick={() => setView("decrees")} style={{
+                ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
+                border: `1px solid ${th.red}25`,
+                background: `linear-gradient(135deg, ${th.red}10 0%, transparent 100%)`,
+                transition: "all 0.3s ease", textAlign: "center",
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: th.text, marginBottom: 4 }}>DECREES & DECLARATIONS</div>
+                <div style={{ fontSize: 9, color: th.dim }}>Speak & Stand</div>
+              </div>
+              <div onClick={() => setView("intercession")} style={{
+                ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
+                border: `1px solid ${th.gold}25`,
+                background: `linear-gradient(135deg, ${th.gold}10 0%, transparent 100%)`,
+                transition: "all 0.3s ease", textAlign: "center",
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: th.text, marginBottom: 4 }}>INTERCESSION</div>
+                <div style={{ fontSize: 9, color: th.dim }}>Network of Prayer</div>
+              </div>
+            </div>
+
+            {/* ─── HORIZONTAL P TILES (centre stage) ─── */}
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 12, padding: "0 20px" }}>THE FOUR PILLARS</div>
+              <div ref={scrollRef} className="pppp-tiles" style={{
+                display: "flex", gap: 16, overflowX: "auto", overflowY: "hidden",
+                scrollSnapType: "x mandatory", paddingBottom: 8,
+                paddingLeft: 20, paddingRight: 20,
+                WebkitOverflowScrolling: "touch",
+                justifyContent: "center",
+              }}>
+                {catKeys.map((k, i) => (
+                  <PTile key={k} catKey={k} cat={tasks[k]} index={i} pct={getCatPct(k)}
+                    th={th} colors={colors} onClick={() => openCategory(k)} />
+                ))}
+              </div>
+
+              {/* First 3 tasks per tile — card style */}
+              <div style={{ padding: "8px 20px 0" }}>
+                {catKeys.map((k) => {
+                  const c = colors[k];
+                  const allTasks = tasks[k].sections.flatMap(s => s.tasks).filter(t => t.type === "check");
+                  const first3 = allTasks.slice(0, 1);
+                  if (first3.length === 0) return null;
+                  return (
+                    <div key={k} style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: c.accent, letterSpacing: "0.14em", marginBottom: 6 }}>
+                        {tasks[k].label.toUpperCase()}
+                      </div>
+                      {first3.map((t) => {
+                        const done = state.completed?.[t.id];
+                        return (
+                          <div key={t.id} onClick={() => toggleHomeTask(t.id)} style={{
+                            ...glassStyle(th), padding: "10px 14px", marginBottom: 6, cursor: "pointer",
+                            border: `1px solid ${done ? c.accent + "40" : th.glassBorder}`,
+                            background: done ? c.accent + "08" : th.glass,
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            transition: "all 0.2s ease",
+                          }}>
+                            <div style={{
+                              fontSize: 12, fontWeight: 500, color: done ? th.dim : th.text,
+                              textDecoration: done ? "line-through" : "none",
+                              flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }}>{t.label}</div>
+                            <div style={{
+                              width: 22, height: 22, borderRadius: 7, flexShrink: 0, marginLeft: 10,
+                              border: `1.5px solid ${done ? c.accent : th.dim}`,
+                              background: done ? c.accent : "transparent",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              transition: "all 0.25s ease",
+                              boxShadow: done ? `0 0 10px ${c.accent}30` : "none",
+                            }}>
+                              {done && <span style={{ color: th.check || "#fff", fontSize: 11, fontWeight: 800 }}>{"\u2713"}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Daily Challenge (below tiles) */}
+            <div style={{ padding: "0 20px", marginBottom: 20 }}>
+              <DailyChallengeCard challenge={dailyChallenge} completed={state.challengeCompleted} onToggle={toggleChallenge} th={th} />
+            </div>
+
+            {/* XP Bar */}
+            <div style={{ padding: "0 20px", marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <span style={{ fontSize: 10, color: th.dim }}>{state.totalXp} XP</span>
+                <span style={{ fontSize: 10, color: th.ghost }}>{nextLevel ? `${nextLevel.xp} \u2192 ${nextLevel.name}` : "MAX"}</span>
+              </div>
+              <Bar value={state.totalXp - level.xp} max={nextLevel ? nextLevel.xp - level.xp : 1} color={th.blue} h={3} th={th} />
+            </div>
+
+            {/* Temple */}
+            <div style={{ ...glassStyle(th), padding: "16px 12px 8px", margin: "0 20px 20px" }}>
+              <TempleVisual stage={levelIdx} th={th} />
+            </div>
+
+            {/* Footer */}
+            <div style={{ textAlign: "center", padding: "20px 0 32px" }}>
+              <div style={{ fontSize: 9, color: th.ghost, letterSpacing: "0.24em" }}>PVA {"\u00B7"} {TODAY}</div>
+            </div>
+          </>
+        )}
+
+        {/* ─── CATEGORY VIEW ─── */}
+        {view === "category" && activeCat && tasks[activeCat] && (
+          <TaskView catKey={activeCat} cat={tasks[activeCat]} state={state} setState={setState}
+            mult={mult} th={th} colors={colors} onBack={goHome}
+            onEditTask={onEditTask} onDeleteTask={onDeleteTask} onAddTask={onAddTask}
+            dailyChallenge={dailyChallenge} challengeCompleted={state.challengeCompleted}
+            toggleChallenge={toggleChallenge} />
+        )}
+
+        {/* ─── PVA GLANCE VIEW ─── */}
+        {view === "pva_glance" && (
+          <PVAGlanceView state={state} dayPct={dayPct} th={th} onBack={goHome} />
+        )}
+
+        {/* ─── INTERCESSION VIEW ─── */}
+        {view === "intercession" && (
+          <IntercessionView state={state} setState={setState} th={th} onBack={goHome} />
+        )}
+
+        {/* ─── SETTINGS VIEW ─── */}
+        {view === "settings" && (
+          <SettingsView profile={profile} onSave={(p) => { saveProfile(p); setProfile(p); }}
+            onBack={goHome} th={th} />
+        )}
+
+        {/* ─── WEEKLY VIEW ─── */}
+        {view === "weekly" && (
+          <div style={{ padding: "20px" }}>
+            <WeeklyView state={state} th={th} tasks={tasks} boss={boss} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode, null, React.createElement(PPPPApp)));
+</script></body></html>
