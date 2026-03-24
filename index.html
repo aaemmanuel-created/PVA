@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<meta name="theme-color" content="#050508"/><meta name="apple-mobile-web-app-capable" content="yes"/><title>PVA</title>
+<meta name="theme-color" content="#0A0E1A"/><meta name="apple-mobile-web-app-capable" content="yes"/><title>PVA</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{width:100%;min-height:100vh;-webkit-font-smoothing:antialiased}body{overscroll-behavior:none}</style>
 </head><body><div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
-<script type="text/babel" data-type="module">
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ─── CONSTANTS ───
 const LEVELS = [
@@ -36,7 +36,7 @@ const DAILY_CHALLENGES = [
   { id: "dc_worship30", label: "30 min extra worship", xp: 50 },
   { id: "dc_pray_family", label: "Pray for 5 family members by name", xp: 40 },
   { id: "dc_no_social", label: "No social media until 5pm", xp: 50 },
-  { id: "dc_pushups150", label: "Hit 150 push-ups today", xp: 60 },
+  { id: "dc_pushups200", label: "Hit 200 push-ups today", xp: 60 },
   { id: "dc_journal_long", label: "Write a full-page journal entry", xp: 50 },
   { id: "dc_mentor", label: "Reach out to a mentor or mentee", xp: 40 },
   { id: "dc_memorize", label: "Memorize a Bible verse", xp: 50 },
@@ -77,22 +77,24 @@ const getWeeklyBoss = (date) => {
 
 // ─── THEME ───
 const dark = {
-  bg: "#050508", surface: "rgba(255,255,255,0.03)", glass: "rgba(255,255,255,0.04)",
-  glassBorder: "rgba(255,255,255,0.08)", text: "rgba(255,255,255,0.92)", mid: "rgba(255,255,255,0.55)",
-  dim: "rgba(255,255,255,0.28)", ghost: "rgba(255,255,255,0.12)", blue: "#3B82F6", red: "#EF4444",
+  bg: "#0A0E1A", surface: "rgba(255,255,255,0.03)", glass: "rgba(255,255,255,0.05)",
+  glassBorder: "rgba(255,255,255,0.10)", text: "rgba(255,255,255,0.93)", mid: "rgba(255,255,255,0.58)",
+  dim: "rgba(255,255,255,0.30)", ghost: "rgba(255,255,255,0.13)", blue: "#3B82F6", red: "#EF4444",
   blueDim: "rgba(59,130,246,0.15)", redDim: "rgba(239,68,68,0.12)",
-  check: "#050508", cardHover: "rgba(255,255,255,0.05)",
-  grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.08) 0%, transparent 50%), #050508",
-  gold: "#F59E0B", goldDim: "rgba(245,158,11,0.12)",
+  check: "#0A0E1A", cardHover: "rgba(255,255,255,0.06)",
+  grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.10) 0%, transparent 50%), #0A0E1A",
+  gold: "#F59E0B", goldDim: "rgba(245,158,11,0.12)", scripture: "#E8634A",
+  green: "#22C55E", greenDim: "rgba(34,197,94,0.12)",
 };
 const light = {
-  bg: "#F8F9FC", surface: "rgba(0,0,0,0.02)", glass: "rgba(255,255,255,0.7)",
+  bg: "#F8F9FC", surface: "rgba(0,0,0,0.02)", glass: "rgba(255,255,255,0.72)",
   glassBorder: "rgba(0,0,0,0.08)", text: "rgba(0,0,0,0.88)", mid: "rgba(0,0,0,0.55)",
   dim: "rgba(0,0,0,0.3)", ghost: "rgba(0,0,0,0.1)", blue: "#2563EB", red: "#DC2626",
   blueDim: "rgba(37,99,235,0.1)", redDim: "rgba(220,38,38,0.08)",
   check: "#FFFFFF", cardHover: "rgba(0,0,0,0.03)",
   grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37,99,235,0.06) 0%, transparent 50%), #F8F9FC",
-  gold: "#D97706", goldDim: "rgba(217,119,6,0.1)",
+  gold: "#D97706", goldDim: "rgba(217,119,6,0.1)", scripture: "#8B0000",
+  green: "#16A34A", greenDim: "rgba(22,163,74,0.1)",
 };
 const getAutoTheme = () => { const h = new Date().getHours(); return h >= 6 && h < 18 ? "light" : "dark"; };
 
@@ -121,62 +123,47 @@ const DEFAULT_TASKS = {
     { name: "PRAYER 1", time: "09:00\u201309:15", tasks: [
       { id: "prayer_1", label: "Prayer 1 (P)", xp: 15, type: "check" },
     ]},
+    { name: "MEAL 1", time: "11:00\u201311:15", tasks: [
+      { id: "meal_1", label: "Meal 1", xp: 5, type: "check" },
+    ]},
     { name: "PRAYER 2", time: "12:00\u201312:15", tasks: [
       { id: "prayer_2", label: "Prayer 2 (V)", xp: 15, type: "check" },
+    ]},
+    { name: "MEAL 2", time: "14:00\u201315:00", tasks: [
+      { id: "meal_2", label: "Meal 2", xp: 5, type: "check" },
     ]},
     { name: "PRAYER 3", time: "15:00\u201315:15", tasks: [
       { id: "prayer_3", label: "Prayer 3 (A)", xp: 15, type: "check" },
     ]},
+    { name: "DECLARATIONS WALK", time: "15:15\u201316:00", tasks: [
+      { id: "declarations_walk", label: "Declarations Walk", xp: 20, type: "check" },
+    ]},
     { name: "MEDITATION", time: "21:30\u201322:00", tasks: [
       { id: "meditation", label: "Meditation", xp: 20, type: "check" },
     ]},
-    { name: "SECRET PLACE — EVENING", time: "22:00\u201323:00", tasks: [
-      { id: "secret_place_evening", label: "Governmental Intercession & Courts of Heaven", xp: 30, type: "check", hasNotes: true, notesPlaceholder: "What did you bring before the Courts?" },
+    { name: "GOVERNMENTAL INTERCESSION", time: "22:00\u201323:00", tasks: [
+      { id: "gov_intercession", label: "Governmental Intercession & Courts of Heaven", xp: 30, type: "check", hasNotes: true, notesPlaceholder: "What did you bring before the Courts?" },
     ]},
   ]},
   people: { label: "People", subtitle: "Family & Community", sections: [
-    { name: "FAMILY", time: "Flexible", tasks: [
-      { id: "family_call", label: "Family Check-in / Call", xp: 15, type: "check" },
-      { id: "family_prayer", label: "Pray for Family", xp: 10, type: "check" },
-    ]},
-    { name: "COMMUNITY", time: "Flexible", tasks: [
-      { id: "mentoring", label: "Mentoring / Discipleship", xp: 20, type: "check" },
-      { id: "community_engage", label: "Community Engagement", xp: 15, type: "check" },
-      { id: "messages", label: "Reply to Messages", xp: 5, type: "check" },
+    { name: "TF PRAYER ALTAR", time: "19:00\u201319:15", tasks: [
+      { id: "tf_prayer_altar_people", label: "TF Prayer Altar", xp: 15, type: "check" },
     ]},
   ]},
   process: { label: "Process", subtitle: "Systems & Workflows", sections: [
-    { name: "HOME", time: "AM / PM", tasks: [
-      { id: "tidy", label: "Tidy Up / Clean Space", xp: 10, type: "check" },
-      { id: "admin", label: "Personal Admin", xp: 10, type: "check" },
+    { name: "EWRS & POL-CA BRIEFS", time: "09:15\u201311:00", tasks: [
+      { id: "ewrs_briefs", label: "EWRS and POL-CA Briefs", xp: 25, type: "check" },
     ]},
-    { name: "COMMONWEALTH", time: "09:00\u201317:00", tasks: [
-      { id: "comsec_briefs", label: "Briefing Notes & Country Briefs", xp: 25, type: "check" },
-      { id: "comsec_cmag", label: "CMAG / Good Offices", xp: 25, type: "check" },
-      { id: "comsec_meetings", label: "Meetings & Correspondence", xp: 15, type: "check" },
-      { id: "comsec_elections", label: "Elections / Negotiations Prep", xp: 20, type: "check" },
+    { name: "PHD PREP", time: "11:15\u201312:00", tasks: [
+      { id: "phd_prep", label: "PhD Prep", xp: 25, type: "check", hasNotes: true, notesPlaceholder: "What did you work on?" },
     ]},
-    { name: "PHD", time: "Evening", tasks: [
-      { id: "phd_reading", label: "PhD Reading", xp: 20, type: "check", hasNotes: true, notesPlaceholder: "What did you read?" },
-      { id: "phd_writing", label: "PhD Writing", xp: 30, type: "check", hasNotes: true, notesPlaceholder: "What did you write?" },
-      { id: "phd_data", label: "Data Collection / Analysis", xp: 25, type: "check" },
+    { name: "IDEG IMPROVEMENTS", time: "13:00\u201314:00", tasks: [
+      { id: "ideg_improvements", label: "IDEG Improvements", xp: 25, type: "check", hasNotes: true, notesPlaceholder: "What improvements were made?" },
     ]},
   ]},
   product: { label: "Product", subtitle: "Output & Creation", sections: [
-    { name: "THE FORMAT \u2014 PRIESTHOOD", time: "Flexible", tasks: [
-      { id: "format_prayer", label: "Group Prayer / Fellowship", xp: 20, type: "check" },
-      { id: "format_teaching", label: "Teaching Prep / Delivery", xp: 25, type: "check" },
-      { id: "format_worship_lead", label: "Worship Leading", xp: 20, type: "check" },
-      { id: "format_fasting", label: "Fasting Day", xp: 30, type: "check" },
-    ]},
-    { name: "THE FORMAT \u2014 OCCUPY", time: "Flexible", tasks: [
-      { id: "format_music", label: "Music Production / Writing", xp: 25, type: "check" },
-      { id: "format_visual", label: "Visual Design / Creative", xp: 20, type: "check" },
-      { id: "format_content", label: "Content Creation", xp: 20, type: "check" },
-    ]},
-    { name: "THE FORMAT \u2014 ADMIN", time: "Flexible", tasks: [
-      { id: "format_planning", label: "Event Planning", xp: 15, type: "check" },
-      { id: "format_comms", label: "Comms & Social Media", xp: 10, type: "check" },
+    { name: "PVA COURSES", time: "12:15\u201313:00", tasks: [
+      { id: "pva_courses", label: "PVA Courses", xp: 20, type: "check" },
     ]},
   ]},
 };
@@ -249,8 +236,8 @@ function loadState() {
       const newStreak = prevPct >= 50 ? (r.streak || 0) + 1 : 1;
       const newHp = prevPct >= 80 ? Math.min(HP_MAX, (r.hp || HP_MAX) + 10) : (r.hp || HP_MAX);
       const hist = [...(r.history || [])];
-      if (hist.length >= 7) hist.shift();
-      hist.push({ date: TODAY, pct: 0, cats: { person: 0, people: 0, process: 0, product: 0 } });
+      if (hist.length >= 30) hist.shift();
+      hist.push({ date: TODAY, pct: 0, xp: 0, cats: { person: 0, people: 0, process: 0, product: 0 } });
       return {
         date: TODAY, completed: {}, counters: {}, notes: {}, timers: {},
         xp: 0, totalXp: r.totalXp || 0,
@@ -740,13 +727,117 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
   );
 }
 
+// ─── ACCOUNTABILITY MODAL ───
+function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
+  const [partners, setPartners] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("pva_accountability") || "[]"); } catch { return []; }
+  });
+  const [newName, setNewName] = useState("");
+  const [newContact, setNewContact] = useState("");
+  const [sent, setSent] = useState(null);
+
+  const savePartners = (p) => { setPartners(p); localStorage.setItem("pva_accountability", JSON.stringify(p)); };
+  const addPartner = () => {
+    if (!newName.trim()) return;
+    savePartners([...partners, { name: newName.trim(), contact: newContact.trim(), id: Date.now() }]);
+    setNewName(""); setNewContact("");
+  };
+  const removePartner = (id) => savePartners(partners.filter(p => p.id !== id));
+
+  const tasks = state.customTasks || DEFAULT_TASKS;
+  const allTasks = Object.entries(tasks).flatMap(([cat, c]) => c.sections.flatMap(s => s.tasks.map(t => ({ ...t, cat, section: s.name }))));
+  const completed = allTasks.filter(t => t.type === "check" ? state.done?.[t.id] : (state.counters?.[t.id] || 0) >= (t.target || 1));
+
+  const generateReport = () => {
+    const date = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    return `PVA Accountability Report - ${date}\n\n` +
+      `Progress: ${Math.round(dayPct)}% | XP: ${dayXp} | Stage: ${level.name}\n` +
+      `Tasks completed: ${completed.length}/${allTasks.length}\n\n` +
+      `Completed:\n${completed.map(t => `  \u2713 ${t.label}`).join("\n") || "  (none yet)"}\n\n` +
+      `Remaining:\n${allTasks.filter(t => !completed.find(c => c.id === t.id)).map(t => `  \u25CB ${t.label}`).join("\n") || "  All done!"}`;
+  };
+
+  const sendReport = (partner) => {
+    const report = generateReport();
+    if (partner.contact && partner.contact.includes("@")) {
+      window.open(`mailto:${partner.contact}?subject=PVA Accountability Report&body=${encodeURIComponent(report)}`);
+    } else {
+      navigator.clipboard.writeText(report).then(() => {});
+    }
+    setSent(partner.id);
+    setTimeout(() => setSent(null), 2000);
+  };
+
+  const overlayStyle = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 };
+  const cardStyle = { background: th.bg, borderRadius: 20, padding: 24, maxWidth: 400, width: "100%", maxHeight: "80vh", overflowY: "auto", border: `1px solid ${th.glassBorder}`, fontFamily: FONT };
+  const inputStyle = { width: "100%", padding: "8px 12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none", boxSizing: "border-box" };
+  const btnStyle = { padding: "6px 14px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.mid, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT };
+
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={cardStyle} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: th.text, letterSpacing: "0.06em" }}>ACCOUNTABILITY</span>
+          <button onClick={onClose} style={{ ...btnStyle, padding: "4px 10px" }}>{"\u2715"}</button>
+        </div>
+
+        {/* Progress Summary */}
+        <div style={{ background: th.glass, borderRadius: 12, padding: 14, marginBottom: 16, border: `1px solid ${th.glassBorder}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>TODAY{"\u2019"}S PROGRESS</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 28, fontWeight: 800, color: th.text }}>{Math.round(dayPct)}%</span>
+            <span style={{ fontSize: 11, color: th.dim }}>{completed.length}/{allTasks.length} tasks</span>
+          </div>
+          <div style={{ height: 4, borderRadius: 2, background: th.ghost, marginTop: 8, overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: 2, width: `${dayPct}%`, background: dayPct >= 80 ? th.green : dayPct >= 50 ? th.blue : th.red, transition: "width 0.6s ease" }} />
+          </div>
+        </div>
+
+        {/* Partners List */}
+        <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>ACCOUNTABILITY PARTNERS</div>
+        {partners.length === 0 && (
+          <div style={{ fontSize: 11, color: th.dim, marginBottom: 12, fontStyle: "italic" }}>No partners added yet. Add someone to keep you on track!</div>
+        )}
+        {partners.map(p => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "8px 12px", borderRadius: 10, background: th.glass, border: `1px solid ${th.glassBorder}` }}>
+            <div style={{ width: 28, height: 28, borderRadius: 14, background: th.blueDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: th.blue }}>{p.name[0].toUpperCase()}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: th.text }}>{p.name}</div>
+              {p.contact && <div style={{ fontSize: 10, color: th.dim }}>{p.contact}</div>}
+            </div>
+            <button onClick={() => sendReport(p)} style={{ ...btnStyle, background: sent === p.id ? th.greenDim : th.blueDim, color: sent === p.id ? th.green : th.blue, border: `1px solid ${sent === p.id ? th.green + "40" : th.blue + "40"}` }}>
+              {sent === p.id ? "\u2713 SENT" : "SEND"}
+            </button>
+            <button onClick={() => removePartner(p.id)} style={{ ...btnStyle, padding: "4px 8px", color: th.red, fontSize: 10 }}>{"\u2715"}</button>
+          </div>
+        ))}
+
+        {/* Add Partner */}
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: th.glass, border: `1px solid ${th.glassBorder}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>ADD PARTNER</div>
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" style={{ ...inputStyle, marginBottom: 6 }} />
+          <input value={newContact} onChange={e => setNewContact(e.target.value)} placeholder="Email (optional)" style={{ ...inputStyle, marginBottom: 8 }} />
+          <button onClick={addPartner} style={{ ...btnStyle, width: "100%", textAlign: "center", background: th.blueDim, color: th.blue, border: `1px solid ${th.blue}30` }}>ADD PARTNER</button>
+        </div>
+
+        {/* Copy Report */}
+        <button onClick={() => { navigator.clipboard.writeText(generateReport()); setSent("clipboard"); setTimeout(() => setSent(null), 2000); }} style={{ ...btnStyle, width: "100%", marginTop: 12, textAlign: "center", padding: "10px 14px" }}>
+          {sent === "clipboard" ? "\u2713 COPIED TO CLIPBOARD" : "COPY REPORT TO CLIPBOARD"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── COMPONENTS ───
 function Bar({ value, max, color, h = 4, th }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
     <div style={{ width: "100%", height: h, borderRadius: h/2, background: th.ghost, overflow: "hidden" }}>
-      <div style={{ height: "100%", borderRadius: h/2, width: `${pct}%`, background: color,
-        boxShadow: `0 0 14px ${color}40`, transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)" }} />
+      <div className="pva-bar-shimmer" style={{ height: "100%", borderRadius: h/2, width: `${pct}%`,
+        background: `linear-gradient(90deg, ${color}, ${color}CC, ${color})`,
+        backgroundSize: "200% 100%",
+        boxShadow: `0 0 16px ${color}40`, transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)" }} />
     </div>
   );
 }
@@ -1109,19 +1200,33 @@ function WeeklyView({ state, th, tasks, boss }) {
 
 const glassStyle = (th) => ({
   background: th.glass, border: `1px solid ${th.glassBorder}`,
-  borderRadius: 16, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+  borderRadius: 18, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+  boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1.5px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.06)",
 });
 
 // ─── MAIN ───
-// ─── HUMAN AVATAR ───
-function HumanAvatar({ pct, th }) {
-  // pct = daily completion 0-100, controls glow intensity
+// ─── HUMAN AVATAR (Level-Aware with Gear) ───
+const AVATAR_GEAR = [
+  { name: "Seed", armor: null, weapon: null, helmet: null, auraColor: null, bodyColor: null },
+  { name: "Sprout", armor: null, weapon: null, helmet: null, auraColor: "#86EFAC", bodyColor: "#22C55E" },
+  { name: "Sapling", armor: "#A7F3D0", weapon: null, helmet: null, auraColor: "#34D399", bodyColor: "#059669" },
+  { name: "Warrior", armor: "#CBD5E1", weapon: "#94A3B8", helmet: "#94A3B8", auraColor: "#3B82F6", bodyColor: "#64748B" },
+  { name: "Guardian", armor: "#93C5FD", weapon: "#60A5FA", helmet: "#3B82F6", auraColor: "#2563EB", bodyColor: "#1E40AF" },
+  { name: "Champion", armor: "#FDE68A", weapon: "#FBBF24", helmet: "#F59E0B", auraColor: "#F59E0B", bodyColor: "#D97706" },
+  { name: "Commander", armor: "#C084FC", weapon: "#A855F7", helmet: "#9333EA", auraColor: "#7C3AED", bodyColor: "#6D28D9" },
+  { name: "Legend", armor: "#FCA5A5", weapon: "#EF4444", helmet: "#DC2626", auraColor: "#EF4444", bodyColor: "#B91C1C" },
+  { name: "Overcomer", armor: "#FEF08A", weapon: "#FFD700", helmet: "#FFD700", auraColor: "#FFD700", bodyColor: "#FFD700" },
+];
+
+function HumanAvatar({ pct, th, levelIdx }) {
   const isDark = th === dark;
   const glowStrength = Math.max(0.05, pct / 100);
-  const baseColor = isDark ? "#E5E7EB" : "#374151";
-  const glowColor = pct >= 80 ? "#3B82F6" : pct >= 50 ? "#60A5FA" : isDark ? "#6B7280" : "#9CA3AF";
-  const auraColor = pct >= 90 ? "#F59E0B" : pct >= 60 ? "#3B82F6" : "transparent";
-  const auraOpacity = pct >= 60 ? glowStrength * 0.5 : 0;
+  const gear = AVATAR_GEAR[Math.min(levelIdx || 0, AVATAR_GEAR.length - 1)];
+  const baseColor = gear.bodyColor || (isDark ? "#E5E7EB" : "#374151");
+  const glowColor = gear.auraColor || (pct >= 80 ? "#3B82F6" : pct >= 50 ? "#60A5FA" : isDark ? "#6B7280" : "#9CA3AF");
+  const auraColor = gear.auraColor || (pct >= 90 ? "#F59E0B" : pct >= 60 ? "#3B82F6" : "transparent");
+  const auraOpacity = (levelIdx >= 1 || pct >= 60) ? Math.max(glowStrength * 0.5, 0.2) : 0;
+  const idx = levelIdx || 0;
 
   return (
     <svg viewBox="0 0 60 80" width="52" height="70">
@@ -1136,25 +1241,49 @@ function HumanAvatar({ pct, th }) {
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
       </defs>
-      {/* Aura / outer glow — appears at 60%+ */}
-      {pct >= 60 && (
+      {/* Aura / outer glow */}
+      {auraOpacity > 0 && (
         <ellipse cx="30" cy="40" rx={24 + glowStrength * 6} ry={34 + glowStrength * 6}
-          fill="none" stroke={auraColor} strokeWidth="1.5" opacity={auraOpacity}>
+          fill="none" stroke={auraColor} strokeWidth={idx >= 6 ? 2.5 : 1.5} opacity={auraOpacity}>
           <animate attributeName="rx" values={`${24 + glowStrength*4};${28 + glowStrength*6};${24 + glowStrength*4}`}
             dur="3s" repeatCount="indefinite" />
           <animate attributeName="opacity" values={`${auraOpacity*0.6};${auraOpacity};${auraOpacity*0.6}`}
             dur="3s" repeatCount="indefinite" />
         </ellipse>
       )}
+      {/* Second aura ring for Legend+ */}
+      {idx >= 7 && (
+        <ellipse cx="30" cy="40" rx={28 + glowStrength * 8} ry={38 + glowStrength * 8}
+          fill="none" stroke={auraColor} strokeWidth="1" opacity={auraOpacity * 0.4} strokeDasharray="3,3">
+          <animate attributeName="rx" values={`${28 + glowStrength*6};${32 + glowStrength*10};${28 + glowStrength*6}`}
+            dur="4s" repeatCount="indefinite" />
+        </ellipse>
+      )}
       {/* Inner glow field */}
       <ellipse cx="30" cy="40" rx="20" ry="30" fill="url(#avatarGlow)">
-        {pct >= 40 && (
+        {(pct >= 40 || idx >= 2) && (
           <animate attributeName="rx" values="18;22;18" dur="4s" repeatCount="indefinite" />
         )}
       </ellipse>
+      {/* Helmet (Guardian+) */}
+      {gear.helmet && (
+        <g>
+          <ellipse cx="30" cy="18" rx="10" ry="9" fill={gear.helmet} opacity="0.35" />
+          {idx >= 6 && <line x1="30" y1="9" x2="30" y2="5" stroke={gear.helmet} strokeWidth="2" strokeLinecap="round" opacity="0.6" />}
+          {idx >= 8 && <circle cx="30" cy="4" r="2" fill="#FFD700" opacity="0.8"><animate attributeName="opacity" values="0.5;1;0.5" dur="2s" repeatCount="indefinite" /></circle>}
+        </g>
+      )}
       {/* Head */}
       <circle cx="30" cy="20" r="8" fill={baseColor} opacity={0.6 + glowStrength * 0.4}
-        filter={pct >= 50 ? "url(#avatarBlur)" : undefined} />
+        filter={pct >= 50 || idx >= 3 ? "url(#avatarBlur)" : undefined} />
+      {/* Armor (Sapling+) */}
+      {gear.armor && (
+        <g>
+          <rect x="24" y="29" width="12" height="16" rx="3" fill={gear.armor} opacity="0.4" />
+          {idx >= 5 && <line x1="30" y1="30" x2="30" y2="44" stroke={gear.armor} strokeWidth="0.8" opacity="0.5" />}
+          {idx >= 5 && <line x1="25" y1="37" x2="35" y2="37" stroke={gear.armor} strokeWidth="0.8" opacity="0.5" />}
+        </g>
+      )}
       {/* Body */}
       <line x1="30" y1="28" x2="30" y2="50" stroke={baseColor} strokeWidth="2.5"
         strokeLinecap="round" opacity={0.6 + glowStrength * 0.4} />
@@ -1163,16 +1292,47 @@ function HumanAvatar({ pct, th }) {
         strokeLinecap="round" opacity={0.5 + glowStrength * 0.4} />
       <line x1="30" y1="34" x2="42" y2="44" stroke={baseColor} strokeWidth="2"
         strokeLinecap="round" opacity={0.5 + glowStrength * 0.4} />
+      {/* Weapon (Warrior+) — right hand sword */}
+      {gear.weapon && (
+        <g>
+          <line x1="42" y1="44" x2="50" y2="30" stroke={gear.weapon} strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+          {idx >= 5 && <line x1="47" y1="33" x2="53" y2="33" stroke={gear.weapon} strokeWidth="1" strokeLinecap="round" opacity="0.5" />}
+        </g>
+      )}
+      {/* Shield (Guardian+) — left hand */}
+      {idx >= 4 && (
+        <g>
+          <ellipse cx="14" cy="44" rx="5" ry="6" fill={gear.armor || baseColor} opacity="0.4" stroke={gear.weapon || baseColor} strokeWidth="0.8" />
+          {idx >= 6 && <circle cx="14" cy="44" r="2" fill={gear.weapon} opacity="0.3" />}
+        </g>
+      )}
       {/* Legs */}
       <line x1="30" y1="50" x2="20" y2="66" stroke={baseColor} strokeWidth="2"
         strokeLinecap="round" opacity={0.5 + glowStrength * 0.4} />
       <line x1="30" y1="50" x2="40" y2="66" stroke={baseColor} strokeWidth="2"
         strokeLinecap="round" opacity={0.5 + glowStrength * 0.4} />
-      {/* Completion sparkles at 80%+ */}
-      {pct >= 80 && (
+      {/* Cape (Commander+) */}
+      {idx >= 6 && (
+        <path d={`M26,30 Q20,50 16,68`} fill="none" stroke={gear.armor} strokeWidth="1.5" opacity="0.3" />
+      )}
+      {idx >= 6 && (
+        <path d={`M34,30 Q40,50 44,68`} fill="none" stroke={gear.armor} strokeWidth="1.5" opacity="0.3" />
+      )}
+      {/* Crown sparkles (Overcomer) */}
+      {idx >= 8 && (
+        <g>
+          {[{x:22,y:8},{x:30,y:3},{x:38,y:8}].map((p,i) => (
+            <circle key={i} cx={p.x} cy={p.y} r="1.5" fill="#FFD700" opacity="0.7">
+              <animate attributeName="opacity" values="0.3;1;0.3" dur={`${1.2 + i * 0.4}s`} repeatCount="indefinite" />
+            </circle>
+          ))}
+        </g>
+      )}
+      {/* Completion sparkles */}
+      {(pct >= 80 || idx >= 5) && (
         <g>
           {[{x:14,y:16},{x:46,y:18},{x:12,y:50},{x:48,y:48},{x:20,y:68},{x:40,y:70}].map((p,i) => (
-            <circle key={i} cx={p.x} cy={p.y} r="1.2" fill={pct >= 90 ? "#FCD34D" : "#60A5FA"} opacity="0.5">
+            <circle key={i} cx={p.x} cy={p.y} r="1.2" fill={idx >= 8 ? "#FFD700" : idx >= 5 ? gear.auraColor : "#60A5FA"} opacity="0.5">
               <animate attributeName="opacity" values="0.2;0.7;0.2" dur={`${1.5 + i * 0.3}s`} repeatCount="indefinite" />
             </circle>
           ))}
@@ -1194,20 +1354,41 @@ function ScriptureHeader({ level, levelIdx, dayPct, th }) {
       }}>
         {/* Scripture text — left / center */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.2em", marginBottom: 10 }}>SCRIPTURE OF THE DAY</div>
+          <div style={{ fontSize: 9, fontWeight: 800, color: th.dim, letterSpacing: "0.2em", marginBottom: 14 }}>FOUNDATIONAL SCRIPTURE</div>
           <div style={{
-            fontSize: 15, fontStyle: "italic", color: th.mid, lineHeight: 1.7,
-            fontFamily: "'Georgia', 'Times New Roman', serif",
+            padding: "18px 20px", borderRadius: 14,
+            background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)",
+            backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.3)",
           }}>
-            {"\u201C"}Your scripture here{"\u201D"}
-          </div>
-          <div style={{ fontSize: 10, color: th.ghost, marginTop: 10, letterSpacing: "0.06em" }}>
-            {"\u2014"} Book Chapter:Verse
+            <div style={{
+              fontSize: 13, fontWeight: 700, color: th.scripture, lineHeight: 1.8,
+              fontFamily: FONT,
+              marginBottom: 10,
+            }}>
+              {"\u201C"}to put off your old self, which belongs to your former manner of life and is corrupt through deceitful desires,{"\u201D"}
+            </div>
+            <div style={{
+              fontSize: 13, fontWeight: 700, color: th.scripture, lineHeight: 1.8,
+              fontFamily: FONT,
+              marginBottom: 10,
+            }}>
+              {"\u201C"}and to be renewed in the spirit of your minds,{"\u201D"}
+            </div>
+            <div style={{
+              fontSize: 13, fontWeight: 700, color: th.scripture, lineHeight: 1.8,
+              fontFamily: FONT,
+            }}>
+              {"\u201C"}and to put on the new self, created after the likeness of God in true righteousness and holiness.{"\u201D"}
+            </div>
+            <div style={{ fontSize: 10, color: th.ghost, marginTop: 14, letterSpacing: "0.06em", fontFamily: FONT }}>
+              {"\u2014"} Ephesians 4:22-24 ESV
+            </div>
           </div>
         </div>
         {/* Avatar — right */}
         <div style={{ flexShrink: 0, textAlign: "center" }}>
-          <HumanAvatar pct={dayPct} th={th} />
+          <HumanAvatar pct={dayPct} th={th} levelIdx={levelIdx} />
           <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginTop: 4, letterSpacing: "-0.01em" }}>{level.name}</div>
           <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.08em" }}>LV.{levelIdx + 1}</div>
         </div>
@@ -1465,7 +1646,7 @@ function PVAGlanceView({ state, dayPct, th, onBack }) {
                   stroke={node.color} strokeWidth="0.8" opacity={0.15 + glow * 0.2} />
                 <circle cx={sub.x} cy={sub.y} r="4" fill={node.color} opacity={0.3 + glow * 0.4} />
                 <text x={sub.x} y={sub.y - 8} textAnchor="middle" fill={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)"}
-                  fontSize="7" fontFamily="system-ui">{sub.label}</text>
+                  fontSize="7" fontFamily="JetBrains Mono, monospace">{sub.label}</text>
               </g>
             ))
           ))}
@@ -1479,9 +1660,9 @@ function PVAGlanceView({ state, dayPct, th, onBack }) {
               <circle cx={node.x} cy={node.y} r="14" fill={node.color} opacity={0.6 + glow * 0.4}
                 filter="url(#nodeGlow)" />
               <text x={node.x} y={node.y + 4} textAnchor="middle" fill={isDark ? "#fff" : "#fff"}
-                fontSize="8" fontWeight="700" fontFamily="system-ui">{node.label[0]}</text>
+                fontSize="8" fontWeight="700" fontFamily="JetBrains Mono, monospace">{node.label[0]}</text>
               <text x={node.x} y={node.y + 34} textAnchor="middle" fill={th.mid}
-                fontSize="9" fontWeight="600" fontFamily="system-ui">{node.label}</text>
+                fontSize="9" fontWeight="600" fontFamily="JetBrains Mono, monospace">{node.label}</text>
             </g>
           ))}
           {/* Center triangle pulse */}
@@ -1613,7 +1794,7 @@ function IntercessionView({ state, setState, th, onBack }) {
                 <line x1={px} y1={py} x2={px} y2={py + 4} stroke={p.prayed ? (isDark ? "#050508" : "#fff") : th.dim}
                   strokeWidth="1.5" strokeLinecap="round" />
                 <text x={px} y={py + 24} textAnchor="middle" fill={p.prayed ? th.gold : th.dim}
-                  fontSize="7" fontWeight="600" fontFamily="system-ui">{p.name}</text>
+                  fontSize="7" fontWeight="600" fontFamily="JetBrains Mono, monospace">{p.name}</text>
               </g>
             );
           })}
@@ -1685,13 +1866,636 @@ function saveProfile(p) {
   try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
 }
 
+// ─── NOTES SYSTEM ───
+const NOTES_KEY = "pva_notes";
+function loadNotes() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NOTES_KEY) || "null");
+    if (raw && raw.folders) return raw;
+  } catch {}
+  return { folders: [{ id: "general", name: "General", icon: "\u{1F4DD}" }], notes: [] };
+}
+function saveNotes(n) {
+  try { localStorage.setItem(NOTES_KEY, JSON.stringify(n)); } catch {}
+}
+
+function NotesView({ th, onBack }) {
+  const [data, setData] = useState(loadNotes);
+  const [activeFolder, setActiveFolder] = useState(null);
+  const [activeNote, setActiveNote] = useState(null);
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const persist = (next) => { setData(next); saveNotes(next); };
+
+  const addFolder = () => {
+    if (!newFolderName.trim()) return;
+    const id = newFolderName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_") + "_" + Date.now();
+    const next = { ...data, folders: [...data.folders, { id, name: newFolderName.trim(), icon: "\u{1F4C1}" }] };
+    persist(next); setNewFolderName(""); setShowNewFolder(false);
+  };
+
+  const deleteFolder = (fid) => {
+    if (fid === "general") return;
+    const next = { ...data, folders: data.folders.filter(f => f.id !== fid), notes: data.notes.filter(n => n.folderId !== fid) };
+    persist(next); setActiveFolder(null);
+  };
+
+  const addNote = (folderId) => {
+    const note = { id: "note_" + Date.now(), folderId, title: "", body: "", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const next = { ...data, notes: [note, ...data.notes] };
+    persist(next); setActiveNote(note.id);
+  };
+
+  const updateNote = (noteId, updates) => {
+    const next = { ...data, notes: data.notes.map(n => n.id === noteId ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n) };
+    persist(next);
+  };
+
+  const deleteNote = (noteId) => {
+    const next = { ...data, notes: data.notes.filter(n => n.id !== noteId) };
+    persist(next); setActiveNote(null);
+  };
+
+  const backBtn = (onClick) => (
+    <button onClick={onClick} style={{
+      width: 40, height: 40, borderRadius: 12, cursor: "pointer",
+      border: `1px solid ${th.glassBorder}`, background: th.glass,
+      color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: FONT, backdropFilter: "blur(20px)",
+    }}>{"\u2190"}</button>
+  );
+
+  const glassCard = { borderRadius: 14, border: `1px solid ${th.glassBorder}`, background: th.glass, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" };
+
+  // ─── NOTE EDITOR ───
+  if (activeNote) {
+    const note = data.notes.find(n => n.id === activeNote);
+    if (!note) { setActiveNote(null); return null; }
+    const folder = data.folders.find(f => f.id === note.folderId);
+    return (
+      <div style={{ padding: "20px", fontFamily: FONT }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+          {backBtn(() => setActiveNote(null))}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: th.dim }}>{folder ? folder.name : "Notes"}</div>
+          </div>
+          <button onClick={() => { if (confirm("Delete this note?")) deleteNote(note.id); }} style={{
+            padding: "8px 14px", borderRadius: 10, border: `1px solid rgba(220,38,38,0.3)`,
+            background: "rgba(220,38,38,0.08)", color: "#DC2626", fontSize: 11, fontWeight: 600,
+            cursor: "pointer", fontFamily: FONT,
+          }}>DELETE</button>
+        </div>
+        <input value={note.title} onChange={e => updateNote(note.id, { title: e.target.value })}
+          placeholder="Note title..." style={{
+            width: "100%", padding: "14px 0", marginBottom: 8, border: "none", borderBottom: `1px solid ${th.glassBorder}`,
+            background: "transparent", color: th.text, fontSize: 20, fontWeight: 700,
+            fontFamily: FONT, outline: "none",
+          }} />
+        <textarea value={note.body} onChange={e => updateNote(note.id, { body: e.target.value })}
+          placeholder="Start writing..." style={{
+            width: "100%", minHeight: "50vh", padding: "14px 0", border: "none",
+            background: "transparent", color: th.text, fontSize: 14, fontWeight: 400,
+            fontFamily: FONT, outline: "none", resize: "none", lineHeight: 1.8,
+          }} />
+        <div style={{ fontSize: 10, color: th.ghost, marginTop: 12 }}>
+          Last edited {new Date(note.updatedAt).toLocaleString()}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── FOLDER VIEW (notes list) ───
+  if (activeFolder) {
+    const folder = data.folders.find(f => f.id === activeFolder);
+    const folderNotes = data.notes.filter(n => n.folderId === activeFolder).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return (
+      <div style={{ padding: "20px", fontFamily: FONT }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+          {backBtn(() => setActiveFolder(null))}
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{folder ? folder.name : "Notes"}</div>
+          <div style={{ flex: 1 }} />
+          <button onClick={() => addNote(activeFolder)} style={{
+            padding: "8px 14px", borderRadius: 10, border: `1px solid ${th.blue}40`,
+            background: th.blueDim, color: th.blue, fontSize: 11, fontWeight: 700,
+            cursor: "pointer", fontFamily: FONT,
+          }}>+ NEW</button>
+          {activeFolder !== "general" && (
+            <button onClick={() => { if (confirm("Delete this folder and all its notes?")) deleteFolder(activeFolder); }} style={{
+              padding: "8px 14px", borderRadius: 10, border: `1px solid rgba(220,38,38,0.3)`,
+              background: "rgba(220,38,38,0.08)", color: "#DC2626", fontSize: 11, fontWeight: 600,
+              cursor: "pointer", fontFamily: FONT,
+            }}>DELETE FOLDER</button>
+          )}
+        </div>
+        {folderNotes.length === 0 && (
+          <div style={{ textAlign: "center", padding: "60px 20px", color: th.dim }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>{"\u{1F4DD}"}</div>
+            <div style={{ fontSize: 13, marginBottom: 8 }}>No notes yet</div>
+            <div style={{ fontSize: 11, color: th.ghost }}>Tap + NEW to create one</div>
+          </div>
+        )}
+        {folderNotes.map(note => (
+          <div key={note.id} onClick={() => setActiveNote(note.id)} style={{
+            ...glassCard, padding: "16px 18px", marginBottom: 10, cursor: "pointer", transition: "all 0.2s ease",
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 4 }}>
+              {note.title || "Untitled"}
+            </div>
+            <div style={{ fontSize: 11, color: th.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {note.body ? note.body.slice(0, 80) : "No content"}
+            </div>
+            <div style={{ fontSize: 10, color: th.ghost, marginTop: 8 }}>
+              {new Date(note.updatedAt).toLocaleDateString()}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ─── FOLDERS LIST (main notes view) ───
+  const filteredNotes = searchQuery.trim() ? data.notes.filter(n => (n.title + " " + n.body).toLowerCase().includes(searchQuery.toLowerCase())) : [];
+
+  return (
+    <div style={{ padding: "20px", fontFamily: FONT }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        {backBtn(onBack)}
+        <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>Notes</div>
+      </div>
+
+      {/* Search */}
+      <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+        placeholder="Search notes..." style={{
+          width: "100%", padding: "12px 16px", borderRadius: 12, marginBottom: 16,
+          border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text,
+          fontSize: 13, fontFamily: FONT, outline: "none",
+          backdropFilter: "blur(20px)",
+        }} />
+
+      {/* Search results */}
+      {searchQuery.trim() && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>
+            {filteredNotes.length} RESULT{filteredNotes.length !== 1 ? "S" : ""}
+          </div>
+          {filteredNotes.map(note => (
+            <div key={note.id} onClick={() => setActiveNote(note.id)} style={{
+              ...glassCard, padding: "14px 16px", marginBottom: 8, cursor: "pointer",
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: th.text }}>{note.title || "Untitled"}</div>
+              <div style={{ fontSize: 11, color: th.dim, marginTop: 4 }}>{note.body ? note.body.slice(0, 60) : ""}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Folders grid */}
+      {!searchQuery.trim() && (
+        <>
+          <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 12 }}>FOLDERS</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            {data.folders.map(folder => {
+              const count = data.notes.filter(n => n.folderId === folder.id).length;
+              return (
+                <div key={folder.id} onClick={() => setActiveFolder(folder.id)} style={{
+                  ...glassCard, padding: "20px 16px", cursor: "pointer", textAlign: "center", transition: "all 0.2s ease",
+                }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>{folder.icon}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: th.text, marginBottom: 4 }}>{folder.name}</div>
+                  <div style={{ fontSize: 11, color: th.dim }}>{count} note{count !== 1 ? "s" : ""}</div>
+                </div>
+              );
+            })}
+
+            {/* New folder button */}
+            <div onClick={() => setShowNewFolder(true)} style={{
+              ...glassCard, padding: "20px 16px", cursor: "pointer", textAlign: "center",
+              border: `1px dashed ${th.glassBorder}`, transition: "all 0.2s ease",
+            }}>
+              <div style={{ fontSize: 28, marginBottom: 8, color: th.dim }}>+</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: th.dim }}>New Folder</div>
+            </div>
+          </div>
+
+          {/* New folder modal */}
+          {showNewFolder && (
+            <div style={{ ...glassCard, padding: "20px", marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 10 }}>NEW FOLDER</div>
+              <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") addFolder(); }}
+                autoFocus placeholder="Folder name..." style={{
+                  width: "100%", padding: "12px 14px", borderRadius: 10, marginBottom: 10,
+                  border: `1px solid ${th.blue}30`, background: th.glass, color: th.text,
+                  fontSize: 14, fontWeight: 600, fontFamily: FONT, outline: "none",
+                }} />
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => { setShowNewFolder(false); setNewFolderName(""); }} style={{
+                  flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${th.glassBorder}`,
+                  background: "transparent", color: th.dim, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  fontFamily: FONT,
+                }}>CANCEL</button>
+                <button onClick={addFolder} disabled={!newFolderName.trim()} style={{
+                  flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${th.blue}40`,
+                  background: th.blueDim, color: th.blue, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  fontFamily: FONT,
+                }}>CREATE</button>
+              </div>
+            </div>
+          )}
+
+          {/* All notes quick list */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 12 }}>
+            ALL NOTES ({data.notes.length})
+          </div>
+          {data.notes.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 10).map(note => {
+            const folder = data.folders.find(f => f.id === note.folderId);
+            return (
+              <div key={note.id} onClick={() => setActiveNote(note.id)} style={{
+                ...glassCard, padding: "14px 16px", marginBottom: 8, cursor: "pointer", transition: "all 0.2s ease",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: th.text }}>{note.title || "Untitled"}</div>
+                  <div style={{ fontSize: 10, color: th.ghost }}>{folder ? folder.name : ""}</div>
+                </div>
+                <div style={{ fontSize: 11, color: th.dim, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {note.body ? note.body.slice(0, 80) : "No content"}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── ROUTINE PARSER ───
+function parseRoutineText(text) {
+  const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+  const items = [];
+  for (const line of lines) {
+    const m = line.match(/^[\*\-\u2022]?\s*(\d{1,2}[:\.]?\d{0,2})\s*[\u2013\-to]+\s*(\d{1,2}[:\.]?\d{0,2})\s*[\u2013\-:]*\s*(.+)$/i)
+           || line.match(/^[\*\-\u2022]?\s*(\d{1,2}[:\.]?\d{0,2})\s*[\u2013\-:]+\s*(.+)$/i);
+    if (m) {
+      const startRaw = m[1].replace(".", ":"); const endRaw = m[2] ? (m[3] ? m[2].replace(".", ":") : null) : null;
+      const label = m[3] || m[2]; const startT = startRaw.includes(":") ? startRaw : startRaw + ":00";
+      const endT = endRaw ? (endRaw.includes(":") ? endRaw : endRaw + ":00") : null;
+      const time = endT ? startT + "\u2013" + endT : startT;
+      const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
+      items.push({ id: id + "_" + items.length, label: label.trim(), time, xp: 15, type: "check" });
+    } else if (line.length > 2) {
+      const id = line.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
+      items.push({ id: id + "_" + items.length, label: line, time: "Flexible", xp: 15, type: "check" });
+    }
+  }
+  return items;
+}
+
+function buildTasksFromRoutine(items) {
+  const cats = { person: [], people: [], process: [], product: [] };
+  const personKw = ["pray", "prayer", "secret place", "exercise", "workout", "meal", "eat", "meditat", "worship", "fast", "walk", "altar", "intercession", "courts", "declarations", "get ready", "wake", "sleep", "bible", "devotion"];
+  const peopleKw = ["family", "call", "mentor", "community", "friend", "fellowship"];
+  const processKw = ["brief", "meeting", "work", "phd", "study", "read", "admin", "email", "office", "report", "prep"];
+  const productKw = ["course", "create", "build", "write", "design", "content", "music", "project", "improv", "develop"];
+  for (const item of items) {
+    const low = item.label.toLowerCase();
+    if (peopleKw.some(k => low.includes(k))) cats.people.push(item);
+    else if (productKw.some(k => low.includes(k))) cats.product.push(item);
+    else if (processKw.some(k => low.includes(k))) cats.process.push(item);
+    else cats.person.push(item);
+  }
+  return {
+    person: { label: "Person", subtitle: "Spirit \u2192 Soul \u2192 Body", sections: cats.person.map(t => ({ name: t.label.toUpperCase().slice(0, 30), time: t.time, tasks: [t] })) },
+    people: { label: "People", subtitle: "Family & Community", sections: cats.people.length > 0 ? cats.people.map(t => ({ name: t.label.toUpperCase().slice(0, 30), time: t.time, tasks: [t] })) : [{ name: "CONNECTIONS", time: "Flexible", tasks: [{ id: "people_connect", label: "Connect with someone", xp: 10, type: "check" }] }] },
+    process: { label: "Process", subtitle: "Systems & Workflows", sections: cats.process.length > 0 ? cats.process.map(t => ({ name: t.label.toUpperCase().slice(0, 30), time: t.time, tasks: [t] })) : [{ name: "SYSTEMS", time: "Flexible", tasks: [{ id: "process_task", label: "Work on systems", xp: 15, type: "check" }] }] },
+    product: { label: "Product", subtitle: "Output & Creation", sections: cats.product.length > 0 ? cats.product.map(t => ({ name: t.label.toUpperCase().slice(0, 30), time: t.time, tasks: [t] })) : [{ name: "CREATE", time: "Flexible", tasks: [{ id: "product_task", label: "Create something", xp: 15, type: "check" }] }] },
+  };
+}
+
+// ─── ROUTINE BUILDER (guided questions) ───
+function GuidedRoutineBuilder({ onFinish, th }) {
+  const [qStep, setQStep] = useState(0);
+  const [answers, setAnswers] = useState({
+    wakeTime: "05:00", sleepTime: "23:00",
+    // Person
+    devotional: true, devotionalParts: [], exercise: true, exerciseType: "general",
+    prayers: [], meals: 2, declarations: false, meditation: true,
+    // People
+    familyTime: false, familyTimeSlot: "19:00", fellowship: false, fellowshipDay: "sunday",
+    mentoring: false, peopleTasks: "",
+    // Process
+    workStart: "09:00", workEnd: "17:00", workTasks: "", studying: false, studyTopic: "", studyTime: "1",
+    sideTasks: "",
+    // Product
+    productTasks: "", creativeTime: "afternoon",
+  });
+  const set = (k, v) => setAnswers(p => ({ ...p, [k]: v }));
+  const toggleArr = (k, val) => set(k, answers[k].includes(val) ? answers[k].filter(x => x !== val) : [...answers[k], val]);
+
+  const inputStyle = { width: "100%", padding: "14px 18px", borderRadius: 12, marginBottom: 12, border: `1px solid ${th.blue}30`, background: th.glass, color: th.text, fontSize: 14, fontWeight: 600, fontFamily: FONT, outline: "none", textAlign: "center", backdropFilter: "blur(20px)" };
+  const btnStyle = (active) => ({ width: "100%", padding: "14px", borderRadius: 12, border: `1px solid ${active ? th.blue + "40" : th.ghost}`, background: active ? th.blueDim : th.glass, color: active ? th.blue : th.ghost, fontSize: 13, fontWeight: 700, cursor: active ? "pointer" : "default", fontFamily: FONT, letterSpacing: "0.04em", transition: "all 0.25s ease" });
+  const smallBtn = (active, onClick, label) => (<button key={label} onClick={onClick} style={{ padding: "10px 16px", borderRadius: 10, border: `1px solid ${active ? th.blue : th.glassBorder}`, background: active ? th.blueDim : th.glass, color: active ? th.blue : th.dim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT, transition: "all 0.2s ease" }}>{label}</button>);
+  const sectionLabel = (text, color) => (<div style={{ fontSize: 9, fontWeight: 800, color: color || th.dim, letterSpacing: "0.16em", marginBottom: 6, marginTop: 4 }}>{text}</div>);
+
+  const pad2 = (n) => (n < 10 ? "0" : "") + n;
+  const addHour = (t, h) => { const hr = parseInt(t.split(":")[0]) + h; return pad2(Math.min(hr, 23)) + ":" + t.split(":")[1]; };
+  const subHour = (t, h) => { const hr = parseInt(t.split(":")[0]) - h; return pad2(Math.max(hr, 0)) + ":" + t.split(":")[1]; };
+
+  const buildFromAnswers = () => {
+    const person = [], people = [], process = [], product = [];
+    let uid = 0;
+    const mk = (time, label, xp, opts) => ({ id: label.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 35) + "_" + (uid++), label, time, xp: xp || 15, type: "check", ...(opts || {}) });
+
+    // ─── PERSON ───
+    if (answers.devotional) {
+      const parts = answers.devotionalParts;
+      const devLabel = parts.length > 0 ? "Secret Place: " + parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(", ") : "Secret Place: Seeking His Face";
+      person.push(mk(answers.wakeTime + "\u2013" + addHour(answers.wakeTime, 1), devLabel, 30, { hasNotes: true, notesPlaceholder: "What did the Lord reveal today?" }));
+    }
+    if (answers.exercise) {
+      const exStart = answers.devotional ? addHour(answers.wakeTime, 1) : answers.wakeTime;
+      const typeLabel = answers.exerciseType === "general" ? "Exercise" : answers.exerciseType.charAt(0).toUpperCase() + answers.exerciseType.slice(1);
+      person.push(mk(exStart + "\u2013" + addHour(exStart, 1), typeLabel, 20));
+    }
+    if (answers.prayers.includes("morning")) person.push(mk("09:00\u201309:15", "Morning Prayer", 15));
+    for (let i = 1; i <= answers.meals; i++) {
+      const mealTimes = { 1: "11:00\u201311:15", 2: "14:00\u201315:00", 3: "18:00\u201318:30" };
+      person.push(mk(mealTimes[i] || "Flexible", "Meal " + i, 5));
+    }
+    if (answers.prayers.includes("midday")) person.push(mk("12:00\u201312:15", "Midday Prayer", 15));
+    if (answers.prayers.includes("afternoon")) person.push(mk("15:00\u201315:15", "Afternoon Prayer", 15));
+    if (answers.declarations) person.push(mk("15:15\u201316:00", "Declarations Walk", 20));
+    if (answers.prayers.includes("evening")) person.push(mk("19:00\u201319:15", "Evening Prayer", 15));
+    if (answers.meditation) person.push(mk(subHour(answers.sleepTime, 1) + "\u2013" + subHour(answers.sleepTime, 0.5).split(":").map((v,i) => i===1 ? "30" : v).join(":"), "Meditation & Reflection", 20));
+    person.push(mk(subHour(answers.sleepTime, 0), "Wind Down & Sleep", 5));
+
+    // ─── PEOPLE ───
+    if (answers.familyTime) people.push(mk(answers.familyTimeSlot + "\u201300:00", "Family Check-in", 15));
+    if (answers.fellowship) people.push(mk("Flexible", "Fellowship / Community (" + answers.fellowshipDay.charAt(0).toUpperCase() + answers.fellowshipDay.slice(1) + ")", 15));
+    if (answers.mentoring) people.push(mk("Flexible", "Mentoring / Discipleship", 15));
+    if (answers.peopleTasks.trim()) {
+      answers.peopleTasks.split(",").map(t => t.trim()).filter(Boolean).forEach(t => {
+        people.push(mk("Flexible", t, 15));
+      });
+    }
+    if (people.length === 0) people.push(mk("Flexible", "Connect with someone today", 10));
+
+    // ─── PROCESS ───
+    if (answers.workTasks.trim()) {
+      answers.workTasks.split(",").map(t => t.trim()).filter(Boolean).forEach(t => {
+        process.push(mk(answers.workStart + "\u2013" + answers.workEnd, t, 25));
+      });
+    }
+    if (answers.studying) {
+      const studyLabel = answers.studyTopic.trim() ? answers.studyTopic.trim() : "Study / Academic Work";
+      process.push(mk("Flexible", studyLabel, 25, { hasNotes: true, notesPlaceholder: "What did you work on?" }));
+    }
+    if (answers.sideTasks.trim()) {
+      answers.sideTasks.split(",").map(t => t.trim()).filter(Boolean).forEach(t => {
+        process.push(mk("Flexible", t, 25, { hasNotes: true }));
+      });
+    }
+    if (process.length === 0) process.push(mk(answers.workStart + "\u2013" + answers.workEnd, "Work Block", 20));
+
+    // ─── PRODUCT ───
+    if (answers.productTasks.trim()) {
+      answers.productTasks.split(",").map(t => t.trim()).filter(Boolean).forEach(t => {
+        product.push(mk("Flexible", t, 20));
+      });
+    }
+    if (product.length === 0) product.push(mk("Flexible", "Create something today", 15));
+
+    return {
+      person: { label: "Person", subtitle: "Spirit \u2192 Soul \u2192 Body", sections: person.map(t => ({ name: t.label.toUpperCase().slice(0, 30), time: t.time, tasks: [t] })) },
+      people: { label: "People", subtitle: "Family & Community", sections: people.map(t => ({ name: t.label.toUpperCase().slice(0, 30), time: t.time, tasks: [t] })) },
+      process: { label: "Process", subtitle: "Systems & Workflows", sections: process.map(t => ({ name: t.label.toUpperCase().slice(0, 30), time: t.time, tasks: [t] })) },
+      product: { label: "Product", subtitle: "Output & Creation", sections: product.map(t => ({ name: t.label.toUpperCase().slice(0, 30), time: t.time, tasks: [t] })) },
+    };
+  };
+
+  const questions = [
+    // ─── PERSON: Spirit, Soul, Body ───
+    { pillar: "PERSON", title: "What time do you wake up?", sub: "This anchors your entire day", render: () => (
+      <input type="time" value={answers.wakeTime} onChange={e => set("wakeTime", e.target.value)} style={inputStyle} />
+    )},
+    { pillar: "PERSON", title: "Do you have a morning devotional or quiet time?", sub: "Time with God to start the day", render: () => (
+      <div>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 16 }}>
+          {smallBtn(answers.devotional, () => set("devotional", true), "YES")}
+          {smallBtn(!answers.devotional, () => set("devotional", false), "NO")}
+        </div>
+        {answers.devotional && (
+          <div>
+            {sectionLabel("WHAT DOES IT INCLUDE?")}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              {["bible reading", "prayer", "worship", "journaling"].map(p =>
+                smallBtn(answers.devotionalParts.includes(p), () => toggleArr("devotionalParts", p), p.charAt(0).toUpperCase() + p.slice(1))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )},
+    { pillar: "PERSON", title: "Do you exercise?", sub: "Physical training for the body", render: () => (
+      <div>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 16 }}>
+          {smallBtn(answers.exercise, () => set("exercise", true), "YES")}
+          {smallBtn(!answers.exercise, () => set("exercise", false), "NO")}
+        </div>
+        {answers.exercise && (
+          <div>
+            {sectionLabel("WHAT TYPE?")}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              {[["general", "General"], ["gym", "Gym"], ["running", "Running"], ["home workout", "Home Workout"], ["walking", "Walking"], ["sports", "Sports"]].map(([val, lbl]) =>
+                smallBtn(answers.exerciseType === val, () => set("exerciseType", val), lbl)
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )},
+    { pillar: "PERSON", title: "Which prayer times do you keep?", sub: "Select all that apply", render: () => (
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+        {["morning", "midday", "afternoon", "evening"].map(p =>
+          smallBtn(answers.prayers.includes(p), () => toggleArr("prayers", p), p.charAt(0).toUpperCase() + p.slice(1))
+        )}
+      </div>
+    )},
+    { pillar: "PERSON", title: "Do you speak daily declarations or confessions?", sub: "Words of faith spoken over your life", render: () => (
+      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+        {smallBtn(answers.declarations, () => set("declarations", true), "YES")}
+        {smallBtn(!answers.declarations, () => set("declarations", false), "NO")}
+      </div>
+    )},
+    { pillar: "PERSON", title: "How many meals per day?", sub: "Nourishing the body", render: () => (
+      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+        {[1, 2, 3].map(n => smallBtn(answers.meals === n, () => set("meals", n), n + " meal" + (n > 1 ? "s" : "")))}
+      </div>
+    )},
+    { pillar: "PERSON", title: "Do you have an evening meditation or reflection time?", sub: "Winding down the day with intention", render: () => (
+      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+        {smallBtn(answers.meditation, () => set("meditation", true), "YES")}
+        {smallBtn(!answers.meditation, () => set("meditation", false), "NO")}
+      </div>
+    )},
+    { pillar: "PERSON", title: "What time do you sleep?", sub: "Rest completes the cycle", render: () => (
+      <input type="time" value={answers.sleepTime} onChange={e => set("sleepTime", e.target.value)} style={inputStyle} />
+    )},
+
+    // ─── PEOPLE: Family & Community ───
+    { pillar: "PEOPLE", title: "Do you have a regular time to connect with family?", sub: "A call, dinner, or check-in with loved ones", render: () => (
+      <div>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 16 }}>
+          {smallBtn(answers.familyTime, () => set("familyTime", true), "YES")}
+          {smallBtn(!answers.familyTime, () => set("familyTime", false), "NO")}
+        </div>
+        {answers.familyTime && (
+          <div>
+            {sectionLabel("WHAT TIME?")}
+            <input type="time" value={answers.familyTimeSlot} onChange={e => set("familyTimeSlot", e.target.value)} style={inputStyle} />
+          </div>
+        )}
+      </div>
+    )},
+    { pillar: "PEOPLE", title: "Are you part of any fellowship or community gathering?", sub: "Small group, Bible study, church community", render: () => (
+      <div>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 16 }}>
+          {smallBtn(answers.fellowship, () => set("fellowship", true), "YES")}
+          {smallBtn(!answers.fellowship, () => set("fellowship", false), "NO")}
+        </div>
+        {answers.fellowship && (
+          <div>
+            {sectionLabel("WHICH DAY?")}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+              {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map(d =>
+                smallBtn(answers.fellowshipDay === d, () => set("fellowshipDay", d), d.charAt(0).toUpperCase() + d.slice(1, 3))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )},
+    { pillar: "PEOPLE", title: "Do you mentor or disciple anyone?", sub: "Investing in someone else\u2019s growth", render: () => (
+      <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+        {smallBtn(answers.mentoring, () => set("mentoring", true), "YES")}
+        {smallBtn(!answers.mentoring, () => set("mentoring", false), "NO")}
+      </div>
+    )},
+    { pillar: "PEOPLE", title: "Any other people commitments?", sub: "Separate with commas (e.g. Prayer Altar, Accountability Call)", render: () => (
+      <input value={answers.peopleTasks} onChange={e => set("peopleTasks", e.target.value)} placeholder="Prayer Altar, Accountability Call..." style={{ ...inputStyle, textAlign: "left" }} />
+    )},
+
+    // ─── PROCESS: Systems & Workflows ───
+    { pillar: "PROCESS", title: "What are your work hours?", sub: "Your main professional block", render: () => (
+      <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center" }}>
+        <input type="time" value={answers.workStart} onChange={e => set("workStart", e.target.value)} style={{ ...inputStyle, width: "45%" }} />
+        <span style={{ color: th.dim }}>to</span>
+        <input type="time" value={answers.workEnd} onChange={e => set("workEnd", e.target.value)} style={{ ...inputStyle, width: "45%" }} />
+      </div>
+    )},
+    { pillar: "PROCESS", title: "What are your main professional tasks?", sub: "Separate with commas (e.g. Briefs, Reports, Meetings)", render: () => (
+      <input value={answers.workTasks} onChange={e => set("workTasks", e.target.value)} placeholder="Briefs, Reports, Meetings..." style={{ ...inputStyle, textAlign: "left" }} />
+    )},
+    { pillar: "PROCESS", title: "Are you studying or doing academic work?", sub: "PhD, coursework, research, exams", render: () => (
+      <div>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginBottom: 16 }}>
+          {smallBtn(answers.studying, () => set("studying", true), "YES")}
+          {smallBtn(!answers.studying, () => set("studying", false), "NO")}
+        </div>
+        {answers.studying && (
+          <div>
+            {sectionLabel("WHAT ARE YOU STUDYING?")}
+            <input value={answers.studyTopic} onChange={e => set("studyTopic", e.target.value)} placeholder="PhD Prep, Thesis Writing, Exam Revision..." style={{ ...inputStyle, textAlign: "left" }} />
+          </div>
+        )}
+      </div>
+    )},
+    { pillar: "PROCESS", title: "Any side projects or organisations you work on?", sub: "Separate with commas (e.g. IDEG, Church Admin, Non-profit)", render: () => (
+      <input value={answers.sideTasks} onChange={e => set("sideTasks", e.target.value)} placeholder="IDEG, Church Admin, Non-profit..." style={{ ...inputStyle, textAlign: "left" }} />
+    )},
+
+    // ─── PRODUCT: Output & Creation ───
+    { pillar: "PRODUCT", title: "What do you create or produce?", sub: "Courses, content, apps, writing, music, designs", render: () => (
+      <input value={answers.productTasks} onChange={e => set("productTasks", e.target.value)} placeholder="Courses, Blog Posts, App Development..." style={{ ...inputStyle, textAlign: "left" }} />
+    )},
+  ];
+
+  const q = questions[qStep];
+  const isLast = qStep === questions.length - 1;
+  const pillarColors = { PERSON: th.red || "#EF4444", PEOPLE: "#A855F7", PROCESS: th.green || "#16A34A", PRODUCT: th.blue || "#3B82F6" };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <div style={{ fontSize: 9, fontWeight: 800, color: pillarColors[q.pillar] || th.dim, letterSpacing: "0.16em", padding: "4px 12px", borderRadius: 8, background: (pillarColors[q.pillar] || th.dim) + "15", border: `1px solid ${(pillarColors[q.pillar] || th.dim)}30` }}>{q.pillar}</div>
+        <div style={{ fontSize: 10, color: th.dim, letterSpacing: "0.14em" }}>STEP {qStep + 1} OF {questions.length}</div>
+      </div>
+      <h2 style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>{q.title}</h2>
+      <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>{q.sub}</p>
+      {q.render()}
+      <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
+        {qStep > 0 && <button onClick={() => setQStep(qStep - 1)} style={{ ...btnStyle(true), flex: 1 }}>BACK</button>}
+        <button onClick={() => { if (isLast) { onFinish(buildFromAnswers()); } else { setQStep(qStep + 1); } }} style={{ ...btnStyle(true), flex: 1 }}>{isLast ? "BUILD MY ROUTINE" : "NEXT"}</button>
+      </div>
+      {/* Progress dots */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 16 }}>
+        {questions.map((qq, i) => (
+          <div key={i} style={{ width: i === qStep ? 16 : 6, height: 6, borderRadius: 3, background: i <= qStep ? (pillarColors[qq.pillar] || th.blue) : th.ghost, transition: "all 0.3s ease" }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── FREE TEXT ROUTINE BUILDER ───
+function FreeTextRoutineBuilder({ onFinish, th }) {
+  const [text, setText] = useState("");
+  const inputStyle = { width: "100%", padding: "14px 18px", borderRadius: 12, marginBottom: 12, border: `1px solid ${th.blue}30`, background: th.glass, color: th.text, fontSize: 12, fontWeight: 500, fontFamily: FONT, outline: "none", textAlign: "left", backdropFilter: "blur(20px)", minHeight: 200, resize: "vertical", lineHeight: 1.8 };
+  const placeholder = "Paste your routine here, e.g.:\n\n05:00-06:00 - Secret Place\n06:00-07:00 - Exercise\n09:00-11:00 - Work briefs\n12:00-12:15 - Prayer\n13:00-14:00 - Create content";
+  const parsed = parseRoutineText(text);
+  return (
+    <div style={{ textAlign: "center" }}>
+      <h2 style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>Paste Your Routine</h2>
+      <p style={{ fontSize: 12, color: th.dim, marginBottom: 20 }}>One task per line with times (e.g. 09:00-11:00 - Task Name)</p>
+      <textarea value={text} onChange={e => setText(e.target.value)} placeholder={placeholder} style={inputStyle} />
+      {parsed.length > 0 && (
+        <div style={{ fontSize: 11, color: th.mid, marginBottom: 12 }}>{parsed.length} task{parsed.length !== 1 ? "s" : ""} detected</div>
+      )}
+      <button onClick={() => { if (parsed.length > 0) onFinish(buildTasksFromRoutine(parsed)); }} disabled={parsed.length === 0} style={{
+        width: "100%", padding: "14px", borderRadius: 12,
+        border: `1px solid ${parsed.length > 0 ? th.blue + "40" : th.ghost}`,
+        background: parsed.length > 0 ? th.blueDim : th.glass,
+        color: parsed.length > 0 ? th.blue : th.ghost,
+        fontSize: 13, fontWeight: 700, cursor: parsed.length > 0 ? "pointer" : "default",
+        fontFamily: FONT, letterSpacing: "0.04em", transition: "all 0.25s ease",
+      }}>BUILD MY ROUTINE</button>
+    </div>
+  );
+}
+
 // ─── ONBOARDING SCREEN ───
-function OnboardingScreen({ onComplete }) {
+function OnboardingScreen({ onComplete, onCustomTasks }) {
   const [name, setName] = useState("");
   const [step, setStep] = useState(0);
+  const [routineMode, setRoutineMode] = useState(null);
   const th = getAutoTheme() === "dark" ? dark : light;
 
-  const doComplete = () => {
+  const doCompleteName = () => {
+    if (name.trim()) setStep(2);
+  };
+
+  const doFinish = (customTasks) => {
+    if (name.trim()) {
+      const profile = { name: name.trim(), createdAt: TODAY };
+      saveProfile(profile);
+      onCustomTasks(customTasks);
+      onComplete(profile);
+    }
+  };
+
+  const doSkip = () => {
     if (name.trim()) {
       const profile = { name: name.trim(), createdAt: TODAY };
       saveProfile(profile);
@@ -1749,7 +2553,7 @@ function OnboardingScreen({ onComplete }) {
             <h2 style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>What{"\u2019"}s your name?</h2>
             <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>This will personalise your PVA model</p>
             <input value={name} onChange={e => setName(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") doComplete(); }}
+              onKeyDown={e => { if (e.key === "Enter") doCompleteName(); }}
               autoFocus placeholder="Your first name..."
               style={{
                 width: "100%", padding: "14px 18px", borderRadius: 12, marginBottom: 16,
@@ -1758,7 +2562,7 @@ function OnboardingScreen({ onComplete }) {
                 outline: "none", textAlign: "center",
                 backdropFilter: "blur(20px)",
               }} />
-            <button onClick={doComplete} disabled={!name.trim()} style={{
+            <button onClick={doCompleteName} disabled={!name.trim()} style={{
               width: "100%", padding: "14px", borderRadius: 12,
               border: `1px solid ${name.trim() ? th.blue + "40" : th.ghost}`,
               background: name.trim() ? th.blueDim : th.glass,
@@ -1766,7 +2570,48 @@ function OnboardingScreen({ onComplete }) {
               fontSize: 13, fontWeight: 700, cursor: name.trim() ? "pointer" : "default",
               fontFamily: FONT, letterSpacing: "0.04em",
               transition: "all 0.25s ease",
-            }}>ENTER YOUR PVA MODEL</button>
+            }}>NEXT</button>
+          </>
+        )}
+
+        {step === 2 && !routineMode && (
+          <>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>Build Your Routine</h2>
+            <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>How would you like to set up your daily routine?</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <button onClick={() => setRoutineMode("guided")} style={{
+                padding: "18px 20px", borderRadius: 14, border: `1px solid ${th.blue}25`, background: th.glass,
+                cursor: "pointer", textAlign: "left", backdropFilter: "blur(20px)", transition: "all 0.2s ease",
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 4 }}>Answer Questions</div>
+                <div style={{ fontSize: 11, color: th.dim }}>Guided step-by-step setup for your daily schedule</div>
+              </button>
+              <button onClick={() => setRoutineMode("text")} style={{
+                padding: "18px 20px", borderRadius: 14, border: `1px solid ${th.blue}25`, background: th.glass,
+                cursor: "pointer", textAlign: "left", backdropFilter: "blur(20px)", transition: "all 0.2s ease",
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 4 }}>Paste Your Routine</div>
+                <div style={{ fontSize: 11, color: th.dim }}>Type or paste your existing daily schedule</div>
+              </button>
+              <button onClick={doSkip} style={{
+                padding: "14px", borderRadius: 12, border: `1px solid ${th.glassBorder}`, background: "transparent",
+                color: th.dim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.04em",
+              }}>SKIP — USE DEFAULT ROUTINE</button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && routineMode === "guided" && (
+          <>
+            <button onClick={() => setRoutineMode(null)} style={{ position: "absolute", top: 20, left: 20, background: "none", border: "none", color: th.dim, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>{"\u2190"} Back</button>
+            <GuidedRoutineBuilder onFinish={doFinish} th={th} />
+          </>
+        )}
+
+        {step === 2 && routineMode === "text" && (
+          <>
+            <button onClick={() => setRoutineMode(null)} style={{ position: "absolute", top: 20, left: 20, background: "none", border: "none", color: th.dim, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>{"\u2190"} Back</button>
+            <FreeTextRoutineBuilder onFinish={doFinish} th={th} />
           </>
         )}
       </div>
@@ -1821,8 +2666,1051 @@ function SettingsView({ profile, onSave, onBack, th }) {
   );
 }
 
+// ─── SCRIPTURE VERSE BANK ───
+const VERSE_BANK = [
+  { ref: "Philippians 4:13", text: "I can do all things through him who strengthens me." },
+  { ref: "Joshua 1:9", text: "Have I not commanded you? Be strong and courageous. Do not be frightened, and do not be dismayed, for the Lord your God is with you wherever you go." },
+  { ref: "Proverbs 3:5-6", text: "Trust in the Lord with all your heart, and do not lean on your own understanding. In all your ways acknowledge him, and he will make straight your paths." },
+  { ref: "Romans 8:28", text: "And we know that for those who love God all things work together for good, for those who are called according to his purpose." },
+  { ref: "Isaiah 40:31", text: "But they who wait for the Lord shall renew their strength; they shall mount up with wings like eagles; they shall run and not be weary; they shall walk and not faint." },
+  { ref: "Jeremiah 29:11", text: "For I know the plans I have for you, declares the Lord, plans for welfare and not for evil, to give you a future and a hope." },
+  { ref: "Psalm 23:1-3", text: "The Lord is my shepherd; I shall not want. He makes me lie down in green pastures. He leads me beside still waters. He restores my soul." },
+  { ref: "2 Timothy 1:7", text: "For God gave us a spirit not of fear but of power and love and self-control." },
+  { ref: "Galatians 2:20", text: "I have been crucified with Christ. It is no longer I who live, but Christ who lives in me." },
+  { ref: "Psalm 119:105", text: "Your word is a lamp to my feet and a light to my path." },
+  { ref: "Matthew 6:33", text: "But seek first the kingdom of God and his righteousness, and all these things will be added to you." },
+  { ref: "Romans 12:2", text: "Do not be conformed to this world, but be transformed by the renewal of your mind." },
+  { ref: "Colossians 3:23", text: "Whatever you do, work heartily, as for the Lord and not for men." },
+  { ref: "Psalm 46:10", text: "Be still, and know that I am God." },
+  { ref: "Hebrews 12:1", text: "Let us run with endurance the race that is set before us, looking to Jesus, the founder and perfecter of our faith." },
+  { ref: "1 Corinthians 9:27", text: "But I discipline my body and keep it under control, lest after preaching to others I myself should be disqualified." },
+  { ref: "Psalm 90:12", text: "So teach us to number our days that we may get a heart of wisdom." },
+  { ref: "Ephesians 6:10-11", text: "Be strong in the Lord and in the strength of his might. Put on the whole armor of God." },
+  { ref: "Isaiah 54:17", text: "No weapon that is fashioned against you shall succeed, and you shall refute every tongue that rises against you in judgment." },
+  { ref: "Psalm 1:1-3", text: "Blessed is the man who walks not in the counsel of the wicked. He is like a tree planted by streams of water that yields its fruit in its season." },
+  { ref: "Lamentations 3:22-23", text: "The steadfast love of the Lord never ceases; his mercies never come to an end; they are new every morning; great is your faithfulness." },
+  { ref: "Philippians 1:6", text: "And I am sure of this, that he who began a good work in you will bring it to completion at the day of Jesus Christ." },
+  { ref: "Romans 8:37", text: "No, in all these things we are more than conquerors through him who loved us." },
+  { ref: "Psalm 27:1", text: "The Lord is my light and my salvation; whom shall I fear? The Lord is the stronghold of my life; of whom shall I be afraid?" },
+  { ref: "Deuteronomy 31:6", text: "Be strong and courageous. Do not fear or be in dread of them, for it is the Lord your God who goes with you. He will not leave you or forsake you." },
+  { ref: "Psalm 37:4", text: "Delight yourself in the Lord, and he will give you the desires of your heart." },
+  { ref: "Isaiah 41:10", text: "Fear not, for I am with you; be not dismayed, for I am your God; I will strengthen you, I will help you." },
+  { ref: "Proverbs 16:3", text: "Commit your work to the Lord, and your plans will be established." },
+  { ref: "1 John 4:4", text: "Little children, you are from God and have overcome them, for he who is in you is greater than he who is in the world." },
+  { ref: "Psalm 91:1-2", text: "He who dwells in the shelter of the Most High will abide in the shadow of the Almighty. I will say to the Lord, My refuge and my fortress, my God, in whom I trust." },
+];
+const getDailyVerse = (date) => {
+  const seed = date.split("-").join("").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  return VERSE_BANK[seed % VERSE_BANK.length];
+};
+
+// ─── DEVOTIONAL PROMPTS ───
+const DEVOTIONAL_PROMPTS = [
+  "What is God saying to you today?",
+  "What area of your life is the Holy Spirit highlighting?",
+  "Write a prayer of surrender for today.",
+  "What are you grateful to God for this morning?",
+  "Which promise of God are you standing on today?",
+  "What sin or habit is the Lord asking you to lay down?",
+  "How can you be a vessel of God\u2019s love today?",
+  "What did you see in the Word that surprised you?",
+  "Where do you need God\u2019s strength the most right now?",
+  "Write down one thing you want to declare over your day.",
+  "What is the Lord teaching you in this season?",
+  "Who is God putting on your heart to pray for?",
+  "What does obedience look like for you today?",
+  "Reflect on a moment God came through for you recently.",
+  "What does it mean to \u2018put on the new self\u2019 today?",
+];
+const getDailyPrompt = (date) => {
+  const seed = date.split("-").join("").split("").reduce((a, c, i) => a + c.charCodeAt(0) * (i + 3), 0);
+  return DEVOTIONAL_PROMPTS[seed % DEVOTIONAL_PROMPTS.length];
+};
+
+// ─── DAILY READINESS SCORE ───
+function getReadinessScore(state, dayPct) {
+  const streakScore = Math.min(state.streak || 0, 30) / 30 * 25;
+  const hpScore = (state.hp || 0) / HP_MAX * 25;
+  const completionScore = dayPct / 100 * 30;
+  const consistencyScore = (() => {
+    const hist = (state.history || []).slice(-7);
+    if (hist.length === 0) return 10;
+    const avg = hist.reduce((s, d) => s + (d?.pct || 0), 0) / hist.length;
+    return avg / 100 * 20;
+  })();
+  return Math.round(Math.min(100, streakScore + hpScore + completionScore + consistencyScore));
+}
+function getReadinessMessage(score) {
+  if (score >= 85) return "You\u2019re on fire \u2014 push hard today!";
+  if (score >= 70) return "Strong foundation \u2014 keep building.";
+  if (score >= 50) return "Steady \u2014 focus on the essentials.";
+  if (score >= 30) return "Regroup \u2014 start with what matters most.";
+  return "Rest and reset \u2014 tomorrow is a new day.";
+}
+function getReadinessColor(score, th) {
+  if (score >= 80) return "#22C55E";
+  if (score >= 60) return th.blue;
+  if (score >= 40) return th.gold;
+  return th.red;
+}
+
+// ─── READINESS SCORE CARD ───
+function ReadinessCard({ state, dayPct, th }) {
+  const score = getReadinessScore(state, dayPct);
+  const msg = getReadinessMessage(score);
+  const color = getReadinessColor(score, th);
+  const circumference = 2 * Math.PI * 38;
+  const offset = circumference - (score / 100) * circumference;
+  return (
+    <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+        <div style={{ position: "relative", width: 90, height: 90, flexShrink: 0 }}>
+          <svg width="90" height="90" viewBox="0 0 90 90">
+            <circle cx="45" cy="45" r="38" fill="none" stroke={th.ghost} strokeWidth="5" />
+            <circle cx="45" cy="45" r="38" fill="none" stroke={color} strokeWidth="5"
+              strokeDasharray={circumference} strokeDashoffset={offset}
+              strokeLinecap="round" transform="rotate(-90 45 45)"
+              style={{ transition: "stroke-dashoffset 1s ease" }} />
+          </svg>
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 24, fontWeight: 800, color, fontFamily: FONT }}>{score}</span>
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 6 }}>DAILY READINESS</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: th.text, lineHeight: 1.5 }}>{msg}</div>
+          <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+            {[
+              { label: "HP", value: state.hp, max: HP_MAX },
+              { label: "STK", value: state.streak, max: 30 },
+              { label: "DAY", value: dayPct, max: 100 },
+            ].map(s => (
+              <div key={s.label} style={{ fontSize: 9, color: th.dim }}>
+                <span style={{ fontWeight: 700, color: th.mid }}>{s.value}</span>{" "}{s.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PILLAR BALANCE RADAR ───
+function PillarRadar({ state, tasks, th }) {
+  const catKeys = ["person", "people", "process", "product"];
+  const catLabels = ["Person", "People", "Process", "Product"];
+  const catColors = ["#DC2626", "#7C3AED", "#16A34A", th.blue];
+  const values = catKeys.map(k => {
+    const a = (tasks[k]?.sections || []).flatMap(s => s.tasks);
+    const d = a.filter(t => t.type === "check" ? state.completed?.[t.id] : (state.counters?.[t.id] || 0) >= (t.target || 1)).length;
+    return a.length > 0 ? d / a.length : 0;
+  });
+  const cx = 100, cy = 100, r = 70;
+  const angles = values.map((_, i) => (Math.PI * 2 * i / 4) - Math.PI / 2);
+  const gridLevels = [0.25, 0.5, 0.75, 1.0];
+  const pointsStr = (scale) => values.map((v, i) => {
+    const val = v * scale * r;
+    return `${cx + val * Math.cos(angles[i])},${cy + val * Math.sin(angles[i])}`;
+  }).join(" ");
+  return (
+    <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 14 }}>PILLAR BALANCE</div>
+      <svg viewBox="0 0 200 200" width="100%" style={{ maxWidth: 260, display: "block", margin: "0 auto" }}>
+        {gridLevels.map(lvl => (
+          <polygon key={lvl} points={angles.map(a => `${cx + r * lvl * Math.cos(a)},${cy + r * lvl * Math.sin(a)}`).join(" ")}
+            fill="none" stroke={th.ghost} strokeWidth="0.5" />
+        ))}
+        {angles.map((a, i) => (
+          <g key={i}>
+            <line x1={cx} y1={cy} x2={cx + r * Math.cos(a)} y2={cy + r * Math.sin(a)} stroke={th.ghost} strokeWidth="0.5" />
+            <text x={cx + (r + 14) * Math.cos(a)} y={cy + (r + 14) * Math.sin(a)} textAnchor="middle" dominantBaseline="middle"
+              fill={catColors[i]} fontSize="8" fontWeight="700" fontFamily="JetBrains Mono, monospace">{catLabels[i]}</text>
+          </g>
+        ))}
+        <polygon points={pointsStr(1)} fill={th.blue + "20"} stroke={th.blue} strokeWidth="1.5" />
+        {values.map((v, i) => (
+          <circle key={i} cx={cx + v * r * Math.cos(angles[i])} cy={cy + v * r * Math.sin(angles[i])} r="4"
+            fill={catColors[i]} stroke="#fff" strokeWidth="1" />
+        ))}
+      </svg>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 12 }}>
+        {catKeys.map((k, i) => (
+          <div key={k} style={{ fontSize: 10, color: th.mid, display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: 4, background: catColors[i] }} />
+            <span style={{ fontWeight: 600 }}>{Math.round(values[i] * 100)}%</span> {catLabels[i]}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── TRENDS & ANALYTICS VIEW ───
+function TrendsView({ state, tasks, th, onBack }) {
+  const [range, setRange] = useState(7);
+  const hist = (state.history || []).slice(-range);
+  const maxXp = Math.max(...hist.map(d => d?.xp || 0), 1);
+  const avgPct = hist.length > 0 ? Math.round(hist.reduce((s, d) => s + (d?.pct || 0), 0) / hist.length) : 0;
+  const bestDay = hist.reduce((best, d) => (d?.pct || 0) > (best?.pct || 0) ? d : best, hist[0]);
+  const catKeys = ["person", "people", "process", "product"];
+  const catLabels = { person: "Person", people: "People", process: "Process", product: "Product" };
+  const catColors = { person: "#DC2626", people: "#7C3AED", process: "#16A34A", product: th.blue };
+  const catAvgs = {};
+  catKeys.forEach(k => {
+    const vals = hist.map(d => d?.cats?.[k] || 0);
+    catAvgs[k] = vals.length > 0 ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 0;
+  });
+  const weakest = catKeys.reduce((w, k) => catAvgs[k] < catAvgs[w] ? k : w, catKeys[0]);
+  const strongest = catKeys.reduce((s, k) => catAvgs[k] > catAvgs[s] ? k : s, catKeys[0]);
+
+  // Weekly insight message
+  const insightMsg = weakest !== strongest
+    ? `Strong in ${catLabels[strongest]} (${catAvgs[strongest]}%) but ${catLabels[weakest]} needs attention (${catAvgs[weakest]}%). Consider dedicating more focus there.`
+    : `All pillars are balanced at ${catAvgs[strongest]}%. Keep up the consistency!`;
+
+  const rangeBtn = (v, label) => (
+    <button key={v} onClick={() => setRange(v)} style={{
+      padding: "6px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+      border: `1px solid ${range === v ? th.blue + "40" : th.glassBorder}`,
+      background: range === v ? th.blueDim : th.glass, color: range === v ? th.blue : th.dim,
+    }}>{label}</button>
+  );
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ width: 40, height: 40, borderRadius: 12, cursor: "pointer", border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, backdropFilter: "blur(20px)" }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>Trends & Insights</div>
+          <div style={{ fontSize: 10, color: th.dim }}>Your progress over time</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {rangeBtn(7, "7D")}{rangeBtn(14, "14D")}{rangeBtn(30, "30D")}
+      </div>
+
+      {/* Completion Graph */}
+      <div style={{ ...glassStyle(th), padding: "16px", marginBottom: 12 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 12 }}>DAILY COMPLETION</div>
+        <svg viewBox={`0 0 ${Math.max(hist.length * 30, 200)} 80`} width="100%" style={{ display: "block" }}>
+          {hist.map((d, i) => {
+            const pct = d?.pct || 0;
+            const h = (pct / 100) * 60;
+            const x = i * 30 + 5;
+            const color = pct >= 80 ? "#22C55E" : pct >= 50 ? th.gold : th.red;
+            return (
+              <g key={i}>
+                <rect x={x} y={65 - h} width="20" height={h} rx="4" fill={color} opacity="0.7" />
+                <text x={x + 10} y={75} textAnchor="middle" fill={th.dim} fontSize="6" fontFamily="JetBrains Mono, monospace">
+                  {(d?.date || "").slice(8)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Summary Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+        {[
+          { label: "AVG", value: `${avgPct}%`, color: avgPct >= 70 ? "#22C55E" : th.gold },
+          { label: "BEST", value: `${bestDay?.pct || 0}%`, color: th.blue },
+          { label: "STREAK", value: `${state.streak}d`, color: th.red },
+        ].map(s => (
+          <div key={s.label} style={{ ...glassStyle(th), padding: "12px 0", textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.12em", marginTop: 3 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Pillar Radar */}
+      <PillarRadar state={state} tasks={state.customTasks || DEFAULT_TASKS} th={th} />
+
+      {/* Weekly Insight */}
+      <div style={{ ...glassStyle(th), padding: "16px", marginBottom: 12 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 8 }}>WEEKLY INSIGHT</div>
+        <div style={{ fontSize: 12, color: th.text, lineHeight: 1.6 }}>{insightMsg}</div>
+      </div>
+
+      {/* Category Breakdown */}
+      <div style={{ ...glassStyle(th), padding: "16px" }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 12 }}>PILLAR AVERAGES</div>
+        {catKeys.map(k => (
+          <div key={k} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: catColors[k] }}>{catLabels[k]}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: th.mid }}>{catAvgs[k]}%</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 3, background: th.ghost, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 3, width: `${catAvgs[k]}%`, background: catColors[k], transition: "width 0.6s ease" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── PRAYER JOURNAL ───
+const PRAYER_KEY = "pva_prayer_journal";
+function loadPrayers() {
+  try { return JSON.parse(localStorage.getItem(PRAYER_KEY) || "[]"); } catch { return []; }
+}
+function savePrayers(p) {
+  try { localStorage.setItem(PRAYER_KEY, JSON.stringify(p)); } catch {}
+}
+
+function PrayerJournalView({ th, onBack }) {
+  const [prayers, setPrayers] = useState(loadPrayers);
+  const [newText, setNewText] = useState("");
+  const [filter, setFilter] = useState("all");
+
+  const addPrayer = () => {
+    if (!newText.trim()) return;
+    const p = { id: Date.now(), text: newText.trim(), status: "ongoing", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const next = [p, ...prayers];
+    setPrayers(next); savePrayers(next); setNewText("");
+  };
+  const updateStatus = (id, status) => {
+    const next = prayers.map(p => p.id === id ? { ...p, status, updatedAt: new Date().toISOString() } : p);
+    setPrayers(next); savePrayers(next);
+  };
+  const removePrayer = (id) => {
+    const next = prayers.filter(p => p.id !== id);
+    setPrayers(next); savePrayers(next);
+  };
+
+  const filtered = filter === "all" ? prayers : prayers.filter(p => p.status === filter);
+  const statusColors = { ongoing: th.blue, waiting: th.gold, answered: "#22C55E" };
+  const statusLabels = { ongoing: "ONGOING", waiting: "WAITING", answered: "ANSWERED" };
+  const filterBtn = (v, label) => (
+    <button key={v} onClick={() => setFilter(v)} style={{
+      padding: "6px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+      border: `1px solid ${filter === v ? th.blue + "40" : th.glassBorder}`,
+      background: filter === v ? th.blueDim : th.glass, color: filter === v ? th.blue : th.dim,
+    }}>{label}</button>
+  );
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ width: 40, height: 40, borderRadius: 12, cursor: "pointer", border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, backdropFilter: "blur(20px)" }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>Prayer Journal</div>
+          <div style={{ fontSize: 10, color: th.dim }}>Log, track, and celebrate answered prayers</div>
+        </div>
+      </div>
+
+      {/* Add Prayer */}
+      <div style={{ ...glassStyle(th), padding: "14px", marginBottom: 16 }}>
+        <textarea value={newText} onChange={e => setNewText(e.target.value)} placeholder="Write your prayer request..." style={{
+          width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass,
+          color: th.text, fontSize: 12, fontFamily: FONT, outline: "none", minHeight: 60, resize: "vertical", boxSizing: "border-box",
+        }} />
+        <button onClick={addPrayer} style={{
+          width: "100%", padding: "10px", marginTop: 8, borderRadius: 10, border: `1px solid ${th.blue}30`,
+          background: th.blueDim, color: th.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+        }}>ADD PRAYER</button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {filterBtn("all", "All")}{filterBtn("ongoing", "Ongoing")}{filterBtn("waiting", "Waiting")}{filterBtn("answered", "Answered")}
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+        {[
+          { label: "TOTAL", value: prayers.length, color: th.mid },
+          { label: "ONGOING", value: prayers.filter(p => p.status === "ongoing").length, color: th.blue },
+          { label: "ANSWERED", value: prayers.filter(p => p.status === "answered").length, color: "#22C55E" },
+        ].map(s => (
+          <div key={s.label} style={{ ...glassStyle(th), padding: "10px 0", textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.12em", marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Prayer List */}
+      {filtered.length === 0 && <div style={{ textAlign: "center", color: th.dim, fontSize: 12, padding: 30, fontStyle: "italic" }}>No prayers yet. Start by adding one above.</div>}
+      {filtered.map(p => (
+        <div key={p.id} style={{ ...glassStyle(th), padding: "14px", marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: th.text, lineHeight: 1.6, marginBottom: 10 }}>{p.text}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["ongoing", "waiting", "answered"].map(s => (
+                <button key={s} onClick={() => updateStatus(p.id, s)} style={{
+                  padding: "4px 10px", borderRadius: 6, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                  border: `1px solid ${p.status === s ? statusColors[s] + "40" : th.glassBorder}`,
+                  background: p.status === s ? statusColors[s] + "15" : "transparent",
+                  color: p.status === s ? statusColors[s] : th.dim,
+                }}>{statusLabels[s]}</button>
+              ))}
+            </div>
+            <button onClick={() => removePrayer(p.id)} style={{ background: "none", border: "none", color: th.dim, fontSize: 12, cursor: "pointer" }}>{"\u2715"}</button>
+          </div>
+          <div style={{ fontSize: 9, color: th.ghost, marginTop: 8 }}>{new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── VERSE MEMORISATION TRACKER ───
+const VERSE_MEM_KEY = "pva_verse_mem";
+function loadMemVerses() {
+  try { return JSON.parse(localStorage.getItem(VERSE_MEM_KEY) || "[]"); } catch { return []; }
+}
+function saveMemVerses(v) {
+  try { localStorage.setItem(VERSE_MEM_KEY, JSON.stringify(v)); } catch {}
+}
+
+function VerseMemView({ th, onBack }) {
+  const [verses, setVerses] = useState(loadMemVerses);
+  const [newRef, setNewRef] = useState("");
+  const [newText, setNewText] = useState("");
+  const [practicing, setPracticing] = useState(null);
+  const [showText, setShowText] = useState(false);
+
+  const addVerse = () => {
+    if (!newRef.trim() || !newText.trim()) return;
+    const v = { id: Date.now(), ref: newRef.trim(), text: newText.trim(), level: 0, lastReviewed: null, nextReview: new Date().toISOString(), reviews: 0 };
+    const next = [v, ...verses];
+    setVerses(next); saveMemVerses(next); setNewRef(""); setNewText("");
+  };
+  const reviewVerse = (id, remembered) => {
+    const next = verses.map(v => {
+      if (v.id !== id) return v;
+      const newLevel = remembered ? Math.min(v.level + 1, 5) : Math.max(v.level - 1, 0);
+      const intervals = [1, 2, 4, 7, 14, 30]; // spaced repetition intervals in days
+      const nextDate = new Date(); nextDate.setDate(nextDate.getDate() + intervals[newLevel]);
+      return { ...v, level: newLevel, lastReviewed: new Date().toISOString(), nextReview: nextDate.toISOString(), reviews: v.reviews + 1 };
+    });
+    setVerses(next); saveMemVerses(next); setPracticing(null); setShowText(false);
+  };
+  const removeVerse = (id) => {
+    const next = verses.filter(v => v.id !== id);
+    setVerses(next); saveMemVerses(next);
+  };
+
+  const dueVerses = verses.filter(v => new Date(v.nextReview) <= new Date());
+  const levelColors = ["#EF4444", "#F59E0B", "#3B82F6", "#8B5CF6", "#22C55E", "#10B981"];
+  const levelNames = ["New", "Learning", "Familiar", "Known", "Strong", "Mastered"];
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ width: 40, height: 40, borderRadius: 12, cursor: "pointer", border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, backdropFilter: "blur(20px)" }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>Verse Memorisation</div>
+          <div style={{ fontSize: 10, color: th.dim }}>Hide the Word in your heart</div>
+        </div>
+      </div>
+
+      {/* Practice Mode */}
+      {practicing && (
+        <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16, textAlign: "center" }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 12 }}>PRACTICE</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: th.scripture || th.text, marginBottom: 16 }}>{practicing.ref}</div>
+          {showText ? (
+            <div style={{ fontSize: 13, color: th.text, lineHeight: 1.8, fontFamily: FONT, marginBottom: 16, fontStyle: "italic" }}>{"\u201C"}{practicing.text}{"\u201D"}</div>
+          ) : (
+            <button onClick={() => setShowText(true)} style={{ padding: "10px 20px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.mid, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, marginBottom: 16 }}>REVEAL VERSE</button>
+          )}
+          <div style={{ fontSize: 11, color: th.dim, marginBottom: 12 }}>Did you remember it?</div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <button onClick={() => reviewVerse(practicing.id, true)} style={{ padding: "10px 20px", borderRadius: 10, border: `1px solid #22C55E40`, background: "rgba(34,197,94,0.1)", color: "#22C55E", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>YES</button>
+            <button onClick={() => reviewVerse(practicing.id, false)} style={{ padding: "10px 20px", borderRadius: 10, border: `1px solid ${th.red}40`, background: th.redDim, color: th.red, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>NOT YET</button>
+          </div>
+        </div>
+      )}
+
+      {/* Due for Review */}
+      {dueVerses.length > 0 && !practicing && (
+        <div style={{ ...glassStyle(th), padding: "14px", marginBottom: 16, border: `1px solid ${th.gold}30` }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", marginBottom: 8 }}>{dueVerses.length} VERSE{dueVerses.length > 1 ? "S" : ""} DUE FOR REVIEW</div>
+          <button onClick={() => { setPracticing(dueVerses[0]); setShowText(false); }} style={{
+            width: "100%", padding: "10px", borderRadius: 10, border: `1px solid ${th.gold}30`, background: th.goldDim, color: th.gold,
+            fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+          }}>START REVIEW</button>
+        </div>
+      )}
+
+      {/* Add Verse */}
+      <div style={{ ...glassStyle(th), padding: "14px", marginBottom: 16 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 8 }}>ADD VERSE</div>
+        <input value={newRef} onChange={e => setNewRef(e.target.value)} placeholder="Reference (e.g. John 3:16)" style={{
+          width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass,
+          color: th.text, fontSize: 12, fontFamily: FONT, outline: "none", marginBottom: 6, boxSizing: "border-box",
+        }} />
+        <textarea value={newText} onChange={e => setNewText(e.target.value)} placeholder="Type the verse text..." style={{
+          width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass,
+          color: th.text, fontSize: 12, fontFamily: FONT, outline: "none", minHeight: 60, resize: "vertical", boxSizing: "border-box",
+        }} />
+        <button onClick={addVerse} style={{
+          width: "100%", padding: "10px", marginTop: 8, borderRadius: 10, border: `1px solid ${th.blue}30`,
+          background: th.blueDim, color: th.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+        }}>ADD TO MEMORY BANK</button>
+      </div>
+
+      {/* Verse List */}
+      {verses.map(v => (
+        <div key={v.id} style={{ ...glassStyle(th), padding: "14px", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: th.scripture || th.text }}>{v.ref}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: levelColors[v.level], padding: "2px 8px", borderRadius: 6, background: levelColors[v.level] + "15" }}>{levelNames[v.level]}</span>
+          </div>
+          <div style={{ fontSize: 11, color: th.dim, lineHeight: 1.5, marginBottom: 8 }}>{v.text.slice(0, 80)}{v.text.length > 80 ? "..." : ""}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 9, color: th.ghost }}>{v.reviews} reviews</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => { setPracticing(v); setShowText(false); }} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${th.blue}30`, background: th.blueDim, color: th.blue, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>PRACTICE</button>
+              <button onClick={() => removeVerse(v.id)} style={{ background: "none", border: "none", color: th.dim, fontSize: 11, cursor: "pointer" }}>{"\u2715"}</button>
+            </div>
+          </div>
+        </div>
+      ))}
+      {verses.length === 0 && <div style={{ textAlign: "center", color: th.dim, fontSize: 12, padding: 30, fontStyle: "italic" }}>No verses yet. Add your first verse above!</div>}
+    </div>
+  );
+}
+
+// ─── TEMPLE BUILDING VISUAL ───
+function TempleBuildingVisual({ state, th }) {
+  const hist = state.history || [];
+  const last14 = hist.slice(-14);
+  const completedDays = last14.filter(d => (d?.pct || 0) >= 50).length;
+  const missedDays = last14.filter(d => (d?.pct || 0) < 50).length;
+  const totalBricks = 14;
+  const rows = 7;
+  const bricksPerRow = 2;
+  const brickW = 28, brickH = 10, gap = 2;
+  const baseY = 100;
+  const baseX = 50 - ((bricksPerRow * brickW + (bricksPerRow - 1) * gap) / 2);
+
+  return (
+    <div style={{ ...glassStyle(th), padding: "16px", marginBottom: 16 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>YOUR TEMPLE</div>
+      <svg viewBox="0 0 100 120" width="100%" style={{ maxWidth: 200, display: "block", margin: "0 auto" }}>
+        {/* Foundation */}
+        <rect x="10" y={baseY + 2} width="80" height="6" rx="2" fill={th.gold} opacity="0.3" />
+        {/* Bricks */}
+        {Array.from({ length: totalBricks }).map((_, i) => {
+          const row = Math.floor(i / bricksPerRow);
+          const col = i % bricksPerRow;
+          const x = baseX + col * (brickW + gap);
+          const y = baseY - (row + 1) * (brickH + gap);
+          const isBuilt = i < completedDays;
+          const isCracked = !isBuilt && i < completedDays + missedDays;
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={brickW} height={brickH} rx="2"
+                fill={isBuilt ? th.gold : isCracked ? th.red + "30" : th.ghost}
+                stroke={isBuilt ? th.gold : isCracked ? th.red + "50" : th.ghost}
+                strokeWidth="0.5" opacity={isBuilt ? 0.8 : 0.3} />
+              {isCracked && (
+                <line x1={x + 5} y1={y + 2} x2={x + brickW - 5} y2={y + brickH - 2}
+                  stroke={th.red} strokeWidth="0.8" opacity="0.5" />
+              )}
+            </g>
+          );
+        })}
+        {/* Roof / pinnacle if mostly complete */}
+        {completedDays >= 10 && (
+          <polygon points={`${50},${baseY - rows * (brickH + gap) - 15} ${baseX - 2},${baseY - rows * (brickH + gap) + 2} ${baseX + bricksPerRow * brickW + (bricksPerRow - 1) * gap + 2},${baseY - rows * (brickH + gap) + 2}`}
+            fill={th.gold} opacity="0.4" />
+        )}
+        {/* Glow if strong */}
+        {completedDays >= 12 && (
+          <circle cx="50" cy={baseY - rows * (brickH + gap) - 10} r="8" fill={th.gold} opacity="0.15">
+            <animate attributeName="r" values="6;10;6" dur="3s" repeatCount="indefinite" />
+          </circle>
+        )}
+      </svg>
+      <div style={{ textAlign: "center", marginTop: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: th.gold }}>{completedDays}</span>
+        <span style={{ fontSize: 10, color: th.dim }}> / {totalBricks} stones laid</span>
+        {missedDays > 0 && <span style={{ fontSize: 10, color: th.red, marginLeft: 8 }}>{missedDays} cracked</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── SEASON VIEW ───
+function SeasonView({ state, tasks, dayPct, th, onBack }) {
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ width: 40, height: 40, borderRadius: 12, cursor: "pointer", border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, backdropFilter: "blur(20px)" }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>Season</div>
+          <div style={{ fontSize: 10, color: th.dim }}>Your current focus & progress</div>
+        </div>
+      </div>
+
+      {/* Readiness Score */}
+      <ReadinessCard state={state} dayPct={dayPct} th={th} />
+
+      {/* Temple Building */}
+      <TempleBuildingVisual state={state} th={th} />
+
+      {/* Pillar Radar */}
+      <PillarRadar state={state} tasks={tasks} th={th} />
+
+      {/* Quick links */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {[
+          { label: "TRENDS", icon: "\u{1F4CA}", view: "trends" },
+          { label: "PRAYER JOURNAL", icon: "\u{1F4D6}", view: "prayer_journal" },
+          { label: "VERSE MEMORY", icon: "\u{1F4DC}", view: "verse_mem" },
+          { label: "PETS & MOUNTS", icon: "\u{1F981}", view: "pets" },
+          { label: "GUILD", icon: "\u2694\uFE0F", view: "guild" },
+          { label: "REWARDS", icon: "\u{1F3C6}", view: "rewards" },
+        ].map(item => (
+          <div key={item.view} onClick={() => onBack(item.view)} style={{
+            ...glassStyle(th), padding: "16px", textAlign: "center", cursor: "pointer",
+          }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>{item.icon}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: th.text, letterSpacing: "0.06em" }}>{item.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── PETS & MOUNTS SYSTEM ───
+const PET_LINES = {
+  person: [
+    { name: "Ember Dove", icon: "\u{1F54A}", req: 7, desc: "7-day Person streak" },
+    { name: "Prayer Lion", icon: "\u{1F981}", req: 14, desc: "14-day Person streak" },
+    { name: "Seraph Eagle", icon: "\u{1F985}", req: 30, desc: "30-day Person streak" },
+  ],
+  people: [
+    { name: "Bond Lamb", icon: "\u{1F411}", req: 7, desc: "7-day People streak" },
+    { name: "Unity Wolf", icon: "\u{1F43A}", req: 14, desc: "14-day People streak" },
+    { name: "Covenant Stag", icon: "\u{1F98C}", req: 30, desc: "30-day People streak" },
+  ],
+  process: [
+    { name: "Diligence Ox", icon: "\u{1F402}", req: 7, desc: "7-day Process streak" },
+    { name: "Wisdom Owl", icon: "\u{1F989}", req: 14, desc: "14-day Process streak" },
+    { name: "Dominion Bear", icon: "\u{1F43B}", req: 30, desc: "30-day Process streak" },
+  ],
+  product: [
+    { name: "Spark Fox", icon: "\u{1F98A}", req: 7, desc: "7-day Product streak" },
+    { name: "Forge Horse", icon: "\u{1F40E}", req: 14, desc: "14-day Product streak" },
+    { name: "Creation Dragon", icon: "\u{1F409}", req: 30, desc: "30-day Product streak" },
+  ],
+};
+const MOUNT_UNLOCKS = [
+  { name: "Chariot of Fire", icon: "\u{1F525}", req: 60, desc: "60-day overall streak" },
+  { name: "Wings of the Morning", icon: "\u{1F54A}\uFE0F", req: 90, desc: "90-day overall streak" },
+];
+
+const PETS_KEY = "pva_pets";
+function loadPets() { try { return JSON.parse(localStorage.getItem(PETS_KEY) || '{"unlocked":[],"active":null,"activeMount":null}'); } catch { return { unlocked: [], active: null, activeMount: null }; } }
+function savePets(p) { try { localStorage.setItem(PETS_KEY, JSON.stringify(p)); } catch {} }
+
+function getPillarStreaks(history) {
+  const streaks = { person: 0, people: 0, process: 0, product: 0 };
+  const hist = [...(history || [])].reverse();
+  const catKeys = ["person", "people", "process", "product"];
+  catKeys.forEach(k => {
+    for (const d of hist) {
+      if ((d?.cats?.[k] || 0) >= 50) streaks[k]++;
+      else break;
+    }
+  });
+  return streaks;
+}
+
+function PetsView({ state, th, onBack }) {
+  const [pets, setPets] = useState(loadPets);
+  const pillarStreaks = getPillarStreaks(state.history);
+  const overallStreak = state.streak || 0;
+  const catKeys = ["person", "people", "process", "product"];
+  const catLabels = { person: "Person", people: "People", process: "Process", product: "Product" };
+  const catColors = { person: "#DC2626", people: "#7C3AED", process: "#16A34A", product: "#3B82F6" };
+
+  const unlock = (petName) => {
+    if (pets.unlocked.includes(petName)) return;
+    const next = { ...pets, unlocked: [...pets.unlocked, petName] };
+    setPets(next); savePets(next);
+  };
+  const setActive = (petName) => {
+    const next = { ...pets, active: pets.active === petName ? null : petName };
+    setPets(next); savePets(next);
+  };
+  const setActiveMount = (mountName) => {
+    const next = { ...pets, activeMount: pets.activeMount === mountName ? null : mountName };
+    setPets(next); savePets(next);
+  };
+
+  // Auto-unlock earned pets
+  useEffect(() => {
+    let changed = false;
+    const next = { ...pets, unlocked: [...pets.unlocked] };
+    catKeys.forEach(k => {
+      PET_LINES[k].forEach(pet => {
+        if (pillarStreaks[k] >= pet.req && !next.unlocked.includes(pet.name)) {
+          next.unlocked.push(pet.name); changed = true;
+        }
+      });
+    });
+    MOUNT_UNLOCKS.forEach(m => {
+      if (overallStreak >= m.req && !next.unlocked.includes(m.name)) {
+        next.unlocked.push(m.name); changed = true;
+      }
+    });
+    if (changed) { setPets(next); savePets(next); }
+  }, []);
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ width: 40, height: 40, borderRadius: 12, cursor: "pointer", border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, backdropFilter: "blur(20px)" }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>Pets & Mounts</div>
+          <div style={{ fontSize: 10, color: th.dim }}>Companions earned through consistency</div>
+        </div>
+      </div>
+
+      {/* Active companion display */}
+      {pets.active && (() => {
+        let found = null;
+        catKeys.forEach(k => { PET_LINES[k].forEach(p => { if (p.name === pets.active) found = p; }); });
+        return found ? (
+          <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16, textAlign: "center" }}>
+            <div style={{ fontSize: 40 }}>{found.icon}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: th.text, marginTop: 6 }}>{found.name}</div>
+            <div style={{ fontSize: 9, color: th.dim, marginTop: 2 }}>Active Companion</div>
+          </div>
+        ) : null;
+      })()}
+
+      {/* Pillar creatures */}
+      {catKeys.map(k => (
+        <div key={k} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: catColors[k], letterSpacing: "0.14em", marginBottom: 8 }}>{catLabels[k].toUpperCase()} COMPANIONS <span style={{ color: th.dim }}>({pillarStreaks[k]}d streak)</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            {PET_LINES[k].map(pet => {
+              const unlocked = pets.unlocked.includes(pet.name);
+              const isActive = pets.active === pet.name;
+              return (
+                <div key={pet.name} onClick={() => unlocked && setActive(pet.name)} style={{
+                  ...glassStyle(th), padding: "14px 8px", textAlign: "center", cursor: unlocked ? "pointer" : "default",
+                  opacity: unlocked ? 1 : 0.4, border: isActive ? `2px solid ${catColors[k]}` : `1px solid ${th.glassBorder}`,
+                }}>
+                  <div style={{ fontSize: 24 }}>{unlocked ? pet.icon : "\u{1F512}"}</div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: th.text, marginTop: 4 }}>{pet.name}</div>
+                  <div style={{ fontSize: 8, color: th.dim, marginTop: 2 }}>{pet.desc}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* Mounts */}
+      <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", marginBottom: 8 }}>LEGENDARY MOUNTS <span style={{ color: th.dim }}>({overallStreak}d streak)</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+        {MOUNT_UNLOCKS.map(m => {
+          const unlocked = pets.unlocked.includes(m.name);
+          const isActive = pets.activeMount === m.name;
+          return (
+            <div key={m.name} onClick={() => unlocked && setActiveMount(m.name)} style={{
+              ...glassStyle(th), padding: "16px", textAlign: "center", cursor: unlocked ? "pointer" : "default",
+              opacity: unlocked ? 1 : 0.4, border: isActive ? `2px solid ${th.gold}` : `1px solid ${th.glassBorder}`,
+            }}>
+              <div style={{ fontSize: 28 }}>{unlocked ? m.icon : "\u{1F512}"}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginTop: 4 }}>{m.name}</div>
+              <div style={{ fontSize: 8, color: th.dim, marginTop: 2 }}>{m.desc}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── GUILD / PARTY SYSTEM ───
+const GUILD_KEY = "pva_guild";
+function loadGuild() {
+  try { return JSON.parse(localStorage.getItem(GUILD_KEY) || "null"); } catch { return null; }
+}
+function saveGuild(g) { try { localStorage.setItem(GUILD_KEY, JSON.stringify(g)); } catch {} }
+
+const GUILD_BOSSES = [
+  { name: "Spirit of Sloth", hp: 500, icon: "\u{1F9DF}", reward: 200 },
+  { name: "Giant of Distraction", hp: 750, icon: "\u{1F47E}", reward: 300 },
+  { name: "Dragon of Procrastination", hp: 1000, icon: "\u{1F432}", reward: 500 },
+  { name: "Leviathan of Compromise", hp: 1500, icon: "\u{1F40D}", reward: 750 },
+  { name: "Behemoth of Complacency", hp: 2000, icon: "\u{1F43B}", reward: 1000 },
+];
+
+function GuildView({ state, th, dayPct, onBack }) {
+  const [guild, setGuild] = useState(() => loadGuild() || {
+    name: "", members: [], boss: GUILD_BOSSES[0], bossHp: GUILD_BOSSES[0].hp,
+    bossMaxHp: GUILD_BOSSES[0].hp, bossIdx: 0, log: [], created: false,
+  });
+  const [newMember, setNewMember] = useState("");
+  const [guildName, setGuildName] = useState(guild.name || "");
+
+  const save = (g) => { setGuild(g); saveGuild(g); };
+
+  const createGuild = () => {
+    if (!guildName.trim()) return;
+    const g = { ...guild, name: guildName.trim(), created: true };
+    save(g);
+  };
+  const addMember = () => {
+    if (!newMember.trim()) return;
+    const member = { id: Date.now(), name: newMember.trim(), hp: 100, contribution: 0 };
+    save({ ...guild, members: [...guild.members, member] });
+    setNewMember("");
+  };
+  const removeMember = (id) => save({ ...guild, members: guild.members.filter(m => m.id !== id) });
+
+  const attackBoss = () => {
+    const damage = Math.round(dayPct * 2 + (state.streak || 0) * 3);
+    const newHp = Math.max(0, guild.bossHp - damage);
+    const logEntry = { text: `You dealt ${damage} damage!`, time: new Date().toLocaleTimeString(), type: "attack" };
+    let g = { ...guild, bossHp: newHp, log: [logEntry, ...guild.log.slice(0, 19)] };
+    if (newHp <= 0) {
+      const nextIdx = (guild.bossIdx + 1) % GUILD_BOSSES.length;
+      const nextBoss = GUILD_BOSSES[nextIdx];
+      g = { ...g, boss: nextBoss, bossHp: nextBoss.hp, bossMaxHp: nextBoss.hp, bossIdx: nextIdx,
+        log: [{ text: `${guild.boss.name} defeated! +${guild.boss.reward} XP`, time: new Date().toLocaleTimeString(), type: "victory" }, ...g.log] };
+    }
+    save(g);
+  };
+
+  const simulateMissed = (memberId) => {
+    const g = { ...guild,
+      members: guild.members.map(m => m.id === memberId ? { ...m, hp: Math.max(0, m.hp - 15) } : m),
+      log: [{ text: `${guild.members.find(m => m.id === memberId)?.name} missed tasks! Party takes damage.`, time: new Date().toLocaleTimeString(), type: "damage" }, ...guild.log.slice(0, 19)],
+    };
+    save(g);
+  };
+
+  const bossHpPct = guild.bossMaxHp > 0 ? (guild.bossHp / guild.bossMaxHp) * 100 : 0;
+  const inputStyle = { width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none", boxSizing: "border-box" };
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ width: 40, height: 40, borderRadius: 12, cursor: "pointer", border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, backdropFilter: "blur(20px)" }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>{guild.created ? guild.name : "Create a Guild"}</div>
+          <div style={{ fontSize: 10, color: th.dim }}>Fight together, grow together</div>
+        </div>
+      </div>
+
+      {!guild.created ? (
+        <div style={{ ...glassStyle(th), padding: "20px", textAlign: "center" }}>
+          <div style={{ fontSize: 30, marginBottom: 12 }}>{"\u2694\uFE0F"}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: th.text, marginBottom: 16 }}>Name Your Guild</div>
+          <input value={guildName} onChange={e => setGuildName(e.target.value)} placeholder="e.g. The Watchmen" style={{ ...inputStyle, textAlign: "center", marginBottom: 12 }} />
+          <button onClick={createGuild} style={{ width: "100%", padding: "12px", borderRadius: 10, border: `1px solid ${th.blue}30`, background: th.blueDim, color: th.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>CREATE GUILD</button>
+        </div>
+      ) : (
+        <>
+          {/* Boss Battle */}
+          <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16, textAlign: "center" }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: th.red, letterSpacing: "0.14em", marginBottom: 10 }}>GUILD BOSS</div>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>{guild.boss.icon}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: th.text }}>{guild.boss.name}</div>
+            <div style={{ fontSize: 11, color: th.dim, marginTop: 4 }}>{guild.bossHp} / {guild.bossMaxHp} HP</div>
+            <div style={{ height: 8, borderRadius: 4, background: th.ghost, marginTop: 8, overflow: "hidden" }}>
+              <div style={{ height: "100%", borderRadius: 4, width: `${bossHpPct}%`, background: bossHpPct > 50 ? th.red : bossHpPct > 25 ? th.gold : "#22C55E", transition: "width 0.5s ease" }} />
+            </div>
+            <button onClick={attackBoss} style={{
+              marginTop: 14, padding: "10px 24px", borderRadius: 10, border: `1px solid ${th.red}40`, background: th.redDim,
+              color: th.red, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+            }}>{"\u2694\uFE0F"} ATTACK ({Math.round(dayPct * 2 + (state.streak || 0) * 3)} DMG)</button>
+            <div style={{ fontSize: 9, color: th.dim, marginTop: 6 }}>Damage = (completion% x 2) + (streak x 3)</div>
+          </div>
+
+          {/* Party Members */}
+          <div style={{ ...glassStyle(th), padding: "16px", marginBottom: 16 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>PARTY MEMBERS</div>
+            {guild.members.map(m => (
+              <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, padding: "8px 10px", borderRadius: 10, background: th.surface }}>
+                <div style={{ width: 28, height: 28, borderRadius: 14, background: m.hp > 50 ? th.blueDim : th.redDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: m.hp > 50 ? th.blue : th.red }}>{m.name[0]}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: th.text }}>{m.name}</div>
+                  <div style={{ height: 3, borderRadius: 2, background: th.ghost, marginTop: 3, width: 60, overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 2, width: `${m.hp}%`, background: m.hp > 50 ? "#22C55E" : th.red }} />
+                  </div>
+                </div>
+                <button onClick={() => simulateMissed(m.id)} style={{ padding: "3px 8px", borderRadius: 6, border: `1px solid ${th.red}30`, background: "transparent", color: th.red, fontSize: 8, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>MISSED</button>
+                <button onClick={() => removeMember(m.id)} style={{ background: "none", border: "none", color: th.dim, fontSize: 11, cursor: "pointer" }}>{"\u2715"}</button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <input value={newMember} onChange={e => setNewMember(e.target.value)} placeholder="Add member..." style={{ ...inputStyle, flex: 1 }} />
+              <button onClick={addMember} style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${th.blue}30`, background: th.blueDim, color: th.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>ADD</button>
+            </div>
+          </div>
+
+          {/* Battle Log */}
+          <div style={{ ...glassStyle(th), padding: "16px" }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>BATTLE LOG</div>
+            {guild.log.length === 0 && <div style={{ fontSize: 11, color: th.dim, fontStyle: "italic" }}>No activity yet. Attack the boss!</div>}
+            {guild.log.slice(0, 10).map((l, i) => (
+              <div key={i} style={{ fontSize: 10, color: l.type === "victory" ? "#22C55E" : l.type === "damage" ? th.red : th.mid, marginBottom: 4, lineHeight: 1.5 }}>
+                <span style={{ color: th.ghost, marginRight: 6 }}>{l.time}</span>{l.text}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── CUSTOM REWARDS SHOP ───
+const REWARDS_KEY = "pva_rewards";
+function loadRewards() { try { return JSON.parse(localStorage.getItem(REWARDS_KEY) || '{"items":[],"gold":0,"purchased":[]}'); } catch { return { items: [], gold: 0, purchased: [] }; } }
+function saveRewards(r) { try { localStorage.setItem(REWARDS_KEY, JSON.stringify(r)); } catch {} }
+
+function RewardsShopView({ state, th, onBack }) {
+  const [shop, setShop] = useState(loadRewards);
+  const [newLabel, setNewLabel] = useState("");
+  const [newCost, setNewCost] = useState("50");
+  const [showAdd, setShowAdd] = useState(false);
+
+  // Gold = XP earned (total)
+  const gold = (state.totalXp || 0) - shop.purchased.reduce((s, p) => s + (p.cost || 0), 0);
+
+  const save = (s) => { setShop(s); saveRewards(s); };
+  const addReward = () => {
+    if (!newLabel.trim() || !parseInt(newCost)) return;
+    const item = { id: Date.now(), label: newLabel.trim(), cost: parseInt(newCost) };
+    save({ ...shop, items: [...shop.items, item] });
+    setNewLabel(""); setNewCost("50"); setShowAdd(false);
+  };
+  const removeReward = (id) => save({ ...shop, items: shop.items.filter(i => i.id !== id) });
+  const purchaseReward = (item) => {
+    if (gold < item.cost) return;
+    const purchase = { ...item, purchasedAt: new Date().toISOString() };
+    save({ ...shop, purchased: [...shop.purchased, purchase] });
+  };
+
+  const inputStyle = { width: "100%", padding: "10px 14px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none", boxSizing: "border-box" };
+
+  const presetRewards = [
+    { label: "Watch a Movie", cost: 50 }, { label: "Treat Yourself to a Meal", cost: 75 },
+    { label: "Gaming Session", cost: 60 }, { label: "Buy Something Nice", cost: 150 },
+    { label: "Day Off", cost: 200 }, { label: "Weekend Trip", cost: 500 },
+  ];
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        <button onClick={onBack} style={{ width: 40, height: 40, borderRadius: 12, cursor: "pointer", border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, backdropFilter: "blur(20px)" }}>{"\u2190"}</button>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>Rewards Shop</div>
+          <div style={{ fontSize: 10, color: th.dim }}>Earn gold through XP, spend on rewards</div>
+        </div>
+      </div>
+
+      {/* Gold Balance */}
+      <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16, textAlign: "center", border: `1px solid ${th.gold}25` }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", marginBottom: 6 }}>YOUR GOLD</div>
+        <div style={{ fontSize: 36, fontWeight: 800, color: th.gold }}>{gold}</div>
+        <div style={{ fontSize: 10, color: th.dim, marginTop: 4 }}>1 XP = 1 Gold</div>
+      </div>
+
+      {/* Available Rewards */}
+      <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>YOUR REWARDS</div>
+      {shop.items.length === 0 && !showAdd && (
+        <div style={{ ...glassStyle(th), padding: "20px", textAlign: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: th.dim, marginBottom: 12 }}>No rewards yet. Add your own or pick from presets!</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+            {presetRewards.map(p => (
+              <button key={p.label} onClick={() => { save({ ...shop, items: [...shop.items, { id: Date.now() + Math.random(), label: p.label, cost: p.cost }] }); }} style={{
+                padding: "6px 12px", borderRadius: 8, border: `1px solid ${th.glassBorder}`, background: th.glass,
+                color: th.mid, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT,
+              }}>{p.label} ({p.cost}g)</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {shop.items.map(item => (
+        <div key={item.id} style={{ ...glassStyle(th), padding: "14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: th.text }}>{item.label}</div>
+            <div style={{ fontSize: 10, color: th.gold, fontWeight: 700, marginTop: 2 }}>{item.cost} gold</div>
+          </div>
+          <button onClick={() => purchaseReward(item)} disabled={gold < item.cost} style={{
+            padding: "6px 14px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: gold >= item.cost ? "pointer" : "default", fontFamily: FONT,
+            border: `1px solid ${gold >= item.cost ? th.gold + "40" : th.ghost}`,
+            background: gold >= item.cost ? th.goldDim : th.glass,
+            color: gold >= item.cost ? th.gold : th.ghost,
+          }}>REDEEM</button>
+          <button onClick={() => removeReward(item.id)} style={{ background: "none", border: "none", color: th.dim, fontSize: 11, cursor: "pointer" }}>{"\u2715"}</button>
+        </div>
+      ))}
+
+      {/* Add custom reward */}
+      {showAdd ? (
+        <div style={{ ...glassStyle(th), padding: "14px", marginTop: 12 }}>
+          <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="Reward name..." style={{ ...inputStyle, marginBottom: 6 }} />
+          <input type="number" value={newCost} onChange={e => setNewCost(e.target.value)} placeholder="Gold cost" style={{ ...inputStyle, marginBottom: 8 }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={addReward} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `1px solid ${th.gold}30`, background: th.goldDim, color: th.gold, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>ADD REWARD</button>
+            <button onClick={() => setShowAdd(false)} style={{ padding: "10px 14px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.dim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>CANCEL</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setShowAdd(true)} style={{
+          width: "100%", padding: "12px", marginTop: 12, borderRadius: 10, border: `1px solid ${th.glassBorder}`,
+          background: th.glass, color: th.mid, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+        }}>+ ADD CUSTOM REWARD</button>
+      )}
+
+      {/* Purchase History */}
+      {shop.purchased.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>REDEEMED</div>
+          {shop.purchased.slice(-10).reverse().map((p, i) => (
+            <div key={i} style={{ fontSize: 10, color: th.dim, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+              <span>{"\u2713"} {p.label}</span>
+              <span style={{ color: th.ghost }}>{new Date(p.purchasedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CELEBRATION PARTICLES ───
+function spawnParticles(e) {
+  const colors = ["#3B82F6", "#F59E0B", "#22C55E", "#EF4444", "#7C3AED", "#EC4899"];
+  const cx = e ? (e.clientX || window.innerWidth / 2) : window.innerWidth / 2;
+  const cy = e ? (e.clientY || window.innerHeight / 2) : window.innerHeight / 2;
+  for (let i = 0; i < 12; i++) {
+    const p = document.createElement("div");
+    p.className = "pva-particle";
+    const angle = (Math.PI * 2 * i) / 12;
+    const dist = 40 + Math.random() * 60;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist - 30;
+    p.style.cssText = `left:${cx}px;top:${cy}px;width:${4+Math.random()*4}px;height:${4+Math.random()*4}px;background:${colors[i%colors.length]};--dx:${dx}px;--dy:${dy}px;`;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 1100);
+  }
+}
+
 // ─── MAIN APP ───
-export default function PPPPApp() {
+function PPPPApp() {
   const [profile, setProfile] = useState(loadProfile);
   const [themeMode, setThemeMode] = useState(getAutoTheme);
   const [autoTheme, setAutoTheme] = useState(true);
@@ -1831,10 +3719,11 @@ export default function PPPPApp() {
   const [activeCat, setActiveCat] = useState(null);
   const [celebrate, setCelebrate] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [showAccountability, setShowAccountability] = useState(false);
 
   // If no profile, show onboarding
   if (!profile) {
-    return <OnboardingScreen onComplete={(p) => setProfile(p)} />;
+    return <OnboardingScreen onComplete={(p) => setProfile(p)} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} />;
   }
 
   const userName = profile.name;
@@ -1884,7 +3773,27 @@ export default function PPPPApp() {
     });
   }, []);
 
-  useEffect(() => { saveState(state); }, [state]);
+  // Save state and update today's history entry
+  const lastSavedPct = useRef(-1);
+  useEffect(() => {
+    // Update history for today without triggering re-render loop
+    if (dayPct !== lastSavedPct.current) {
+      lastSavedPct.current = dayPct;
+      const hist = [...(state.history || [])];
+      if (hist.length > 0 && hist[hist.length - 1]?.date === TODAY) {
+        const catKeys2 = ["person", "people", "process", "product"];
+        const cats = {};
+        catKeys2.forEach(k => {
+          const a = (tasks[k]?.sections || []).flatMap(s => s.tasks);
+          const d = a.filter(t => t.type === "check" ? state.completed?.[t.id] : (state.counters?.[t.id]||0) >= (t.target||1)).length;
+          cats[k] = a.length > 0 ? Math.round((d / a.length) * 100) : 0;
+        });
+        hist[hist.length - 1] = { ...hist[hist.length - 1], pct: dayPct, xp: dayXp, cats };
+        state.history = hist;
+      }
+    }
+    saveState(state);
+  }, [state]);
   useEffect(() => {
     if (autoTheme) {
       const id = setInterval(() => setThemeMode(getAutoTheme()), 60000);
@@ -1921,12 +3830,12 @@ export default function PPPPApp() {
     });
   };
 
-  const toggleHomeTask = useCallback((id) => {
+  const toggleHomeTask = useCallback((id, e) => {
     const allT = Object.values(tasks).flatMap(c => c.sections.flatMap(s => s.tasks));
     setState(p => {
       const t = allT.find(x => x.id === id); const was = p.completed[id];
       const dx = t ? Math.round(t.xp * mult) : 0;
-      if (!was) playTick();
+      if (!was) { playTick(); spawnParticles(e); }
       return { ...p, completed: { ...p.completed, [id]: !was }, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
     });
   }, [tasks, mult]);
@@ -1969,12 +3878,76 @@ export default function PPPPApp() {
   const catKeys = ["person", "people", "process", "product"];
 
   return (
-    <div style={{ minHeight: "100vh", fontFamily: FONT, color: th.text, background: th.grad, transition: "background 0.5s ease" }}>
+    <div style={{ minHeight: "100vh", fontFamily: FONT, color: th.text, background: th.grad, transition: "background 0.5s ease", position: "relative", overflow: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
         .pppp-tiles::-webkit-scrollbar { display: none; }
         .pppp-tiles { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Aurora animated background */
+        .pva-aurora {
+          position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 0;
+          background: radial-gradient(ellipse 60% 40% at 20% 10%, rgba(59,130,246,0.06) 0%, transparent 60%),
+                      radial-gradient(ellipse 50% 50% at 80% 20%, rgba(124,58,237,0.05) 0%, transparent 60%),
+                      radial-gradient(ellipse 40% 60% at 50% 90%, rgba(34,197,94,0.04) 0%, transparent 60%);
+          animation: auroraShift 20s ease-in-out infinite alternate;
+        }
+        @keyframes auroraShift {
+          0% { opacity: 0.6; transform: scale(1) translateY(0); }
+          50% { opacity: 1; transform: scale(1.05) translateY(-10px); }
+          100% { opacity: 0.7; transform: scale(0.98) translateY(5px); }
+        }
+
+        /* Fade-in-up page transition */
+        .pva-fade-in {
+          animation: pvaFadeInUp 0.35s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        @keyframes pvaFadeInUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Button press feedback */
+        button:active, [role="button"]:active, .pva-pressable:active {
+          transform: scale(0.96) !important;
+          transition: transform 0.1s ease !important;
+        }
+
+        /* Pulse animation for streak */
+        .pva-pulse {
+          animation: pvaPulse 2s ease-in-out infinite;
+        }
+        @keyframes pvaPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.08); }
+        }
+
+        /* Shimmer on progress bars */
+        .pva-bar-shimmer {
+          animation: pvaShimmer 2.5s ease-in-out infinite;
+        }
+        @keyframes pvaShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+
+        /* Celebration particles */
+        .pva-particle {
+          position: fixed; pointer-events: none; z-index: 9999;
+          border-radius: 50%; animation: pvaParticle 1s ease-out forwards;
+        }
+        @keyframes pvaParticle {
+          0% { opacity: 1; transform: translate(0, 0) scale(1); }
+          100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
+        }
+
+        /* Card hover lift */
+        .pva-card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .pva-card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
       `}</style>
+
+      {/* Aurora gradient overlay */}
+      <div className="pva-aurora" />
 
       {/* Redemption Mode Overlay */}
       {state.redemptionMode && <RedemptionMode state={state} setState={setState} th={th} />}
@@ -1982,8 +3955,9 @@ export default function PPPPApp() {
       {/* Shareable Summary */}
       {showSummary && <ShareableSummary state={state} dayPct={dayPct} dayXp={dayXp} level={level}
         levelIdx={levelIdx} th={th} onClose={() => setShowSummary(false)} />}
+      {showAccountability && <AccountabilityModal state={state} dayPct={dayPct} dayXp={dayXp} level={level} th={th} onClose={() => setShowAccountability(false)} />}
 
-      <div style={{ maxWidth: 640, margin: "0 auto" }}>
+      <div style={{ maxWidth: 640, margin: "0 auto", position: "relative", zIndex: 1 }}>
 
         {/* ─── TOP BAR ─── */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 0" }}>
@@ -2007,6 +3981,11 @@ export default function PPPPApp() {
               background: view === "weekly" ? th.blueDim : th.glass, color: view === "weekly" ? th.blue : th.mid,
               fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
             }}>WEEKLY</button>
+            <button onClick={() => setShowAccountability(true)} style={{
+              padding: "6px 14px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
+              background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600,
+              cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
+            }}>ACC</button>
             <button onClick={() => setShowSummary(true)} style={{
               padding: "6px 14px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
               background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600,
@@ -2029,65 +4008,102 @@ export default function PPPPApp() {
 
         {/* ─── HOME VIEW ─── */}
         {view === "home" && (
-          <>
+          <div className="pva-fade-in">
             {/* Scripture + Avatar (right-aligned) */}
             <ScriptureHeader level={level} levelIdx={levelIdx} dayPct={dayPct} th={th} />
 
+            {/* Daily Readiness + Verse of the Day + Devotional Prompt */}
+            <div style={{ padding: "0 20px", marginBottom: 16 }}>
+              {/* Readiness Score */}
+              <ReadinessCard state={state} dayPct={dayPct} th={th} />
+
+              {/* Verse of the Day */}
+              {(() => {
+                const verse = getDailyVerse(TODAY);
+                return (
+                  <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 14 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>VERSE OF THE DAY</div>
+                    <div style={{ fontSize: 12, color: th.scripture || th.text, lineHeight: 1.7, fontFamily: FONT, fontWeight: 600, fontStyle: "italic" }}>
+                      {"\u201C"}{verse.text}{"\u201D"}
+                    </div>
+                    <div style={{ fontSize: 9, color: th.ghost, marginTop: 8, letterSpacing: "0.06em", fontFamily: FONT }}>{"\u2014"} {verse.ref} ESV</div>
+                  </div>
+                );
+              })()}
+
+              {/* Devotional Prompt */}
+              <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 4 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>TODAY{"\u2019"}S REFLECTION</div>
+                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, fontStyle: "italic" }}>{getDailyPrompt(TODAY)}</div>
+                {state.notes?.devotional_today !== undefined ? (
+                  <div style={{ fontSize: 11, color: th.text, marginTop: 8, padding: "8px 10px", borderRadius: 8, background: th.surface, lineHeight: 1.5 }}>{state.notes.devotional_today}</div>
+                ) : null}
+              </div>
+            </div>
+
             {/* Stats bar */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, padding: "0 20px", marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: "0 20px", marginBottom: 22 }}>
               {[
-                { label: "TODAY", value: `${dayPct}%`, color: th.blue },
-                { label: "STREAK", value: `${state.streak}`, color: th.red },
-                { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red },
-                { label: "XP", value: `${dayXp}`, color: th.blue },
+                { label: "XP", value: `${dayXp}`, color: th.blue, pulse: false },
+                { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red, pulse: false },
+                { label: "TODAY", value: `${dayPct}%`, color: th.blue, pulse: false },
+                { label: "STREAK", value: `${state.streak}`, color: th.red, pulse: state.streak >= 3 },
               ].map(x => (
-                <div key={x.label} style={{ ...glassStyle(th), padding: "12px 0", textAlign: "center" }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: x.color, letterSpacing: "-0.04em" }}>{x.value}</div>
-                  <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.14em", marginTop: 3 }}>{x.label}</div>
+                <div key={x.label} className={`pva-card-hover ${x.pulse ? "pva-pulse" : ""}`} style={{ ...glassStyle(th), padding: "14px 0", textAlign: "center" }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: x.color, letterSpacing: "-0.04em" }}>{x.value}</div>
+                  <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.14em", marginTop: 4 }}>{x.label}</div>
                 </div>
               ))}
             </div>
 
-            {/* ─── PVA + DECREES + INTERCESSION TILES ─── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "0 20px", marginBottom: 20 }}>
-              <div onClick={() => setView("pva_glance")} style={{
+            {/* ─── NAV TILES ─── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: "0 20px", marginBottom: 22 }}>
+              <div onClick={() => setView("pva_glance")} className="pva-card-hover" style={{
                 ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
                 border: `1px solid ${th.blue}25`,
                 background: `linear-gradient(135deg, ${th.blue}10 0%, transparent 100%)`,
                 transition: "all 0.3s ease", textAlign: "center",
               }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: th.text, marginBottom: 4 }}>PVA AT A GLANCE</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: th.text, marginBottom: 4 }}>PVA AT A GLANCE</div>
                 <div style={{ fontSize: 9, color: th.dim }}>Person {"\u00B7"} Vehicle {"\u00B7"} Assignment</div>
               </div>
-              <div onClick={() => setView("decrees")} style={{
+              <div onClick={() => setView("decrees")} className="pva-card-hover" style={{
                 ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
                 border: `1px solid ${th.red}25`,
                 background: `linear-gradient(135deg, ${th.red}10 0%, transparent 100%)`,
                 transition: "all 0.3s ease", textAlign: "center",
               }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: th.text, marginBottom: 4 }}>DECREES & DECLARATIONS</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: th.text, marginBottom: 4 }}>DECREES & DECLARATIONS</div>
                 <div style={{ fontSize: 9, color: th.dim }}>Speak & Stand</div>
               </div>
-              <div onClick={() => setView("intercession")} style={{
+              <div onClick={() => setView("intercession")} className="pva-card-hover" style={{
                 ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
                 border: `1px solid ${th.gold}25`,
                 background: `linear-gradient(135deg, ${th.gold}10 0%, transparent 100%)`,
                 transition: "all 0.3s ease", textAlign: "center",
               }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: th.text, marginBottom: 4 }}>INTERCESSION</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: th.text, marginBottom: 4 }}>INTERCESSION</div>
                 <div style={{ fontSize: 9, color: th.dim }}>Network of Prayer</div>
+              </div>
+              <div onClick={() => setView("season")} className="pva-card-hover" style={{
+                ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
+                border: `1px solid ${th.green || "#16A34A"}25`,
+                background: `linear-gradient(135deg, ${th.green || "#16A34A"}10 0%, transparent 100%)`,
+                transition: "all 0.3s ease", textAlign: "center",
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: th.text, marginBottom: 4 }}>SEASON</div>
+                <div style={{ fontSize: 9, color: th.dim }}>Current Focus</div>
               </div>
             </div>
 
             {/* ─── HORIZONTAL P TILES (centre stage) ─── */}
             <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 12, padding: "0 20px" }}>THE FOUR PILLARS</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", marginBottom: 14, padding: "0 20px" }}>THE FOUR PILLARS</div>
               <div ref={scrollRef} className="pppp-tiles" style={{
                 display: "flex", gap: 16, overflowX: "auto", overflowY: "hidden",
                 scrollSnapType: "x mandatory", paddingBottom: 8,
                 paddingLeft: 20, paddingRight: 20,
                 WebkitOverflowScrolling: "touch",
-                justifyContent: "center",
               }}>
                 {catKeys.map((k, i) => (
                   <PTile key={k} catKey={k} cat={tasks[k]} index={i} pct={getCatPct(k)}
@@ -2095,9 +4111,9 @@ export default function PPPPApp() {
                 ))}
               </div>
 
-              {/* Daily Schedule — timings from all categories */}
+              {/* Daily Routine — timings from all categories with time-of-day subheadings */}
               <div style={{ padding: "12px 20px 0" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>TODAY'S SCHEDULE</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", marginBottom: 12 }}>MY DAILY ROUTINE</div>
                 {(() => {
                   const allItems = [];
                   catKeys.forEach(k => {
@@ -2108,42 +4124,82 @@ export default function PPPPApp() {
                       });
                     });
                   });
-                  /* Sort by time string (works for HH:MM format) */
                   allItems.sort((a, b) => {
                     const ta = (a.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
                     const tb = (b.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
                     return ta.localeCompare(tb);
                   });
-                  return allItems.map((item) => {
-                    const done = state.completed?.[item.id];
-                    return (
-                      <div key={item.id} onClick={() => toggleHomeTask(item.id)} style={{
-                        display: "flex", alignItems: "center", gap: 12, padding: "9px 0",
-                        borderBottom: `1px solid ${th.glassBorder || "rgba(255,255,255,0.06)"}`,
-                        cursor: "pointer", transition: "all 0.2s ease",
-                      }}>
-                        <div style={{
-                          fontSize: 10, fontWeight: 600, color: item.accent, minWidth: 80,
-                          fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em",
-                        }}>{item.time}</div>
-                        <div style={{
-                          fontSize: 12, fontWeight: 500, color: done ? th.dim : th.text,
-                          textDecoration: done ? "line-through" : "none",
-                          flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        }}>{item.label}</div>
-                        <div style={{
-                          width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                          border: `1.5px solid ${done ? item.accent : th.dim}`,
-                          background: done ? item.accent : "transparent",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          transition: "all 0.25s ease",
-                          boxShadow: done ? `0 0 10px ${item.accent}30` : "none",
-                        }}>
-                          {done && <span style={{ color: th.check || "#fff", fontSize: 10, fontWeight: 800 }}>{"\u2713"}</span>}
-                        </div>
-                      </div>
-                    );
+                  const getHour = (item) => {
+                    const t = (item.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+                    return parseInt(t.split(":")[0]) || 99;
+                  };
+                  const getPeriod = (item) => {
+                    const h = getHour(item);
+                    if (h < 12) return "MORNING";
+                    if (h < 17) return "AFTERNOON";
+                    if (h < 99) return "EVENING";
+                    return "FLEXIBLE";
+                  };
+                  /* Group items by period */
+                  const groups = [];
+                  let currentGroup = null;
+                  allItems.forEach(item => {
+                    const period = getPeriod(item);
+                    if (!currentGroup || currentGroup.period !== period) {
+                      currentGroup = { period, items: [] };
+                      groups.push(currentGroup);
+                    }
+                    currentGroup.items.push(item);
                   });
+                  return groups.map(group => (
+                    <div key={group.period} style={{
+                      marginTop: 14, borderRadius: 18, overflow: "hidden",
+                      ...glassStyle(th),
+                      boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1.5px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.08)",
+                    }}>
+                      {/* Period heading */}
+                      <div style={{
+                        fontSize: 15, fontWeight: 800, color: th.text, letterSpacing: "0.12em",
+                        fontFamily: FONT,
+                        padding: "16px 20px 12px",
+                        borderBottom: `1px solid ${th.glassBorder}`,
+                      }}>{group.period}</div>
+                      {/* Tasks within this period */}
+                      <div style={{ padding: "6px 10px 10px" }}>
+                        {group.items.map(item => {
+                          const done = state.completed?.[item.id];
+                          return (
+                            <div key={item.id} onClick={(e) => toggleHomeTask(item.id, e)} style={{
+                              display: "flex", alignItems: "center", gap: 12,
+                              padding: "10px 10px", marginBottom: 2, borderRadius: 10,
+                              background: done ? `${item.accent}08` : "transparent",
+                              cursor: "pointer", transition: "all 0.2s ease",
+                            }}>
+                              <div style={{
+                                fontSize: 10, fontWeight: 800, color: item.accent, minWidth: 80,
+                                fontFamily: FONT, letterSpacing: "0.04em",
+                              }}>{item.time}</div>
+                              <div style={{
+                                fontSize: 12, fontWeight: 500, color: done ? th.dim : th.text,
+                                textDecoration: done ? "line-through" : "none",
+                                flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                              }}>{item.label}</div>
+                              <div style={{
+                                width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                                border: `1.5px solid ${done ? item.accent : th.dim}`,
+                                background: done ? item.accent : "transparent",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                transition: "all 0.25s ease",
+                                boxShadow: done ? `0 0 10px ${item.accent}30` : "none",
+                              }}>
+                                {done && <span style={{ color: th.check || "#fff", fontSize: 10, fontWeight: 800 }}>{"\u2713"}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ));
                 })()}
               </div>
             </div>
@@ -2171,7 +4227,7 @@ export default function PPPPApp() {
             <div style={{ textAlign: "center", padding: "20px 0 32px" }}>
               <div style={{ fontSize: 9, color: th.ghost, letterSpacing: "0.24em" }}>PVA {"\u00B7"} {TODAY}</div>
             </div>
-          </>
+          </div>
         )}
 
         {/* ─── CATEGORY VIEW ─── */}
@@ -2193,6 +4249,11 @@ export default function PPPPApp() {
           <IntercessionView state={state} setState={setState} th={th} onBack={goHome} />
         )}
 
+        {/* ─── NOTES VIEW ─── */}
+        {view === "notes" && (
+          <NotesView th={th} onBack={goHome} />
+        )}
+
         {/* ─── SETTINGS VIEW ─── */}
         {view === "settings" && (
           <SettingsView profile={profile} onSave={(p) => { saveProfile(p); setProfile(p); }}
@@ -2205,11 +4266,45 @@ export default function PPPPApp() {
             <WeeklyView state={state} th={th} tasks={tasks} boss={boss} />
           </div>
         )}
+
+        {/* ─── SEASON VIEW ─── */}
+        {view === "season" && (
+          <SeasonView state={state} tasks={tasks} dayPct={dayPct} th={th} onBack={(v) => { if (v) setView(v); else goHome(); }} />
+        )}
+
+        {/* ─── TRENDS VIEW ─── */}
+        {view === "trends" && (
+          <TrendsView state={state} tasks={tasks} th={th} onBack={goHome} />
+        )}
+
+        {/* ─── PRAYER JOURNAL VIEW ─── */}
+        {view === "prayer_journal" && (
+          <PrayerJournalView th={th} onBack={goHome} />
+        )}
+
+        {/* ─── VERSE MEMORISATION VIEW ─── */}
+        {view === "verse_mem" && (
+          <VerseMemView th={th} onBack={goHome} />
+        )}
+
+        {/* ─── PETS & MOUNTS VIEW ─── */}
+        {view === "pets" && (
+          <PetsView state={state} th={th} onBack={goHome} />
+        )}
+
+        {/* ─── GUILD VIEW ─── */}
+        {view === "guild" && (
+          <GuildView state={state} th={th} dayPct={dayPct} onBack={goHome} />
+        )}
+
+        {/* ─── REWARDS SHOP VIEW ─── */}
+        {view === "rewards" && (
+          <RewardsShopView state={state} th={th} onBack={goHome} />
+        )}
       </div>
     </div>
   );
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<PPPPApp />);
-
 </script></body></html>
