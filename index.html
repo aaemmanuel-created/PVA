@@ -4012,33 +4012,9 @@ function PPPPApp() {
             {/* Scripture + Avatar (right-aligned) */}
             <ScriptureHeader level={level} levelIdx={levelIdx} dayPct={dayPct} th={th} />
 
-            {/* Daily Readiness + Verse of the Day + Devotional Prompt */}
+            {/* Daily Readiness */}
             <div style={{ padding: "0 20px", marginBottom: 16 }}>
-              {/* Readiness Score */}
               <ReadinessCard state={state} dayPct={dayPct} th={th} />
-
-              {/* Verse of the Day */}
-              {(() => {
-                const verse = getDailyVerse(TODAY);
-                return (
-                  <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 14 }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>VERSE OF THE DAY</div>
-                    <div style={{ fontSize: 12, color: th.scripture || th.text, lineHeight: 1.7, fontFamily: FONT, fontWeight: 600, fontStyle: "italic" }}>
-                      {"\u201C"}{verse.text}{"\u201D"}
-                    </div>
-                    <div style={{ fontSize: 9, color: th.ghost, marginTop: 8, letterSpacing: "0.06em", fontFamily: FONT }}>{"\u2014"} {verse.ref} ESV</div>
-                  </div>
-                );
-              })()}
-
-              {/* Devotional Prompt */}
-              <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 4 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>TODAY{"\u2019"}S REFLECTION</div>
-                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, fontStyle: "italic" }}>{getDailyPrompt(TODAY)}</div>
-                {state.notes?.devotional_today !== undefined ? (
-                  <div style={{ fontSize: 11, color: th.text, marginTop: 8, padding: "8px 10px", borderRadius: 8, background: th.surface, lineHeight: 1.5 }}>{state.notes.devotional_today}</div>
-                ) : null}
-              </div>
             </div>
 
             {/* Stats bar */}
@@ -4204,8 +4180,32 @@ function PPPPApp() {
               </div>
             </div>
 
-            {/* Daily Challenge (below tiles) */}
+            {/* ─── VERSE + REFLECTION + CHALLENGE (below routine) ─── */}
             <div style={{ padding: "0 20px", marginBottom: 20 }}>
+              {/* Verse of the Day */}
+              {(() => {
+                const verse = getDailyVerse(TODAY);
+                return (
+                  <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 14 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>VERSE OF THE DAY</div>
+                    <div style={{ fontSize: 12, color: th.scripture || th.text, lineHeight: 1.7, fontFamily: FONT, fontWeight: 600, fontStyle: "italic" }}>
+                      {"\u201C"}{verse.text}{"\u201D"}
+                    </div>
+                    <div style={{ fontSize: 9, color: th.ghost, marginTop: 8, letterSpacing: "0.06em", fontFamily: FONT }}>{"\u2014"} {verse.ref} ESV</div>
+                  </div>
+                );
+              })()}
+
+              {/* Today's Reflection */}
+              <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 14 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>TODAY{"\u2019"}S REFLECTION</div>
+                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, fontStyle: "italic" }}>{getDailyPrompt(TODAY)}</div>
+                {state.notes?.devotional_today !== undefined ? (
+                  <div style={{ fontSize: 11, color: th.text, marginTop: 8, padding: "8px 10px", borderRadius: 8, background: th.surface, lineHeight: 1.5 }}>{state.notes.devotional_today}</div>
+                ) : null}
+              </div>
+
+              {/* Daily Challenge */}
               <DailyChallengeCard challenge={dailyChallenge} completed={state.challengeCompleted} onToggle={toggleChallenge} th={th} />
             </div>
 
