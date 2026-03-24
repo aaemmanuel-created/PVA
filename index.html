@@ -83,7 +83,7 @@ const dark = {
   blueDim: "rgba(59,130,246,0.15)", redDim: "rgba(239,68,68,0.12)",
   check: "#0A0E1A", cardHover: "rgba(255,255,255,0.06)",
   grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.10) 0%, transparent 50%), #0A0E1A",
-  gold: "#F59E0B", goldDim: "rgba(245,158,11,0.12)", scripture: "#E8634A",
+  gold: "#F59E0B", goldDim: "rgba(245,158,11,0.12)", scripture: "#C9A55C",
   green: "#22C55E", greenDim: "rgba(34,197,94,0.12)",
 };
 const light = {
@@ -93,7 +93,7 @@ const light = {
   blueDim: "rgba(37,99,235,0.1)", redDim: "rgba(220,38,38,0.08)",
   check: "#FFFFFF", cardHover: "rgba(0,0,0,0.03)",
   grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37,99,235,0.06) 0%, transparent 50%), #F8F9FC",
-  gold: "#D97706", goldDim: "rgba(217,119,6,0.1)", scripture: "#8B0000",
+  gold: "#D97706", goldDim: "rgba(217,119,6,0.1)", scripture: "#8B6914",
   green: "#16A34A", greenDim: "rgba(22,163,74,0.1)",
 };
 const getAutoTheme = () => { const h = new Date().getHours(); return h >= 6 && h < 18 ? "light" : "dark"; };
@@ -796,7 +796,7 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
         {/* Partners List */}
         <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>ACCOUNTABILITY PARTNERS</div>
         {partners.length === 0 && (
-          <div style={{ fontSize: 11, color: th.dim, marginBottom: 12, fontStyle: "italic" }}>No partners added yet. Add someone to keep you on track!</div>
+          <div style={{ fontSize: 11, color: th.dim, marginBottom: 12, fontStyle: "normal" }}>No partners added yet. Add someone to keep you on track!</div>
         )}
         {partners.map(p => (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "8px 12px", borderRadius: 10, background: th.glass, border: `1px solid ${th.glassBorder}` }}>
@@ -1354,35 +1354,38 @@ function ScriptureHeader({ level, levelIdx, dayPct, th }) {
       }}>
         {/* Scripture text — left / center */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 9, fontWeight: 800, color: th.dim, letterSpacing: "0.2em", marginBottom: 14 }}>FOUNDATIONAL SCRIPTURE</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <span style={{ fontSize: 14 }}>{"\u2727"}</span>
+            <span style={{ fontSize: 9, fontWeight: 800, color: th.scripture, letterSpacing: "0.2em" }}>FOUNDATIONAL SCRIPTURE</span>
+          </div>
           <div style={{
-            padding: "18px 20px", borderRadius: 14,
-            background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)",
-            backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.3)",
+            padding: "20px 22px", borderRadius: 14,
+            borderLeft: `3px solid ${th.scripture}`,
+            background: `linear-gradient(135deg, rgba(201,165,92,0.06) 0%, transparent 60%)`,
+            border: `1px solid rgba(201,165,92,0.18)`,
+            borderLeftWidth: 3, borderLeftColor: th.scripture, borderLeftStyle: "solid",
           }}>
             <div style={{
-              fontSize: 13, fontWeight: 700, color: th.scripture, lineHeight: 1.8,
+              fontSize: 13, fontWeight: 600, color: th.scripture, lineHeight: 2.0,
               fontFamily: FONT,
-              marginBottom: 10,
             }}>
-              {"\u201C"}to put off your old self, which belongs to your former manner of life and is corrupt through deceitful desires,{"\u201D"}
+              {"\u201C"}to put off your old self, which belongs to your former manner of life and is corrupt through deceitful desires,
             </div>
             <div style={{
-              fontSize: 13, fontWeight: 700, color: th.scripture, lineHeight: 1.8,
+              fontSize: 13, fontWeight: 600, color: th.scripture, lineHeight: 2.0,
               fontFamily: FONT,
-              marginBottom: 10,
             }}>
-              {"\u201C"}and to be renewed in the spirit of your minds,{"\u201D"}
+              and to be renewed in the spirit of your minds,
             </div>
             <div style={{
-              fontSize: 13, fontWeight: 700, color: th.scripture, lineHeight: 1.8,
+              fontSize: 13, fontWeight: 600, color: th.scripture, lineHeight: 2.0,
               fontFamily: FONT,
             }}>
-              {"\u201C"}and to put on the new self, created after the likeness of God in true righteousness and holiness.{"\u201D"}
+              and to put on the new self, created after the likeness of God in true righteousness and holiness.{"\u201D"}
             </div>
-            <div style={{ fontSize: 10, color: th.ghost, marginTop: 14, letterSpacing: "0.06em", fontFamily: FONT }}>
-              {"\u2014"} Ephesians 4:22-24 ESV
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+              <div style={{ width: 24, height: 1, background: th.scripture, opacity: 0.4 }} />
+              <span style={{ fontSize: 10, color: th.scripture, letterSpacing: "0.08em", fontFamily: FONT, fontWeight: 700, opacity: 0.7 }}>Ephesians 4:22-24 ESV</span>
             </div>
           </div>
         </div>
@@ -3036,7 +3039,7 @@ function PrayerJournalView({ th, onBack }) {
       </div>
 
       {/* Prayer List */}
-      {filtered.length === 0 && <div style={{ textAlign: "center", color: th.dim, fontSize: 12, padding: 30, fontStyle: "italic" }}>No prayers yet. Start by adding one above.</div>}
+      {filtered.length === 0 && <div style={{ textAlign: "center", color: th.dim, fontSize: 12, padding: 30, fontStyle: "normal" }}>No prayers yet. Start by adding one above.</div>}
       {filtered.map(p => (
         <div key={p.id} style={{ ...glassStyle(th), padding: "14px", marginBottom: 8 }}>
           <div style={{ fontSize: 12, color: th.text, lineHeight: 1.6, marginBottom: 10 }}>{p.text}</div>
@@ -3117,7 +3120,7 @@ function VerseMemView({ th, onBack }) {
           <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 12 }}>PRACTICE</div>
           <div style={{ fontSize: 14, fontWeight: 700, color: th.scripture || th.text, marginBottom: 16 }}>{practicing.ref}</div>
           {showText ? (
-            <div style={{ fontSize: 13, color: th.text, lineHeight: 1.8, fontFamily: FONT, marginBottom: 16, fontStyle: "italic" }}>{"\u201C"}{practicing.text}{"\u201D"}</div>
+            <div style={{ fontSize: 13, color: th.text, lineHeight: 1.8, fontFamily: FONT, marginBottom: 16, fontStyle: "normal" }}>{"\u201C"}{practicing.text}{"\u201D"}</div>
           ) : (
             <button onClick={() => setShowText(true)} style={{ padding: "10px 20px", borderRadius: 10, border: `1px solid ${th.glassBorder}`, background: th.glass, color: th.mid, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, marginBottom: 16 }}>REVEAL VERSE</button>
           )}
@@ -3174,7 +3177,7 @@ function VerseMemView({ th, onBack }) {
           </div>
         </div>
       ))}
-      {verses.length === 0 && <div style={{ textAlign: "center", color: th.dim, fontSize: 12, padding: 30, fontStyle: "italic" }}>No verses yet. Add your first verse above!</div>}
+      {verses.length === 0 && <div style={{ textAlign: "center", color: th.dim, fontSize: 12, padding: 30, fontStyle: "normal" }}>No verses yet. Add your first verse above!</div>}
     </div>
   );
 }
@@ -3560,7 +3563,7 @@ function GuildView({ state, th, dayPct, onBack }) {
           {/* Battle Log */}
           <div style={{ ...glassStyle(th), padding: "16px" }}>
             <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>BATTLE LOG</div>
-            {guild.log.length === 0 && <div style={{ fontSize: 11, color: th.dim, fontStyle: "italic" }}>No activity yet. Attack the boss!</div>}
+            {guild.log.length === 0 && <div style={{ fontSize: 11, color: th.dim, fontStyle: "normal" }}>No activity yet. Attack the boss!</div>}
             {guild.log.slice(0, 10).map((l, i) => (
               <div key={i} style={{ fontSize: 10, color: l.type === "victory" ? "#22C55E" : l.type === "damage" ? th.red : th.mid, marginBottom: 4, lineHeight: 1.5 }}>
                 <span style={{ color: th.ghost, marginRight: 6 }}>{l.time}</span>{l.text}
@@ -4188,7 +4191,7 @@ function PPPPApp() {
                 return (
                   <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 14 }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>VERSE OF THE DAY</div>
-                    <div style={{ fontSize: 12, color: th.scripture || th.text, lineHeight: 1.7, fontFamily: FONT, fontWeight: 600, fontStyle: "italic" }}>
+                    <div style={{ fontSize: 12, color: th.scripture || th.text, lineHeight: 1.7, fontFamily: FONT, fontWeight: 600, fontStyle: "normal" }}>
                       {"\u201C"}{verse.text}{"\u201D"}
                     </div>
                     <div style={{ fontSize: 9, color: th.ghost, marginTop: 8, letterSpacing: "0.06em", fontFamily: FONT }}>{"\u2014"} {verse.ref} ESV</div>
@@ -4199,7 +4202,7 @@ function PPPPApp() {
               {/* Today's Reflection */}
               <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 14 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>TODAY{"\u2019"}S REFLECTION</div>
-                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, fontStyle: "italic" }}>{getDailyPrompt(TODAY)}</div>
+                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, fontStyle: "normal" }}>{getDailyPrompt(TODAY)}</div>
                 {state.notes?.devotional_today !== undefined ? (
                   <div style={{ fontSize: 11, color: th.text, marginTop: 8, padding: "8px 10px", borderRadius: 8, background: th.surface, lineHeight: 1.5 }}>{state.notes.devotional_today}</div>
                 ) : null}
