@@ -5,9 +5,89 @@
 </head><body><div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
 <script type="text/babel">
 const { useState, useEffect, useCallback, useRef, useMemo } = React;
+
+// ─── FIREBASE CONFIG ───
+const firebaseConfig = {
+  apiKey: "AIzaSyDHc0LuauQOTpnNaswey7cmXnwwYkkY2x8",
+  authDomain: "pvaapp-164bf.firebaseapp.com",
+  projectId: "pvaapp-164bf",
+  storageBucket: "pvaapp-164bf.firebasestorage.app",
+  messagingSenderId: "534574400982",
+  appId: "1:534574400982:web:5c9d7ebe532da1ce849077"
+};
+
+// Initialize Firebase
+const firebaseApp = firebase.initializeApp(firebaseConfig);
+const firebaseAuth = firebase.auth();
+const firebaseDb = firebase.firestore();
+
+// ─── CLOUD SYNC HELPERS ───
+async function saveToCloud(userId, data) {
+  try {
+    const allData = {
+      pppp_state: data.pppp_state || null,
+      pva_profile: data.pva_profile || null,
+      pva_notes: data.pva_notes || null,
+      pva_prayer_journal: data.pva_prayer_journal || null,
+      pva_verse_mem: data.pva_verse_mem || null,
+      pva_pets: data.pva_pets || null,
+      pva_guild: data.pva_guild || null,
+      pva_rewards: data.pva_rewards || null,
+      pva_accountability: data.pva_accountability || null,
+      pva_milestones_claimed: data.pva_milestones_claimed || null,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    await firebaseDb.collection("users").doc(userId).set(allData, { merge: true });
+    console.log("[PVA Cloud] Saved to cloud");
+  } catch (e) {
+    console.warn("[PVA Cloud] Save error:", e);
+  }
+}
+
+async function loadFromCloud(userId) {
+  try {
+    const doc = await firebaseDb.collection("users").doc(userId).get();
+    if (doc.exists) {
+      console.log("[PVA Cloud] Loaded from cloud");
+      return doc.data();
+    }
+    console.log("[PVA Cloud] No cloud data found");
+    return null;
+  } catch (e) {
+    console.warn("[PVA Cloud] Load error:", e);
+    return null;
+  }
+}
+
+function gatherLocalData() {
+  return {
+    pppp_state: localStorage.getItem("pppp_state"),
+    pva_profile: localStorage.getItem("pva_profile"),
+    pva_notes: localStorage.getItem("pva_notes"),
+    pva_prayer_journal: localStorage.getItem("pva_prayer_journal"),
+    pva_verse_mem: localStorage.getItem("pva_verse_mem"),
+    pva_pets: localStorage.getItem("pva_pets"),
+    pva_guild: localStorage.getItem("pva_guild"),
+    pva_rewards: localStorage.getItem("pva_rewards"),
+    pva_accountability: localStorage.getItem("pva_accountability"),
+    pva_milestones_claimed: localStorage.getItem("pva_milestones_claimed"),
+  };
+}
+
+function restoreLocalData(cloudData) {
+  const keys = ["pppp_state", "pva_profile", "pva_notes", "pva_prayer_journal", "pva_verse_mem", "pva_pets", "pva_guild", "pva_rewards", "pva_accountability", "pva_milestones_claimed"];
+  keys.forEach(key => {
+    if (cloudData[key]) {
+      localStorage.setItem(key, cloudData[key]);
+    }
+  });
+}
 
 // ─── CONSTANTS ───
 const LEVELS = [
@@ -2817,7 +2897,7 @@ function OnboardingScreen({ onComplete, onCustomTasks }) {
 }
 
 // ─── SETTINGS VIEW ───
-function SettingsView({ profile, onSave, onBack, th }) {
+function SettingsView({ profile, onSave, onBack, th, firebaseUser, cloudStatus, cloudSyncing, onSignIn, onSignOut, onForceSync }) {
   const [name, setName] = useState(profile.name);
 
   return (
@@ -2830,6 +2910,58 @@ function SettingsView({ profile, onSave, onBack, th }) {
           fontFamily: FONT, backdropFilter: "blur(20px)",
         }}>{"\u2190"}</button>
         <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>Settings</div>
+      </div>
+
+      {/* ─── CLOUD SYNC ─── */}
+      <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 12 }}>{"\u2601\uFE0F"} CLOUD SYNC</div>
+        {firebaseUser ? (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              {firebaseUser.photoURL && <img src={firebaseUser.photoURL} alt="" style={{ width: 32, height: 32, borderRadius: "50%" }} />}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: th.text }}>{firebaseUser.displayName}</div>
+                <div style={{ fontSize: 10, color: th.dim }}>{firebaseUser.email}</div>
+              </div>
+              <div style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, padding: "4px 8px", borderRadius: 6,
+                background: cloudStatus === "synced" ? th.green + "20" : cloudStatus === "error" ? th.red + "20" : th.blue + "20",
+                color: cloudStatus === "synced" ? th.green : cloudStatus === "error" ? th.red : th.blue,
+              }}>
+                {cloudStatus === "synced" ? "\u2713 SYNCED" : cloudStatus === "syncing" ? "\u21BB SYNCING..." : cloudStatus === "error" ? "\u26A0 ERROR" : ""}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={onForceSync} disabled={cloudSyncing} style={{
+                flex: 1, padding: "10px", borderRadius: 10,
+                border: `1px solid ${th.blue}40`, background: th.blueDim,
+                color: th.blue, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                opacity: cloudSyncing ? 0.5 : 1,
+              }}>{"\uD83D\uDD04"} SYNC NOW</button>
+              <button onClick={onSignOut} style={{
+                flex: 1, padding: "10px", borderRadius: 10,
+                border: `1px solid ${th.red}40`, background: th.red + "10",
+                color: th.red, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+              }}>SIGN OUT</button>
+            </div>
+            <div style={{ fontSize: 10, color: th.ghost, marginTop: 8, textAlign: "center" }}>
+              Your progress syncs automatically across devices
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, marginBottom: 12 }}>
+              Sign in with Google to sync your progress across devices. Your data stays private {"\u2014"} only you can access it.
+            </div>
+            <button onClick={onSignIn} style={{
+              width: "100%", padding: "12px", borderRadius: 10,
+              border: `1px solid ${th.blue}40`, background: th.blueDim,
+              color: th.blue, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}>
+              <span style={{ fontSize: 16 }}>G</span> SIGN IN WITH GOOGLE
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16 }}>
@@ -3922,7 +4054,7 @@ function StreakFreezeCard({ state, setState, th }) {
     <div style={{ ...glassStyle(th), padding: "14px 18px", marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18 }}>{isFrozen ? "ON" : "--"}}</span>
+          <span style={{ fontSize: 18 }}>{isFrozen ? "\uD83D\uDEE1\uFE0F" : "\u2744\uFE0F"}</span>
           <div>
             <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em" }}>STREAK SHIELD</div>
             <div style={{ fontSize: 11, fontWeight: 400, color: isFrozen ? "#22C55E" : th.mid, marginTop: 2 }}>
@@ -3939,7 +4071,7 @@ function StreakFreezeCard({ state, setState, th }) {
             transition: "all 0.2s ease",
           }}>FREEZE</button>
         )}
-        {isFrozen && <span style={{ fontSize: 10, fontWeight: 700, color: "#22C55E", padding: "4px 10px", borderRadius: 8, background: "rgba(34,197,94,0.12)" }}>ON</span>}
+        {isFrozen && <span style={{ fontSize: 10, fontWeight: 700, color: "#22C55E", padding: "4px 10px", borderRadius: 8, background: "rgba(34,197,94,0.12)" }}>{"\u2713"} ACTIVE</span>}
       </div>
     </div>
   );
@@ -4503,6 +4635,98 @@ function PPPPApp() {
   const [autoTheme, setAutoTheme] = useState(true);
   const [state, setState] = useState(loadState);
   const [view, setView] = useState("home"); // "home" | "category" | "weekly" | "pva_glance" | "intercession" | "settings"
+
+  // ─── FIREBASE AUTH STATE ───
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [cloudStatus, setCloudStatus] = useState(""); // "synced" | "syncing" | "error" | ""
+  const syncTimerRef = useRef(null);
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        // On sign in, try to load cloud data
+        setCloudSyncing(true);
+        setCloudStatus("syncing");
+        try {
+          const cloudData = await loadFromCloud(user.uid);
+          if (cloudData && cloudData.pppp_state) {
+            // Cloud has data — check if it's newer
+            const localState = localStorage.getItem("pppp_state");
+            const localParsed = localState ? JSON.parse(localState) : null;
+            const cloudParsed = JSON.parse(cloudData.pppp_state);
+            // Use cloud data if local has no totalXp or cloud has more
+            if (!localParsed || (cloudParsed.totalXp || 0) >= (localParsed.totalXp || 0)) {
+              restoreLocalData(cloudData);
+              setState(loadState());
+              setProfile(loadProfile());
+            } else {
+              // Local is ahead — push to cloud
+              await saveToCloud(user.uid, gatherLocalData());
+            }
+          } else {
+            // No cloud data — push local to cloud
+            await saveToCloud(user.uid, gatherLocalData());
+          }
+          setCloudStatus("synced");
+        } catch (e) {
+          console.warn("[PVA Cloud] Sync error:", e);
+          setCloudStatus("error");
+        }
+        setCloudSyncing(false);
+      } else {
+        setCloudStatus("");
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Auto-sync to cloud on state changes (debounced)
+  useEffect(() => {
+    if (!firebaseUser) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      saveToCloud(firebaseUser.uid, gatherLocalData()).then(() => {
+        setCloudStatus("synced");
+      }).catch(() => {
+        setCloudStatus("error");
+      });
+    }, 3000); // 3-second debounce
+    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
+  }, [state, firebaseUser]);
+
+  const handleSignIn = async () => {
+    try {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await firebaseAuth.signInWithPopup(provider);
+    } catch (e) {
+      console.warn("[PVA Auth] Sign-in error:", e);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await firebaseAuth.signOut();
+      setCloudStatus("");
+    } catch (e) {
+      console.warn("[PVA Auth] Sign-out error:", e);
+    }
+  };
+
+  const handleForceSync = async () => {
+    if (!firebaseUser) return;
+    setCloudSyncing(true);
+    setCloudStatus("syncing");
+    try {
+      await saveToCloud(firebaseUser.uid, gatherLocalData());
+      setCloudStatus("synced");
+    } catch (e) {
+      setCloudStatus("error");
+    }
+    setCloudSyncing(false);
+  };
   const [activeCat, setActiveCat] = useState(null);
   const [celebrate, setCelebrate] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
@@ -4855,6 +5079,13 @@ function PPPPApp() {
               background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600,
               cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
             }}>SHARE</button>
+            {firebaseUser && (
+              <div style={{
+                width: 8, height: 8, borderRadius: 4, marginRight: -4,
+                background: cloudStatus === "synced" ? th.green : cloudStatus === "error" ? th.red : th.blue,
+                opacity: 0.8,
+              }} title={cloudStatus === "synced" ? "Cloud synced" : cloudStatus === "error" ? "Sync error" : "Syncing..."} />
+            )}
             <button onClick={() => setView("settings")} style={{
               width: 36, height: 36, borderRadius: 18, border: `1px solid ${th.glassBorder}`,
               background: th.glass, color: th.mid, fontSize: 14, cursor: "pointer",
@@ -4873,9 +5104,6 @@ function PPPPApp() {
         {/* ─── HOME VIEW ─── */}
         {view === "home" && (
           <div className="pva-fade-in">
-            {/* Scripture + Avatar (right-aligned) */}
-            <ScriptureHeader level={level} levelIdx={levelIdx} dayPct={dayPct} th={th} />
-
             {/* Daily State */}
             <div style={{ padding: "0 20px", marginBottom: 16 }}>
               <ReadinessCard state={state} dayPct={dayPct} th={th} />
@@ -4895,32 +5123,6 @@ function PPPPApp() {
                 </div>
               ))}
             </div>
-
-            {/* Streak Freeze */}
-            <div style={{ padding: "0 20px", marginBottom: 8 }}>
-              <StreakFreezeCard state={state} setState={setState} th={th} />
-            </div>
-
-            {/* Next Milestone Indicator */}
-            {(() => {
-              const next = getNextMilestone(state.streak);
-              if (!next) return null;
-              const progress = next.days > 0 ? Math.min(100, Math.round((state.streak / next.days) * 100)) : 0;
-              return (
-                <div style={{ padding: "0 20px", marginBottom: 14 }}>
-                  <div style={{ ...glassStyle(th), padding: "12px 16px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", fontFamily: FONT }}>NEXT MILESTONE</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: next.color, fontFamily: FONT }}>{next.title} {"\u2014"} {next.days}d</span>
-                    </div>
-                    <div style={{ height: 4, borderRadius: 2, background: th.ghost, overflow: "hidden" }}>
-                      <div style={{ height: "100%", borderRadius: 2, width: `${progress}%`, background: `linear-gradient(90deg, ${next.color}88, ${next.color})`, transition: "width 0.6s ease" }} />
-                    </div>
-                    <div style={{ fontSize: 9, color: th.dim, marginTop: 5, fontFamily: FONT }}>{next.days - state.streak} days to go {"\u00B7"} +{next.xpBonus} XP reward</div>
-                  </div>
-                </div>
-              );
-            })()}
 
             <SectionDivider label="NAVIGATE" th={th} />
 
@@ -4963,6 +5165,9 @@ function PPPPApp() {
                 <div style={{ fontSize: 9, color: th.dim }}>Current Focus</div>
               </div>
             </div>
+
+            {/* Scripture + Avatar */}
+            <ScriptureHeader level={level} levelIdx={levelIdx} dayPct={dayPct} th={th} />
 
             <SectionDivider label="PROGRESS" th={th} />
 
@@ -5106,6 +5311,32 @@ function PPPPApp() {
               {/* Daily Challenge */}
               <DailyChallengeCard challenge={dailyChallenge} completed={state.challengeCompleted} onToggle={toggleChallenge} th={th} />
 
+              {/* Streak Freeze */}
+              <div style={{ marginTop: 14 }}>
+                <StreakFreezeCard state={state} setState={setState} th={th} />
+              </div>
+
+              {/* Next Milestone Indicator */}
+              {(() => {
+                const next = getNextMilestone(state.streak);
+                if (!next) return null;
+                const progress = next.days > 0 ? Math.min(100, Math.round((state.streak / next.days) * 100)) : 0;
+                return (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ ...glassStyle(th), padding: "12px 16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", fontFamily: FONT }}>NEXT MILESTONE</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: next.color, fontFamily: FONT }}>{next.title} {"\u2014"} {next.days}d</span>
+                      </div>
+                      <div style={{ height: 4, borderRadius: 2, background: th.ghost, overflow: "hidden" }}>
+                        <div style={{ height: "100%", borderRadius: 2, width: `${progress}%`, background: `linear-gradient(90deg, ${next.color}88, ${next.color})`, transition: "width 0.6s ease" }} />
+                      </div>
+                      <div style={{ fontSize: 9, color: th.dim, marginTop: 5, fontFamily: FONT }}>{next.days - state.streak} days to go {"\u00B7"} +{next.xpBonus} XP reward</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Evening Reflection Trigger */}
               <div onClick={() => setShowEveningReflection(true)} style={{
                 ...glassStyle(th), padding: "16px 18px", marginTop: 14, cursor: "pointer",
@@ -5178,7 +5409,9 @@ function PPPPApp() {
         {/* ─── SETTINGS VIEW ─── */}
         {view === "settings" && (
           <SettingsView profile={profile} onSave={(p) => { saveProfile(p); setProfile(p); }}
-            onBack={goHome} th={th} />
+            onBack={goHome} th={th}
+            firebaseUser={firebaseUser} cloudStatus={cloudStatus} cloudSyncing={cloudSyncing}
+            onSignIn={handleSignIn} onSignOut={handleSignOut} onForceSync={handleForceSync} />
         )}
 
         {/* ─── WEEKLY VIEW ─── */}
