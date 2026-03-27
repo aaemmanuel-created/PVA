@@ -22,13 +22,19 @@ const firebaseConfig = {
   appId: "1:534574400982:web:5c9d7ebe532da1ce849077"
 };
 
-// Initialize Firebase
-const firebaseApp = firebase.initializeApp(firebaseConfig);
-const firebaseAuth = firebase.auth();
-const firebaseDb = firebase.firestore();
+// Initialize Firebase (with guard for offline/local usage)
+let firebaseApp = null, firebaseAuth = null, firebaseDb = null;
+try {
+  if (typeof firebase !== "undefined") {
+    firebaseApp = firebase.initializeApp(firebaseConfig);
+    firebaseAuth = firebase.auth();
+    firebaseDb = firebase.firestore();
+  }
+} catch (e) { console.warn("[PVA] Firebase init failed:", e); }
 
 // ─── CLOUD SYNC HELPERS ───
 async function saveToCloud(userId, data) {
+  if (!firebaseDb) return;
   try {
     const allData = {
       pppp_state: data.pppp_state || null,
@@ -41,7 +47,8 @@ async function saveToCloud(userId, data) {
       pva_rewards: data.pva_rewards || null,
       pva_accountability: data.pva_accountability || null,
       pva_milestones_claimed: data.pva_milestones_claimed || null,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      pva_routine: data.pva_routine || null,
+      updatedAt: (typeof firebase !== "undefined" && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
     };
     await firebaseDb.collection("users").doc(userId).set(allData, { merge: true });
     console.log("[PVA Cloud] Saved to cloud");
@@ -51,6 +58,7 @@ async function saveToCloud(userId, data) {
 }
 
 async function loadFromCloud(userId) {
+  if (!firebaseDb) return null;
   try {
     const doc = await firebaseDb.collection("users").doc(userId).get();
     if (doc.exists) {
@@ -77,11 +85,12 @@ function gatherLocalData() {
     pva_rewards: localStorage.getItem("pva_rewards"),
     pva_accountability: localStorage.getItem("pva_accountability"),
     pva_milestones_claimed: localStorage.getItem("pva_milestones_claimed"),
+    pva_routine: localStorage.getItem("pva_routine"),
   };
 }
 
 function restoreLocalData(cloudData) {
-  const keys = ["pppp_state", "pva_profile", "pva_notes", "pva_prayer_journal", "pva_verse_mem", "pva_pets", "pva_guild", "pva_rewards", "pva_accountability", "pva_milestones_claimed"];
+  const keys = ["pppp_state", "pva_profile", "pva_notes", "pva_prayer_journal", "pva_verse_mem", "pva_pets", "pva_guild", "pva_rewards", "pva_accountability", "pva_milestones_claimed", "pva_routine"];
   keys.forEach(key => {
     if (cloudData[key]) {
       localStorage.setItem(key, cloudData[key]);
@@ -261,6 +270,75 @@ const DEFAULT_TASKS = {
   ]},
 };
 
+// ─── ROUTINE BUILDER ───
+const ROUTINE_STORAGE_KEY = "pva_routine";
+
+const ROUTINE_QUESTIONS = [
+  // ── MORNING ──
+  { id: "wake_time", category: "morning", emoji: "\uD83C\uDF05", question: "What time do you wake up?",
+    options: ["04:00", "04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00"] },
+  { id: "morning_devotion", category: "morning", emoji: "\uD83D\uDCD6", question: "Do you do morning devotion or quiet time?",
+    options: ["Yes, every day", "Most days", "Starting to", "Not yet"] },
+  { id: "devotion_length", category: "morning", emoji: "\u23F1\uFE0F", question: "How long is your devotion time?",
+    options: ["15 min", "30 min", "45 min", "1 hour", "1+ hours"],
+    showIf: function(a) { return a.morning_devotion && a.morning_devotion !== "Not yet"; } },
+  { id: "morning_exercise", category: "morning", emoji: "\uD83D\uDCAA", question: "Do you exercise in the morning?",
+    options: ["Yes", "Sometimes", "No, but I want to", "I exercise later"] },
+  { id: "exercise_type", category: "morning", emoji: "\uD83C\uDFC3", question: "What type of exercise?",
+    options: ["Walk/Run", "Gym", "Yoga/Stretching", "Home Workout", "Sports"],
+    showIf: function(a) { return a.morning_exercise && a.morning_exercise !== "No, but I want to"; } },
+  { id: "breakfast_time", category: "morning", emoji: "\uD83C\uDF73", question: "What time do you have breakfast?",
+    options: ["I skip breakfast", "06:00\u201307:00", "07:00\u201308:00", "08:00\u201309:00", "09:00\u201310:00", "10:00\u201311:00"] },
+
+  // ── WORK / STUDY ──
+  { id: "work_start", category: "work", emoji: "\uD83D\uDCBC", question: "What time do you start work or study?",
+    options: ["07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00"] },
+  { id: "work_end", category: "work", emoji: "\uD83C\uDFC1", question: "What time do you finish?",
+    options: ["15:00", "16:00", "17:00", "17:30", "18:00", "19:00"] },
+  { id: "focus_duration", category: "work", emoji: "\uD83C\uDFAF", question: "How long are your ideal focus blocks?",
+    options: ["25 min (Pomodoro)", "45 min", "60 min", "90 min", "I go with the flow"] },
+
+  // ── AFTERNOON ──
+  { id: "lunch_time", category: "afternoon", emoji: "\uD83E\uDD57", question: "What time do you have lunch?",
+    options: ["11:30", "12:00", "12:30", "13:00", "13:30", "14:00"] },
+  { id: "afternoon_break", category: "afternoon", emoji: "\u2615", question: "Do you take an afternoon break?",
+    options: ["Yes, always", "Sometimes", "Rarely", "I\u2019d like to start"] },
+  { id: "break_activity", category: "afternoon", emoji: "\uD83D\uDEB6", question: "What do you do during your break?",
+    options: ["Walk", "Nap", "Reading", "Stretching", "Coffee/Tea break"],
+    showIf: function(a) { return a.afternoon_break && a.afternoon_break !== "Rarely"; } },
+
+  // ── EVENING ──
+  { id: "dinner_time", category: "evening", emoji: "\uD83C\uDF7D\uFE0F", question: "What time do you have dinner?",
+    options: ["17:00", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30+"] },
+  { id: "wind_down", category: "evening", emoji: "\uD83C\uDF19", question: "What\u2019s your wind-down activity?",
+    options: ["Reading", "Journaling", "Family time", "Music/Worship", "Light walk"] },
+  { id: "bed_time", category: "evening", emoji: "\uD83D\uDE34", question: "What time do you go to bed?",
+    options: ["21:00", "21:30", "22:00", "22:30", "23:00", "23:30", "00:00+"] },
+
+  // ── SPIRITUAL DISCIPLINES ──
+  { id: "prayer_times", category: "spiritual", emoji: "\uD83D\uDE4F", question: "When do you pray?",
+    options: ["Morning", "Midday", "Evening", "Multiple times daily", "Building the habit"] },
+  { id: "bible_reading", category: "spiritual", emoji: "\uD83D\uDCDC", question: "How much Bible do you read daily?",
+    options: ["1 chapter", "2 chapters", "3+ chapters", "A reading plan", "Just starting"] },
+  { id: "verse_memorization", category: "spiritual", emoji: "\uD83D\uDC8E", question: "Do you memorise Scripture?",
+    options: ["Yes, weekly", "Yes, monthly", "Occasionally", "Want to start"] },
+];
+
+const ROUTINE_CATEGORIES = {
+  morning: { label: "MORNING ROUTINE", color: "#F59E0B", emoji: "\uD83C\uDF05" },
+  work: { label: "WORK & STUDY", color: "#3B82F6", emoji: "\uD83D\uDCBC" },
+  afternoon: { label: "AFTERNOON", color: "#22C55E", emoji: "\u2600" },
+  evening: { label: "EVENING ROUTINE", color: "#8B5CF6", emoji: "\uD83C\uDF19" },
+  spiritual: { label: "SPIRITUAL DISCIPLINES", color: "#EC4899", emoji: "\uD83D\uDE4F" },
+};
+
+function loadRoutine() {
+  try { const r = localStorage.getItem(ROUTINE_STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
+}
+function saveRoutineData(data) {
+  localStorage.setItem(ROUTINE_STORAGE_KEY, JSON.stringify(data));
+}
+
 // ─── SOUND ───
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
@@ -330,12 +408,22 @@ function loadState() {
       const wouldBreak = prevPct < 50;
       const newStreak = wouldBreak ? (hadStreakFreeze ? (r.streak || 0) + 1 : 1) : (r.streak || 0) + 1;
       const newHp = prevPct >= 80 ? Math.min(HP_MAX, (r.hp || HP_MAX) + 10) : (r.hp || HP_MAX);
+      // Temple decay: missed/low days damage XP (the temple)
+      // Below 50% completion = decay. The less you did, the more damage.
+      const prevTotalXp = r.totalXp || 0;
+      var xpDecay = 0;
+      if (prevPct < 50 && !hadStreakFreeze) {
+        // Scale: 0% = lose 5% of XP, 49% = lose ~0.5% of XP
+        const decayRate = 0.05 * (1 - prevPct / 50);
+        xpDecay = Math.round(prevTotalXp * decayRate);
+      }
+      const newTotalXp = Math.max(0, prevTotalXp - xpDecay);
       const hist = [...(r.history || [])];
       if (hist.length >= 30) hist.shift();
       hist.push({ date: TODAY, pct: 0, xp: 0, cats: { person: 0, people: 0, process: 0, product: 0 } });
       return {
         date: TODAY, completed: {}, counters: {}, notes: {}, timers: {},
-        xp: 0, totalXp: r.totalXp || 0,
+        xp: 0, totalXp: newTotalXp,
         streak: newStreak, bestStreak: Math.max(r.bestStreak || 0, newStreak),
         daysCompleted: (r.daysCompleted || 0) + (prevPct >= 50 ? 1 : 0),
         hp: newHp, redemptionMode: newHp <= 0,
@@ -1892,6 +1980,46 @@ function PVAGlanceView({ state, dayPct, th, onBack }) {
           </div>
         ))}
       </div>
+
+      {/* Foundational Scripture */}
+      <div style={{
+        padding: "20px 22px", marginTop: 20, borderRadius: 14,
+        background: th.glass, border: `1px solid ${th.glassBorder}`,
+        backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
+        boxShadow: "0 6px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.07)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+          <div style={{ width: 16, height: 16, borderRadius: 5, background: `linear-gradient(135deg, ${th.scripture}30, ${th.scripture}10)`, border: `1px solid ${th.scripture}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 8, opacity: 0.8 }}>{"\u271A"}</span>
+          </div>
+          <span style={{ fontSize: 8, fontWeight: 800, color: th.scripture, letterSpacing: "0.2em" }}>FOUNDATIONAL SCRIPTURE</span>
+        </div>
+        <div style={{
+          padding: "14px 18px", borderRadius: 12,
+          background: `linear-gradient(145deg, ${th.scripture}08, transparent 50%)`,
+          borderLeft: `2px solid ${th.scripture}`,
+          borderTop: `1px solid ${th.scripture}15`,
+          borderRight: `1px solid ${th.scripture}10`,
+          borderBottom: `1px solid ${th.scripture}10`,
+        }}>
+          <div style={{ fontSize: 18, color: th.scripture, opacity: 0.25, fontFamily: "Georgia, serif", lineHeight: 1, marginBottom: 2 }}>{"\u201C"}</div>
+          <div style={{ fontSize: 11, fontWeight: 400, color: th.scripture, lineHeight: 1.9, fontFamily: FONT, opacity: 0.9 }}>
+            to put off your old self, which belongs to your former manner of life and is corrupt through deceitful desires,
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 400, color: th.scripture, lineHeight: 1.9, fontFamily: FONT, opacity: 0.9 }}>
+            and to be renewed in the spirit of your minds,
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 400, color: th.scripture, lineHeight: 1.9, fontFamily: FONT, opacity: 0.9 }}>
+            and to put on the new self, created after the likeness of God in true righteousness and holiness.
+          </div>
+          <div style={{ fontSize: 18, color: th.scripture, opacity: 0.25, fontFamily: "Georgia, serif", lineHeight: 1, textAlign: "right", marginTop: 2 }}>{"\u201D"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+            <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${th.scripture}30, transparent)` }} />
+            <span style={{ fontSize: 8, color: th.scripture, letterSpacing: "0.1em", fontFamily: FONT, fontWeight: 700, opacity: 0.6 }}>EPHESIANS 4:22{"\u2013"}24 ESV</span>
+            <div style={{ flex: 1, height: 1, background: `linear-gradient(270deg, ${th.scripture}30, transparent)` }} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3056,27 +3184,18 @@ const getDailyPrompt = (date) => {
   return DEVOTIONAL_PROMPTS[seed % DEVOTIONAL_PROMPTS.length];
 };
 
-// ─── DAILY READINESS SCORE ───
-function getReadinessScore(state, dayPct) {
-  const streakScore = Math.min(state.streak || 0, 30) / 30 * 25;
-  const hpScore = (state.hp || 0) / HP_MAX * 25;
-  const completionScore = dayPct / 100 * 30;
-  const consistencyScore = (() => {
-    const hist = (state.history || []).slice(-7);
-    if (hist.length === 0) return 10;
-    const avg = hist.reduce((s, d) => s + (d?.pct || 0), 0) / hist.length;
-    return avg / 100 * 20;
-  })();
-  return Math.round(Math.min(100, streakScore + hpScore + completionScore + consistencyScore));
+// ─── DAILY STATE (resets each day — reflects today's completion only) ───
+function getDailyScore(dayPct) {
+  return Math.round(Math.min(100, Math.max(0, dayPct)));
 }
-function getReadinessMessage(score) {
+function getDailyMessage(score) {
   if (score >= 85) return "You\u2019re on fire \u2014 push hard today!";
   if (score >= 70) return "Strong foundation \u2014 keep building.";
   if (score >= 50) return "Steady \u2014 focus on the essentials.";
   if (score >= 30) return "Regroup \u2014 start with what matters most.";
-  return "Rest and reset \u2014 tomorrow is a new day.";
+  return "A new day \u2014 let\u2019s get started.";
 }
-function getReadinessColor(score, th) {
+function getDailyColor(score, th) {
   if (score >= 80) return "#22C55E";
   if (score >= 60) return th.blue;
   if (score >= 40) return th.gold;
@@ -3084,36 +3203,38 @@ function getReadinessColor(score, th) {
 }
 
 // ─── DAILY STATE CARD ───
-function ReadinessCard({ state, dayPct, th }) {
-  const score = getReadinessScore(state, dayPct);
-  const msg = getReadinessMessage(score);
-  const color = getReadinessColor(score, th);
+function ReadinessCard({ state, dayPct, th, level, levelIdx }) {
+  const score = getDailyScore(dayPct);
+  const msg = getDailyMessage(score);
+  const color = getDailyColor(score, th);
+  const lvl = level || LEVELS[0];
   return (
-    <div style={{ ...glassStyleElevated(th), padding: "18px 20px", marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em" }}>DAILY STATE</div>
-        <span style={{ fontSize: 18, fontWeight: 800, color, fontFamily: FONT }}>{score}<span style={{ fontSize: 10, fontWeight: 600, color: th.dim }}>/100</span></span>
-      </div>
-      <div style={{ width: "100%", height: 6, borderRadius: 3, background: th.ghost, overflow: "hidden", marginBottom: 12 }}>
-        <div className="pva-bar-shimmer" style={{
-          height: "100%", borderRadius: 3, width: `${score}%`,
-          background: `linear-gradient(90deg, ${color}, ${color}CC, ${color})`,
-          backgroundSize: "200% 100%",
-          boxShadow: `0 0 12px ${color}40`,
-          transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
-        }} />
-      </div>
-      <div style={{ fontSize: 12, fontWeight: 400, color: th.text, lineHeight: 1.5, marginBottom: 10 }}>{msg}</div>
-      <div style={{ display: "flex", gap: 12 }}>
-        {[
-          { label: "HP", value: state.hp, max: HP_MAX },
-          { label: "STK", value: state.streak, max: 30 },
-          { label: "DAY", value: dayPct, max: 100 },
-        ].map(s => (
-          <div key={s.label} style={{ fontSize: 9, color: th.dim }}>
-            <span style={{ fontWeight: 700, color: th.mid }}>{s.value}</span>{" "}{s.label}
+    <div style={{ ...glassStyleElevated(th), padding: "20px 20px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{
+          width: 42, height: 50, flexShrink: 0, overflow: "hidden",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transform: "scale(0.68)", transformOrigin: "center center",
+        }}><HumanAvatar pct={dayPct} th={th} levelIdx={levelIdx || 0} /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em" }}>DAILY STATE</span>
+              <span style={{ fontSize: 9, color: th.dim, fontFamily: FONT }}>{lvl.name}</span>
+            </div>
+            <span style={{ fontSize: 16, fontWeight: 800, color, fontFamily: FONT }}>{score}<span style={{ fontSize: 10, fontWeight: 600, color: th.dim }}>/100</span></span>
           </div>
-        ))}
+          <div style={{ width: "100%", height: 7, borderRadius: 4, background: th.ghost, overflow: "hidden" }}>
+            <div className="pva-bar-shimmer" style={{
+              height: "100%", borderRadius: 4, width: `${score}%`,
+              background: `linear-gradient(90deg, ${color}, ${color}CC, ${color})`,
+              backgroundSize: "200% 100%",
+              boxShadow: `0 0 12px ${color}40`,
+              transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
+            }} />
+          </div>
+          <div style={{ fontSize: 9, color: th.dim, fontFamily: FONT, marginTop: 5 }}>{state.totalXp || 0} XP</div>
+        </div>
       </div>
     </div>
   );
@@ -4078,7 +4199,7 @@ function StreakFreezeCard({ state, setState, th }) {
 }
 
 // ─── EVENING REFLECTION MODAL ───
-function EveningReflectionModal({ state, setState, th, onClose }) {
+function EveningReflectionModal({ state, setState, th, dayPct, onClose }) {
   const [rating, setRating] = useState(state.dayRating || null);
   const [note, setNote] = useState(state.notes?.eveningReflection || "");
   const [saved, setSaved] = useState(false);
@@ -4129,6 +4250,34 @@ function EveningReflectionModal({ state, setState, th, onClose }) {
           ))}
         </div>
         {rating && <div style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: colors[rating-1], marginBottom: 12 }}>{labels[rating-1]}</div>}
+
+        {/* Temple impact preview */}
+        {(() => {
+          const pct = dayPct || 0;
+          const xp = state.totalXp || 0;
+          const isProtected = pct >= 50;
+          const decayRate = isProtected ? 0 : 0.05 * (1 - pct / 50);
+          const decay = isProtected ? 0 : Math.round(xp * decayRate);
+          const templeColor = isProtected ? "#22C55E" : decay > 0 ? "#EF4444" : th.dim;
+          const templeMsg = isProtected
+            ? (pct >= 80 ? "Your temple is thriving!" : "Your temple is safe today.")
+            : decay > 0 ? `Your temple will lose ${decay} XP overnight.` : "Keep going to protect your temple.";
+          const templeIcon = isProtected ? "\uD83C\uDFDB" : "\u26A0";
+          return (
+            <div style={{ margin: "0 24px 14px", padding: "12px 14px", borderRadius: 12, background: `${templeColor}0A`, border: `1px solid ${templeColor}20` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 16 }}>{templeIcon}</span>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: templeColor, letterSpacing: "0.12em" }}>TEMPLE HEALTH</div>
+                  <div style={{ fontSize: 11, color: th.mid, marginTop: 2 }}>{templeMsg}</div>
+                </div>
+              </div>
+              {!isProtected && pct < 50 && (
+                <div style={{ fontSize: 9, color: th.dim, marginTop: 6 }}>Complete more tasks to reach 50% and protect your temple.</div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Optional note */}
         <div style={{ padding: "0 24px 16px" }}>
@@ -4628,13 +4777,539 @@ function WeeklyReportCard({ state, userName, th, onClose }) {
   );
 }
 
+// ─── ROUTINE ONBOARDING (Chat-Style) ───
+function RoutineOnboardingView({ th, onComplete, existingRoutine }) {
+  const [answers, setAnswers] = useState(existingRoutine || {});
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [showingOptions, setShowingOptions] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [showPasteBox, setShowPasteBox] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const chatEndRef = useRef(null);
+
+  const handlePasteSubmit = function() {
+    var text = pasteText.trim();
+    if (!text) { setUploadError("Please paste your routine first."); return; }
+    // Try JSON first (for PVA exports)
+    try {
+      var data = JSON.parse(text);
+      var importedAnswers = data.answers || data;
+      var validKeys = ROUTINE_QUESTIONS.map(function(q) { return q.id; });
+      var matchCount = Object.keys(importedAnswers).filter(function(k) { return validKeys.indexOf(k) >= 0; }).length;
+      if (matchCount > 0) {
+        var routineData = { answers: importedAnswers, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
+        saveRoutineData(routineData);
+        onComplete(importedAnswers);
+        playCelebrate();
+        return;
+      }
+    } catch (e) { /* not JSON, try plain text parsing */ }
+    // Parse plain text — match lines to questions and options
+    var lines = text.split("\n").map(function(l) { return l.trim().toLowerCase(); }).filter(Boolean);
+    var parsed = {};
+    ROUTINE_QUESTIONS.forEach(function(q) {
+      var keywords = q.question.toLowerCase().replace(/[?'"\u2019]/g, "").split(" ").filter(function(w) { return w.length > 3; });
+      var matchedLine = null;
+      lines.forEach(function(line) {
+        var hits = keywords.filter(function(kw) { return line.indexOf(kw) >= 0; }).length;
+        if (hits >= 2 || (hits >= 1 && keywords.length <= 3)) matchedLine = line;
+      });
+      if (matchedLine) {
+        // Try to match an option from this line
+        var bestOption = null, bestScore = 0;
+        q.options.forEach(function(opt) {
+          var optLower = opt.toLowerCase().replace(/[\u2013\u2014]/g, "-");
+          if (matchedLine.indexOf(optLower) >= 0) { bestOption = opt; bestScore = 100; }
+          else {
+            var optWords = optLower.split(/[\s\/,]+/).filter(function(w) { return w.length > 1; });
+            var score = optWords.filter(function(w) { return matchedLine.indexOf(w) >= 0; }).length;
+            if (score > bestScore) { bestScore = score; bestOption = opt; }
+          }
+        });
+        if (bestOption && bestScore > 0) parsed[q.id] = bestOption;
+      }
+      // Also try direct time matching for time-based questions
+      if (!parsed[q.id] && q.options.some(function(o) { return /^\d{2}:\d{2}/.test(o); })) {
+        var timeMatch = null;
+        lines.forEach(function(line) {
+          var kHits = keywords.filter(function(kw) { return line.indexOf(kw) >= 0; }).length;
+          if (kHits >= 1) {
+            var tm = line.match(/(\d{1,2}[:.]\d{2})/);
+            if (tm) {
+              var t = tm[1].replace(".", ":");
+              if (t.length === 4) t = "0" + t;
+              q.options.forEach(function(opt) { if (opt.indexOf(t) >= 0) timeMatch = opt; });
+            }
+          }
+        });
+        if (timeMatch) parsed[q.id] = timeMatch;
+      }
+    });
+    if (Object.keys(parsed).length === 0) {
+      setUploadError("Couldn\u2019t match your text to routine items. Try a format like:\nWake up: 06:00\nDevtion: 30 min\nExercise: Walk/Run\nWork start: 09:00\nBedtime: 22:30");
+      return;
+    }
+    var routineData = { answers: parsed, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
+    saveRoutineData(routineData);
+    onComplete(parsed);
+    playCelebrate();
+  };
+
+  // Get visible questions (respecting showIf)
+  const visibleQuestions = useMemo(() => {
+    return ROUTINE_QUESTIONS.filter(q => !q.showIf || q.showIf(answers));
+  }, [answers]);
+
+  // Scroll to bottom
+  useEffect(() => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, showingOptions]);
+
+  // Show first question on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setChatMessages([{ type: "system", text: "Let\u2019s build your daily routine. I\u2019ll ask a few quick questions \u2014 just tap your answer." }]);
+      setTimeout(() => {
+        if (visibleQuestions.length > 0) {
+          const q = visibleQuestions[0];
+          const catInfo = ROUTINE_CATEGORIES[q.category];
+          setChatMessages(prev => [...prev, { type: "category", label: catInfo.label, color: catInfo.color, emoji: catInfo.emoji }]);
+          setTimeout(() => {
+            setChatMessages(prev => [...prev, { type: "bot", emoji: q.emoji, text: q.question, qId: q.id }]);
+            setShowingOptions(true);
+          }, 400);
+        }
+      }, 600);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleAnswer = (questionId, answer) => {
+    const newAnswers = { ...answers, [questionId]: answer };
+    setAnswers(newAnswers);
+    setShowingOptions(false);
+
+    // Add user answer as chat bubble
+    setChatMessages(prev => [...prev, { type: "user", text: answer }]);
+
+    // Recalculate visible questions with new answers
+    const newVisible = ROUTINE_QUESTIONS.filter(q => !q.showIf || q.showIf(newAnswers));
+    const currentQIdx = newVisible.findIndex(q => q.id === questionId);
+    const nextIdx = currentQIdx + 1;
+
+    if (nextIdx < newVisible.length) {
+      const nextQ = newVisible[nextIdx];
+      const currentQ = newVisible[currentQIdx];
+      // Show category divider if category changed
+      setTimeout(() => {
+        if (nextQ.category !== currentQ.category) {
+          const catInfo = ROUTINE_CATEGORIES[nextQ.category];
+          setChatMessages(prev => [...prev, { type: "category", label: catInfo.label, color: catInfo.color, emoji: catInfo.emoji }]);
+        }
+        setTimeout(() => {
+          setChatMessages(prev => [...prev, { type: "bot", emoji: nextQ.emoji, text: nextQ.question, qId: nextQ.id }]);
+          setCurrentIdx(nextIdx);
+          setShowingOptions(true);
+        }, 400);
+      }, 500);
+    } else {
+      // All questions answered
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { type: "system", text: "Your routine is set! You can update it anytime from the My Routine tab." }]);
+        setCompleted(true);
+        saveRoutineData({ answers: newAnswers, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      }, 600);
+    }
+  };
+
+  const currentQuestion = visibleQuestions[currentIdx];
+  const progress = visibleQuestions.length > 0 ? (Object.keys(answers).length / visibleQuestions.length) * 100 : 0;
+
+  return (
+    <div className="pva-fade-in" style={{ padding: "0 16px", paddingBottom: 140 }}>
+      {/* Progress bar + Upload option */}
+      <div style={{ padding: "16px 4px 8px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.12em" }}>BUILDING YOUR ROUTINE</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={function() { setShowPasteBox(!showPasteBox); setUploadError(""); }}
+              style={{ padding: "4px 10px", borderRadius: 12,
+                border: "1px solid " + (showPasteBox ? th.blue + "40" : th.glassBorder),
+                background: showPasteBox ? th.blueDim : th.glass,
+                color: showPasteBox ? th.blue : th.mid,
+                fontSize: 9, fontWeight: 700, cursor: "pointer",
+                fontFamily: FONT, letterSpacing: "0.05em" }}>UPLOAD ROUTINE</button>
+            <span style={{ fontSize: 9, fontWeight: 700, color: th.blue }}>{Math.round(progress)}%</span>
+          </div>
+        </div>
+        {showPasteBox && (
+          <div className="pva-fade-in" style={{ ...glassStyle(th), padding: 14, marginTop: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 10, color: th.mid, fontFamily: FONT, marginBottom: 8 }}>
+              Paste your routine below. Use a simple format like "Wake up: 06:00" per line, or paste a PVA export:
+            </div>
+            <textarea value={pasteText} onChange={function(e) { setPasteText(e.target.value); setUploadError(""); }}
+              placeholder={"Wake up: 06:00\nDevotion: 30 min\nExercise: Walk/Run\nWork start: 09:00\nLunch: 12:30\nDinner: 19:00\nBedtime: 22:30"}
+              style={{
+                width: "100%", minHeight: 100, padding: 12, borderRadius: 12,
+                border: "1px solid " + th.glassBorder, background: th.surface,
+                color: th.text, fontSize: 11, fontFamily: FONT, resize: "vertical",
+                outline: "none",
+              }} />
+            {uploadError && (
+              <div style={{ padding: "6px 0", fontSize: 10, color: th.red, fontFamily: FONT }}>{uploadError}</div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button onClick={handlePasteSubmit}
+                style={{ padding: "8px 18px", borderRadius: 14, border: "none",
+                  background: th.blue, color: "#fff", fontSize: 11, fontWeight: 700,
+                  cursor: "pointer", fontFamily: FONT }}>IMPORT</button>
+              <button onClick={function() { setShowPasteBox(false); setPasteText(""); setUploadError(""); }}
+                style={{ padding: "8px 18px", borderRadius: 14, border: "1px solid " + th.glassBorder,
+                  background: th.glass, color: th.mid, fontSize: 11, fontWeight: 700,
+                  cursor: "pointer", fontFamily: FONT }}>CANCEL</button>
+            </div>
+          </div>
+        )}
+        {!showPasteBox && uploadError && (
+          <div style={{ padding: "8px 12px", borderRadius: 10, background: th.redDim, border: "1px solid " + th.red + "30",
+            marginBottom: 8 }}>
+            <span style={{ fontSize: 10, color: th.red, fontFamily: FONT }}>{uploadError}</span>
+          </div>
+        )}
+        <div style={{ width: "100%", height: 4, borderRadius: 2, background: th.ghost, marginTop: showPasteBox ? 8 : 0 }}>
+          <div style={{ width: progress + "%", height: "100%", borderRadius: 2, background: "linear-gradient(90deg, " + th.blue + ", #8B5CF6)", transition: "width 0.5s ease" }} />
+        </div>
+      </div>
+
+      {/* Chat messages */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 12 }}>
+        {chatMessages.map(function(msg, i) {
+          if (msg.type === "system") {
+            return (
+              <div key={i} style={{ textAlign: "center", padding: "12px 20px" }}>
+                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, fontFamily: FONT }}>{msg.text}</div>
+              </div>
+            );
+          }
+          if (msg.type === "category") {
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 0 4px", marginTop: 6 }}>
+                <div style={{ flex: 1, height: 1, background: msg.color + "30" }} />
+                <span style={{ fontSize: 9, fontWeight: 800, color: msg.color, letterSpacing: "0.15em", fontFamily: FONT }}>{msg.emoji} {msg.label}</span>
+                <div style={{ flex: 1, height: 1, background: msg.color + "30" }} />
+              </div>
+            );
+          }
+          if (msg.type === "bot") {
+            return (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", maxWidth: "85%" }}>
+                <div style={{ width: 32, height: 32, borderRadius: 16, background: th.glass, border: "1px solid " + th.glassBorder,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{msg.emoji}</div>
+                <div style={{ ...glassStyle(th), padding: "10px 14px", borderRadius: "4px 16px 16px 16px", maxWidth: "100%" }}>
+                  <div style={{ fontSize: 13, color: th.text, lineHeight: 1.5, fontFamily: FONT }}>{msg.text}</div>
+                </div>
+              </div>
+            );
+          }
+          if (msg.type === "user") {
+            return (
+              <div key={i} style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ padding: "10px 16px", borderRadius: "16px 4px 16px 16px",
+                  background: "linear-gradient(135deg, " + th.blue + ", #6366F1)", maxWidth: "70%" }}>
+                  <div style={{ fontSize: 13, color: "#fff", fontWeight: 600, fontFamily: FONT }}>{msg.text}</div>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })}
+
+        {/* Current options */}
+        {showingOptions && currentQuestion && (
+          <div className="pva-fade-in" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "6px 0 10px 40px" }}>
+            {currentQuestion.options.map(function(opt) {
+              return (
+                <button key={opt} onClick={function() { handleAnswer(currentQuestion.id, opt); playTick(); }}
+                  className="pva-card-hover" style={{
+                    padding: "8px 16px", borderRadius: 20, border: "1px solid " + th.blue + "40",
+                    background: th.blueDim, color: th.blue, fontSize: 12, fontWeight: 600,
+                    cursor: "pointer", fontFamily: FONT, transition: "all 0.2s ease",
+                  }}>{opt}</button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Complete button */}
+        {completed && (
+          <div className="pva-fade-in" style={{ textAlign: "center", padding: "20px 0" }}>
+            <button onClick={function() { onComplete(answers); playCelebrate(); }}
+              className="pva-card-hover" style={{
+                padding: "14px 32px", borderRadius: 24,
+                background: "linear-gradient(135deg, " + th.blue + ", #6366F1)",
+                border: "none", color: "#fff", fontSize: 14, fontWeight: 800,
+                cursor: "pointer", fontFamily: FONT, letterSpacing: "0.05em",
+                boxShadow: "0 4px 20px " + th.blue + "40",
+              }}>START YOUR JOURNEY \u2192</button>
+          </div>
+        )}
+        <div ref={chatEndRef} />
+      </div>
+    </div>
+  );
+}
+
+// ─── MY ROUTINE VIEW (Edit/View) ───
+function MyRoutineView({ th, onBack }) {
+  const [routine, setRoutine] = useState(loadRoutine);
+  const [editingId, setEditingId] = useState(null);
+  const answers = (routine && routine.answers) || {};
+
+  const handleUpdate = function(qId, newValue) {
+    var newAnswers = Object.assign({}, answers);
+    newAnswers[qId] = newValue;
+    var newRoutine = Object.assign({}, routine, { answers: newAnswers, updatedAt: new Date().toISOString() });
+    setRoutine(newRoutine);
+    saveRoutineData(newRoutine);
+    setEditingId(null);
+    playTick();
+  };
+
+  const handleReset = function() {
+    if (confirm("Reset your routine? You\u2019ll go through the setup again.")) {
+      localStorage.removeItem(ROUTINE_STORAGE_KEY);
+      setRoutine(null);
+    }
+  };
+
+  const handleExport = function() {
+    var blob = new Blob([JSON.stringify(routine, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "pva-routine.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const [importError, setImportError] = useState("");
+  const [showImportBox, setShowImportBox] = useState(false);
+  const [importText, setImportText] = useState("");
+
+  const handleImportSubmit = function() {
+    var text = importText.trim();
+    if (!text) { setImportError("Please paste your routine first."); return; }
+    // Try JSON first
+    try {
+      var data = JSON.parse(text);
+      var importedAnswers = data.answers || data;
+      var validKeys = ROUTINE_QUESTIONS.map(function(q) { return q.id; });
+      var matchCount = Object.keys(importedAnswers).filter(function(k) { return validKeys.indexOf(k) >= 0; }).length;
+      if (matchCount > 0) {
+        var newRoutine = { answers: importedAnswers, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
+        saveRoutineData(newRoutine);
+        setRoutine(newRoutine);
+        setImportError(""); setShowImportBox(false); setImportText("");
+        playTick();
+        return;
+      }
+    } catch (e) { /* not JSON */ }
+    // Parse plain text
+    var lines = text.split("\n").map(function(l) { return l.trim().toLowerCase(); }).filter(Boolean);
+    var parsed = {};
+    ROUTINE_QUESTIONS.forEach(function(q) {
+      var keywords = q.question.toLowerCase().replace(/[?'"\u2019]/g, "").split(" ").filter(function(w) { return w.length > 3; });
+      var matchedLine = null;
+      lines.forEach(function(line) {
+        var hits = keywords.filter(function(kw) { return line.indexOf(kw) >= 0; }).length;
+        if (hits >= 2 || (hits >= 1 && keywords.length <= 3)) matchedLine = line;
+      });
+      if (matchedLine) {
+        var bestOption = null, bestScore = 0;
+        q.options.forEach(function(opt) {
+          var optLower = opt.toLowerCase().replace(/[\u2013\u2014]/g, "-");
+          if (matchedLine.indexOf(optLower) >= 0) { bestOption = opt; bestScore = 100; }
+          else {
+            var optWords = optLower.split(/[\s\/,]+/).filter(function(w) { return w.length > 1; });
+            var score = optWords.filter(function(w) { return matchedLine.indexOf(w) >= 0; }).length;
+            if (score > bestScore) { bestScore = score; bestOption = opt; }
+          }
+        });
+        if (bestOption && bestScore > 0) parsed[q.id] = bestOption;
+      }
+      if (!parsed[q.id] && q.options.some(function(o) { return /^\d{2}:\d{2}/.test(o); })) {
+        lines.forEach(function(line) {
+          var kHits = keywords.filter(function(kw) { return line.indexOf(kw) >= 0; }).length;
+          if (kHits >= 1) {
+            var tm = line.match(/(\d{1,2}[:.]\d{2})/);
+            if (tm) {
+              var t = tm[1].replace(".", ":"); if (t.length === 4) t = "0" + t;
+              q.options.forEach(function(opt) { if (opt.indexOf(t) >= 0 && !parsed[q.id]) parsed[q.id] = opt; });
+            }
+          }
+        });
+      }
+    });
+    if (Object.keys(parsed).length === 0) {
+      setImportError("Couldn\u2019t match your text. Try: \"Wake up: 06:00\" per line.");
+      return;
+    }
+    var newRoutine = { answers: parsed, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
+    saveRoutineData(newRoutine);
+    setRoutine(newRoutine);
+    setImportError(""); setShowImportBox(false); setImportText("");
+    playTick();
+  };
+
+  // Group questions by category
+  var categories = ["morning", "work", "afternoon", "evening", "spiritual"];
+
+  if (!routine || !routine.answers) {
+    return (
+      <div className="pva-fade-in" style={{ padding: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <button onClick={onBack} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + th.glassBorder,
+            background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>BACK</button>
+          <span style={{ fontSize: 14, fontWeight: 800, color: th.text, fontFamily: FONT }}>MY ROUTINE</span>
+        </div>
+        <div style={{ ...glassStyle(th), padding: 30, textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>{"\uD83D\uDCC5"}</div>
+          <div style={{ fontSize: 13, color: th.mid, marginBottom: 16, fontFamily: FONT }}>No routine set up yet.</div>
+          <div style={{ fontSize: 11, color: th.dim, fontFamily: FONT }}>Go through the setup to build your daily routine.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pva-fade-in" style={{ padding: "0 16px", paddingBottom: 100 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + th.glassBorder,
+            background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>BACK</button>
+          <span style={{ fontSize: 14, fontWeight: 800, color: th.text, fontFamily: FONT }}>MY ROUTINE</span>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={function() { setShowImportBox(!showImportBox); setImportError(""); }}
+            style={{ padding: "6px 12px", borderRadius: 14,
+              border: "1px solid " + (showImportBox ? th.blue : th.blue + "30"),
+              background: showImportBox ? th.blue : th.blueDim,
+              color: showImportBox ? "#fff" : th.blue,
+              fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>IMPORT</button>
+          <button onClick={handleExport}
+            style={{ padding: "6px 12px", borderRadius: 14, border: "1px solid " + th.glassBorder,
+              background: th.glass, color: th.mid, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>EXPORT</button>
+          <button onClick={handleReset} style={{ padding: "6px 12px", borderRadius: 14, border: "1px solid " + th.red + "30",
+            background: th.redDim, color: th.red, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>RESET</button>
+        </div>
+      </div>
+      {showImportBox && (
+        <div className="pva-fade-in" style={{ ...glassStyle(th), padding: 14, margin: "0 4px 12px" }}>
+          <div style={{ fontSize: 10, color: th.mid, fontFamily: FONT, marginBottom: 8 }}>
+            Paste your routine below (plain text or PVA export):
+          </div>
+          <textarea value={importText} onChange={function(e) { setImportText(e.target.value); setImportError(""); }}
+            placeholder={"Wake up: 06:00\nDevotion: 30 min\nExercise: Walk/Run\nWork start: 09:00\nLunch: 12:30\nDinner: 19:00\nBedtime: 22:30"}
+            style={{
+              width: "100%", minHeight: 100, padding: 12, borderRadius: 12,
+              border: "1px solid " + th.glassBorder, background: th.surface,
+              color: th.text, fontSize: 11, fontFamily: FONT, resize: "vertical",
+              outline: "none",
+            }} />
+          {importError && (
+            <div style={{ padding: "6px 0", fontSize: 10, color: th.red, fontFamily: FONT }}>{importError}</div>
+          )}
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button onClick={handleImportSubmit}
+              style={{ padding: "8px 18px", borderRadius: 14, border: "none",
+                background: th.blue, color: "#fff", fontSize: 11, fontWeight: 700,
+                cursor: "pointer", fontFamily: FONT }}>IMPORT</button>
+            <button onClick={function() { setShowImportBox(false); setImportText(""); setImportError(""); }}
+              style={{ padding: "8px 18px", borderRadius: 14, border: "1px solid " + th.glassBorder,
+                background: th.glass, color: th.mid, fontSize: 11, fontWeight: 700,
+                cursor: "pointer", fontFamily: FONT }}>CANCEL</button>
+          </div>
+        </div>
+      )}
+
+      {categories.map(function(catKey) {
+        var catInfo = ROUTINE_CATEGORIES[catKey];
+        var catQuestions = ROUTINE_QUESTIONS.filter(function(q) {
+          return q.category === catKey && (!q.showIf || q.showIf(answers));
+        });
+        var answeredQs = catQuestions.filter(function(q) { return answers[q.id]; });
+        if (answeredQs.length === 0) return null;
+
+        return (
+          <div key={catKey} style={{ marginBottom: 20 }}>
+            {/* Category header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 4px 10px" }}>
+              <span style={{ fontSize: 16 }}>{catInfo.emoji}</span>
+              <span style={{ fontSize: 10, fontWeight: 800, color: catInfo.color, letterSpacing: "0.14em", fontFamily: FONT }}>{catInfo.label}</span>
+              <div style={{ flex: 1, height: 1, background: catInfo.color + "20" }} />
+            </div>
+
+            {/* Items */}
+            <div style={{ ...glassStyle(th), overflow: "hidden" }}>
+              {answeredQs.map(function(q, idx) {
+                var isEditing = editingId === q.id;
+                return (
+                  <div key={q.id} style={{
+                    padding: "12px 16px", borderBottom: idx < answeredQs.length - 1 ? "1px solid " + th.glassBorder : "none",
+                    cursor: "pointer", transition: "background 0.2s",
+                  }} onClick={function() { setEditingId(isEditing ? null : q.id); }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 16 }}>{q.emoji}</span>
+                        <span style={{ fontSize: 11, color: th.mid, fontFamily: FONT }}>{q.question}</span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: th.blue, fontFamily: FONT }}>{answers[q.id] || "\u2014"}</span>
+                    </div>
+                    {/* Edit options */}
+                    {isEditing && (
+                      <div className="pva-fade-in" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10, paddingLeft: 26 }}>
+                        {q.options.map(function(opt) {
+                          var isSelected = answers[q.id] === opt;
+                          return (
+                            <button key={opt} onClick={function(e) { e.stopPropagation(); handleUpdate(q.id, opt); }}
+                              style={{
+                                padding: "6px 12px", borderRadius: 16, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT,
+                                border: "1px solid " + (isSelected ? th.blue : th.glassBorder),
+                                background: isSelected ? th.blue : th.glass,
+                                color: isSelected ? "#fff" : th.mid,
+                                transition: "all 0.2s",
+                              }}>{opt}</button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {routine.updatedAt && (
+        <div style={{ textAlign: "center", padding: "10px 0", fontSize: 9, color: th.dim, fontFamily: FONT }}>
+          Last updated: {new Date(routine.updatedAt).toLocaleDateString()}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN APP ───
 function PPPPApp() {
   const [profile, setProfile] = useState(loadProfile);
   const [themeMode, setThemeMode] = useState(getAutoTheme);
   const [autoTheme, setAutoTheme] = useState(true);
   const [state, setState] = useState(loadState);
-  const [view, setView] = useState("home"); // "home" | "category" | "weekly" | "pva_glance" | "intercession" | "settings"
+  const [view, setView] = useState(function() { return loadRoutine() ? "home" : "routine_onboarding"; });
+  const [hasRoutine, setHasRoutine] = useState(function() { return !!loadRoutine(); });
 
   // ─── FIREBASE AUTH STATE ───
   const [firebaseUser, setFirebaseUser] = useState(null);
@@ -4644,6 +5319,7 @@ function PPPPApp() {
 
   // Listen for auth state changes
   useEffect(() => {
+    if (!firebaseAuth) return;
     const unsub = firebaseAuth.onAuthStateChanged(async (user) => {
       setFirebaseUser(user);
       if (user) {
@@ -4698,6 +5374,7 @@ function PPPPApp() {
   }, [state, firebaseUser]);
 
   const handleSignIn = async () => {
+    if (!firebaseAuth) return;
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
       await firebaseAuth.signInWithPopup(provider);
@@ -4727,6 +5404,13 @@ function PPPPApp() {
     }
     setCloudSyncing(false);
   };
+
+  // ─── ROUTINE ONBOARDING HANDLER ───
+  const handleRoutineComplete = function(answers) {
+    setHasRoutine(true);
+    setView("home");
+  };
+
   const [activeCat, setActiveCat] = useState(null);
   const [celebrate, setCelebrate] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
@@ -5022,7 +5706,7 @@ function PPPPApp() {
       {showAccountability && <AccountabilityModal state={state} dayPct={dayPct} dayXp={dayXp} level={level} th={th} onClose={() => setShowAccountability(false)} />}
 
       {/* Evening Reflection */}
-      {showEveningReflection && <EveningReflectionModal state={state} setState={setState} th={th} onClose={() => setShowEveningReflection(false)} />}
+      {showEveningReflection && <EveningReflectionModal state={state} setState={setState} th={th} dayPct={dayPct} onClose={() => setShowEveningReflection(false)} />}
 
       {/* Milestone Celebration */}
       {showMilestone && <MilestoneCelebration milestone={showMilestone} streak={state.streak} th={th} onClaim={() => {
@@ -5044,8 +5728,9 @@ function PPPPApp() {
       <div style={{ maxWidth: 640, margin: "0 auto", position: "relative", zIndex: 1 }}>
 
         {/* ─── TOP BAR ─── */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 0", flexWrap: "wrap", gap: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ padding: "16px 20px 0" }}>
+          {/* Row 1: Title + icons */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{
               padding: "6px 16px", borderRadius: 20,
               background: th.glass, border: `1px solid ${th.glassBorder}`,
@@ -5053,51 +5738,53 @@ function PPPPApp() {
             }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: th.text, letterSpacing: "-0.02em" }}>{userName}{"\u2019"}s PVA Model</span>
             </div>
-            <GmtDatePill th={th} />
-            <GmtTimePill th={th} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {firebaseUser && (
+                <div style={{
+                  width: 8, height: 8, borderRadius: 4,
+                  background: cloudStatus === "synced" ? th.green : cloudStatus === "error" ? th.red : th.blue,
+                  opacity: 0.8,
+                }} title={cloudStatus === "synced" ? "Cloud synced" : cloudStatus === "error" ? "Sync error" : "Syncing..."} />
+              )}
+              <button onClick={() => setView("settings")} style={{
+                width: 34, height: 34, borderRadius: 17, border: `1px solid ${th.glassBorder}`,
+                background: th.glass, color: th.mid, fontSize: 14, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+              }}>{"\u2699"}</button>
+              <button onClick={toggleTheme} style={{
+                width: 34, height: 34, borderRadius: 17, border: `1px solid ${th.glassBorder}`,
+                background: th.glass, color: th.mid, fontSize: 14, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+              }}>{themeMode === "dark" ? "\u2600" : "\uD83C\uDF19"}</button>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {view !== "home" && (
-              <button onClick={goHome} style={{
-                padding: "6px 14px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
-                background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600,
+          {/* Row 2: Date/time + action buttons */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <GmtDatePill th={th} />
+              <GmtTimePill th={th} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {view !== "home" && (
+                <button onClick={goHome} style={{
+                  padding: "7px 16px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
+                  background: th.glass, color: th.mid, fontSize: 10, fontWeight: 600,
+                  cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
+                }}>HOME</button>
+              )}
+              <button onClick={() => setView(view === "weekly" ? "home" : "weekly")} style={{
+                padding: "7px 16px", borderRadius: 20, border: `1px solid ${view === "weekly" ? th.blue + "40" : th.glassBorder}`,
+                background: view === "weekly" ? th.blueDim : th.glass, color: view === "weekly" ? th.blue : th.mid,
+                fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
+              }}>WEEKLY</button>
+              <button onClick={() => { setShowAccountability(true); setShowSummary(true); }} style={{
+                padding: "7px 16px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
+                background: th.glass, color: th.mid, fontSize: 10, fontWeight: 600,
                 cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
-              }}>HOME</button>
-            )}
-            <button onClick={() => setView(view === "weekly" ? "home" : "weekly")} style={{
-              padding: "6px 14px", borderRadius: 20, border: `1px solid ${view === "weekly" ? th.blue + "40" : th.glassBorder}`,
-              background: view === "weekly" ? th.blueDim : th.glass, color: view === "weekly" ? th.blue : th.mid,
-              fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
-            }}>WEEKLY</button>
-            <button onClick={() => setShowAccountability(true)} style={{
-              padding: "6px 14px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
-              background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600,
-              cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
-            }}>ACC</button>
-            <button onClick={() => setShowSummary(true)} style={{
-              padding: "6px 14px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
-              background: th.glass, color: th.mid, fontSize: 11, fontWeight: 600,
-              cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
-            }}>SHARE</button>
-            {firebaseUser && (
-              <div style={{
-                width: 8, height: 8, borderRadius: 4, marginRight: -4,
-                background: cloudStatus === "synced" ? th.green : cloudStatus === "error" ? th.red : th.blue,
-                opacity: 0.8,
-              }} title={cloudStatus === "synced" ? "Cloud synced" : cloudStatus === "error" ? "Sync error" : "Syncing..."} />
-            )}
-            <button onClick={() => setView("settings")} style={{
-              width: 36, height: 36, borderRadius: 18, border: `1px solid ${th.glassBorder}`,
-              background: th.glass, color: th.mid, fontSize: 14, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-            }}>{"\u2699\uFE0F"}</button>
-            <button onClick={toggleTheme} style={{
-              width: 36, height: 36, borderRadius: 18, border: `1px solid ${th.glassBorder}`,
-              background: th.glass, color: th.mid, fontSize: 14, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-            }}>{themeMode === "dark" ? "\u2600\uFE0F" : "\uD83C\uDF19"}}</button>
+              }}>ACCOUNTABILITY</button>
+            </div>
           </div>
         </div>
 
@@ -5105,8 +5792,8 @@ function PPPPApp() {
         {view === "home" && (
           <div className="pva-fade-in">
             {/* Daily State */}
-            <div style={{ padding: "0 20px", marginBottom: 16 }}>
-              <ReadinessCard state={state} dayPct={dayPct} th={th} />
+            <div style={{ padding: "0 20px", marginTop: 14, marginBottom: 16 }}>
+              <ReadinessCard state={state} dayPct={dayPct} th={th} level={level} levelIdx={levelIdx} />
             </div>
 
             {/* Stats bar */}
@@ -5126,48 +5813,36 @@ function PPPPApp() {
 
             <SectionDivider label="NAVIGATE" th={th} />
 
-            {/* ─── NAV TILES ─── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: "0 20px", marginBottom: 22 }}>
+            {/* ─── NAV TILES (3 columns) ─── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "0 20px", marginBottom: 22 }}>
+              <div onClick={() => setView("routine")} className="pva-card-hover" style={{
+                ...glassStyle(th), padding: "18px 12px", cursor: "pointer",
+                border: `1px solid #EC489925`,
+                background: `linear-gradient(135deg, #EC489910 0%, transparent 100%)`,
+                transition: "all 0.3s ease", textAlign: "center",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4 }}>MY ROUTINE</div>
+                <div style={{ fontSize: 8, color: th.dim }}>Daily Schedule</div>
+              </div>
               <div onClick={() => setView("pva_glance")} className="pva-card-hover" style={{
-                ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
+                ...glassStyle(th), padding: "18px 12px", cursor: "pointer",
                 border: `1px solid ${th.blue}25`,
                 background: `linear-gradient(135deg, ${th.blue}10 0%, transparent 100%)`,
                 transition: "all 0.3s ease", textAlign: "center",
               }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: th.text, marginBottom: 4 }}>PVA AT A GLANCE</div>
-                <div style={{ fontSize: 9, color: th.dim }}>Person {"\u00B7"} Vehicle {"\u00B7"} Assignment</div>
-              </div>
-              <div onClick={() => setView("decrees")} className="pva-card-hover" style={{
-                ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
-                border: `1px solid ${th.red}25`,
-                background: `linear-gradient(135deg, ${th.red}10 0%, transparent 100%)`,
-                transition: "all 0.3s ease", textAlign: "center",
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: th.text, marginBottom: 4 }}>DECREES & DECLARATIONS</div>
-                <div style={{ fontSize: 9, color: th.dim }}>Speak & Stand</div>
-              </div>
-              <div onClick={() => setView("intercession")} className="pva-card-hover" style={{
-                ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
-                border: `1px solid ${th.gold}25`,
-                background: `linear-gradient(135deg, ${th.gold}10 0%, transparent 100%)`,
-                transition: "all 0.3s ease", textAlign: "center",
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: th.text, marginBottom: 4 }}>INTERCESSION</div>
-                <div style={{ fontSize: 9, color: th.dim }}>Network of Prayer</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4 }}>MY FOCUS</div>
+                <div style={{ fontSize: 8, color: th.dim }}>PVA Overview</div>
               </div>
               <div onClick={() => setView("season")} className="pva-card-hover" style={{
-                ...glassStyle(th), padding: "20px 16px", cursor: "pointer",
+                ...glassStyle(th), padding: "18px 12px", cursor: "pointer",
                 border: `1px solid ${th.green || "#16A34A"}25`,
                 background: `linear-gradient(135deg, ${th.green || "#16A34A"}10 0%, transparent 100%)`,
                 transition: "all 0.3s ease", textAlign: "center",
               }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: th.text, marginBottom: 4 }}>SEASON</div>
-                <div style={{ fontSize: 9, color: th.dim }}>Current Focus</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4 }}>SEASON</div>
+                <div style={{ fontSize: 8, color: th.dim }}>Current Focus</div>
               </div>
             </div>
-
-            {/* Scripture + Avatar */}
-            <ScriptureHeader level={level} levelIdx={levelIdx} dayPct={dayPct} th={th} />
 
             <SectionDivider label="PROGRESS" th={th} />
 
@@ -5454,6 +6129,16 @@ function PPPPApp() {
         {/* ─── REWARDS SHOP VIEW ─── */}
         {view === "rewards" && (
           <RewardsShopView state={state} th={th} onBack={goHome} />
+        )}
+
+        {/* ─── ROUTINE ONBOARDING VIEW ─── */}
+        {view === "routine_onboarding" && (
+          <RoutineOnboardingView th={th} onComplete={handleRoutineComplete} existingRoutine={null} />
+        )}
+
+        {/* ─── MY ROUTINE VIEW ─── */}
+        {view === "routine" && (
+          <MyRoutineView th={th} onBack={goHome} />
         )}
       </div>
     </div>
