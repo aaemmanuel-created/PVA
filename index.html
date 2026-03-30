@@ -1208,43 +1208,59 @@ function SabbathExperience({ state, setState, th }) {
 }
 
 // ─── LOGIN BONUS CARD ───
-function LoginBonusCard({ state, th }) {
+function LoginBonusPopup({ state, th, onDismiss }) {
   const currentDay = Math.max(0, Math.min((state.loginBonusDay || 1) - 1, 6));
+  const [visible, setVisible] = useState(false);
+  const [exiting, setExiting] = useState(false);
+
+  useEffect(function() {
+    const showTimer = setTimeout(function() { setVisible(true); }, 300);
+    const exitTimer = setTimeout(function() { setExiting(true); }, 3500);
+    const hideTimer = setTimeout(function() { if (onDismiss) onDismiss(); }, 4200);
+    return function() { clearTimeout(showTimer); clearTimeout(exitTimer); clearTimeout(hideTimer); };
+  }, []);
+
+  if (!visible) return null;
+
   return (
-    <div style={{
-      ...glassStyle(th), padding: "20px 24px", marginBottom: 12,
-      border: `1px solid ${th.gold}25`,
-      background: `linear-gradient(145deg, ${th.gold}08 0%, transparent 70%)`,
-      boxShadow: `0 0 24px ${th.gold}10`,
+    <div className={exiting ? "pva-toast-out" : "pva-toast-in"} style={{
+      position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
+      zIndex: 9000, width: "90%", maxWidth: 380,
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-        <span style={{ fontSize: 16 }}>{"🎁"}</span>
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", fontFamily: FONT }}>DAILY LOGIN BONUS</div>
-          <div style={{ fontSize: 11, fontWeight: 500, color: th.mid, fontFamily: FONT }}>Day {currentDay + 1}/7</div>
-        </div>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        {Array.from({length: 7}).map((_, i) => {
-          const isPast = i < currentDay;
-          const isCurrent = i === currentDay;
-          return (
-            <div key={i} style={{
-              flex: 1, aspectRatio: "1", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 11, fontWeight: 700, fontFamily: FONT,
-              background: isCurrent ? th.gold : isPast ? th.blue : th.ghost,
-              color: isCurrent ? "#000" : isPast ? "#fff" : th.dim,
-              border: `1px solid ${isCurrent ? th.gold : isPast ? th.blue : "transparent"}`,
-              transition: "all 0.3s ease",
-              boxShadow: isCurrent ? `0 0 12px ${th.gold}40` : "none",
-            }}>
-              {i + 1}
+      <div style={{
+        ...glassStyleElevated(th), padding: "18px 22px", borderRadius: 18,
+        border: `1px solid ${th.gold}40`,
+        background: th === dark ? "rgba(17,24,39,0.95)" : "rgba(255,255,255,0.95)",
+        boxShadow: `0 8px 32px rgba(0,0,0,0.3), 0 0 24px ${th.gold}15`,
+        backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ fontSize: 28, flexShrink: 0 }}>{"🎁"}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: th.gold, letterSpacing: "0.12em", fontFamily: FONT, marginBottom: 4 }}>DAILY LOGIN BONUS</div>
+            <div style={{ display: "flex", gap: 5, marginBottom: 6 }}>
+              {Array.from({length: 7}).map(function(_, i) {
+                var isPast = i < currentDay;
+                var isCurrent = i === currentDay;
+                return (
+                  <div key={i} style={{
+                    width: 24, height: 24, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 9, fontWeight: 700, fontFamily: FONT,
+                    background: isCurrent ? th.gold : isPast ? th.blue : th.ghost,
+                    color: isCurrent ? "#000" : isPast ? "#fff" : th.dim,
+                    boxShadow: isCurrent ? "0 0 8px " + th.gold + "50" : "none",
+                    transition: "all 0.3s ease",
+                  }}>
+                    {i + 1}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
-      <div style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: th.gold, fontFamily: FONT }}>
-        +{LOGIN_BONUS_CHAIN[currentDay]} XP CLAIMED
+            <div style={{ fontSize: 12, fontWeight: 800, color: th.gold, fontFamily: FONT }}>
+              +{LOGIN_BONUS_CHAIN[currentDay]} XP {"\u2022"} Day {currentDay + 1} of 7
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -3798,7 +3814,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
               </div>
 
               {/* Mini routine preview */}
-              <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.12em", marginBottom: 8, fontFamily: FONT }}>MY DAILY ROUTINE</div>
+              <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.12em", marginBottom: 8, fontFamily: FONT }}>TODAY'S TASKS</div>
               <div style={{ borderRadius: 10, border: "1px solid " + th.glassBorder, overflow: "hidden" }}>
                 <div style={{ padding: "6px 10px", borderBottom: "1px solid " + th.glassBorder, background: th.glass }}>
                   <span style={{ fontSize: 8, fontWeight: 700, color: th.text, fontFamily: FONT }}>{"\u2600\uFE0F"} MORNING</span>
@@ -6856,6 +6872,12 @@ function PPPPApp() {
     } catch { return false; }
   });
   const [showPrestige, setShowPrestige] = useState(false);
+  const [showLoginBonus, setShowLoginBonus] = useState(function() {
+    try {
+      var lastShown = localStorage.getItem("pva_login_bonus_shown");
+      return lastShown !== TODAY;
+    } catch { return true; }
+  });
 
   // If no profile, show onboarding (with sign-in)
   if (!profile) {
@@ -7286,6 +7308,14 @@ function PPPPApp() {
       {/* Prestige Screen */}
       {showPrestige && <PrestigeScreen state={state} setState={setState} th={th} />}
 
+      {/* Login Bonus Popup */}
+      {showLoginBonus && view === "home" && (
+        <LoginBonusPopup state={state} th={th} onDismiss={function() {
+          setShowLoginBonus(false);
+          try { localStorage.setItem("pva_login_bonus_shown", TODAY); } catch {}
+        }} />
+      )}
+
       {/* Weekly State Popup */}
       {showWeeklyState && profile && <WeeklyStatePopup state={state} th={th} onContinue={() => {
         setShowWeeklyState(false);
@@ -7471,10 +7501,7 @@ function PPPPApp() {
               <>
                 <SectionDivider label="PROGRESS" th={th} />
 
-                {/* LOGIN BONUS CARD */}
-                <div style={{ padding: "0 20px", marginBottom: 16 }}>
-                  <LoginBonusCard state={state} th={th} />
-                </div>
+                {/* LOGIN BONUS CARD removed — now a popup */}
 
             {/* ─── HORIZONTAL P TILES (centre stage) ─── */}
             <div style={{ marginBottom: 24 }}>
@@ -7496,8 +7523,14 @@ function PPPPApp() {
               {/* Daily Routine — timings from all categories with time-of-day subheadings */}
               <div style={{ padding: "12px 20px 0" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", fontFamily: FONT }}>MY DAILY ROUTINE</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", fontFamily: FONT }}>TODAY'S TASKS</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={function() { setShowAddTaskModal(true); }} style={{
+                      padding: "6px 14px", borderRadius: 10, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                      border: "1px solid " + th.blue + "40", background: th.blue + "10", color: th.blue,
+                      display: "flex", alignItems: "center", gap: 4,
+                      transition: "all 0.3s ease",
+                    }}>{"\u002B"} ADD</button>
                     <button onClick={function() { setFocusMode(!focusMode); }} style={{
                       padding: "6px 14px", borderRadius: 10, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
                       border: focusMode ? "1px solid #8B5CF640" : "1px solid transparent",
@@ -7630,106 +7663,109 @@ function PPPPApp() {
                       </div>
                     );
                   }
-                  return groups.map(function(group) { return (
-                    <div key={group.period} style={{
-                      marginTop: 14, borderRadius: 22, overflow: "hidden",
-                      ...glassStyle(th),
-                      boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.08)",
-                    }}>
-                      {/* Period heading */}
-                      <div style={{
-                        fontSize: 14, fontWeight: 800, color: th.text, letterSpacing: "0.10em",
-                        fontFamily: FONT,
-                        padding: "18px 22px 14px",
-                        borderBottom: `1px solid ${th.glassBorder}`,
-                        background: `linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%)`,
-                      }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 14 }}>{group.period === "MORNING" ? "\u2600\uFE0F" : group.period === "AFTERNOON" ? "\uD83C\uDF24" : group.period === "EVENING" ? "\uD83C\uDF19" : "\u2728"}</span>
-                          {group.period}
-                        </span>
-                      </div>
-                      {/* Tasks within this period */}
-                      <div className="pva-stagger" style={{ padding: "8px 12px 12px" }}>
-                        {group.items.map(function(item, idx) {
-                          var done = state.completed && state.completed[item.id];
-                          var handleReorder = function(direction) {
-                            var newOrder = taskOrder ? JSON.parse(JSON.stringify(taskOrder)) : group.items.map(i => i.id);
-                            var currentIdx = newOrder.indexOf(item.id);
-                            if (direction === "up" && currentIdx > 0) {
-                              [newOrder[currentIdx - 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx - 1]];
-                              setTaskOrder(newOrder);
-                              localStorage.setItem("pva_task_order", JSON.stringify(newOrder));
-                            } else if (direction === "down" && currentIdx < newOrder.length - 1) {
-                              [newOrder[currentIdx + 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx + 1]];
-                              setTaskOrder(newOrder);
-                              localStorage.setItem("pva_task_order", JSON.stringify(newOrder));
-                            }
-                          };
-                          return (
-                            <div key={item.id} style={{
-                              display: "flex", alignItems: "center", gap: 12,
-                              padding: "11px 10px", marginBottom: 2, borderRadius: 12,
-                              background: done ? `${item.accent}08` : "transparent",
-                              transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
-                              position: "relative",
-                            }}>
-                              <div onClick={function(e) { toggleHomeTask(item.id, e); }} style={{
+                  return groups.map(function(group) {
+                    var doneCount = group.items.filter(function(i) { return state.completed && state.completed[i.id]; }).length;
+                    return (
+                      <div key={group.period}>
+                        {/* Period heading card — thicker standalone glass card */}
+                        <div style={{
+                          ...glassStyle(th),
+                          padding: "16px 22px",
+                          marginTop: 14, marginBottom: 8,
+                          borderRadius: 16,
+                          background: "linear-gradient(135deg, " + th.glass + " 0%, transparent 100%)",
+                          border: "1px solid " + th.glassBorder,
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.10em", color: th.text, fontFamily: FONT }}>{group.period}</span>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: th.dim, fontFamily: FONT }}>
+                              {doneCount}/{group.items.length}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Individual task cards — slimmer glass cards */}
+                        <div className="pva-stagger">
+                          {group.items.map(function(item, idx) {
+                            var done = state.completed && state.completed[item.id];
+                            var handleReorder = function(direction) {
+                              var newOrder = taskOrder ? JSON.parse(JSON.stringify(taskOrder)) : group.items.map(function(i) { return i.id; });
+                              var currentIdx = newOrder.indexOf(item.id);
+                              if (direction === "up" && currentIdx > 0) {
+                                [newOrder[currentIdx - 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx - 1]];
+                                setTaskOrder(newOrder);
+                                localStorage.setItem("pva_task_order", JSON.stringify(newOrder));
+                              } else if (direction === "down" && currentIdx < newOrder.length - 1) {
+                                [newOrder[currentIdx + 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx + 1]];
+                                setTaskOrder(newOrder);
+                                localStorage.setItem("pva_task_order", JSON.stringify(newOrder));
+                              }
+                            };
+                            return (
+                              <div key={item.id} style={{
+                                ...glassStyle(th),
                                 display: "flex", alignItems: "center", gap: 12,
-                                flex: 1, cursor: "pointer",
+                                padding: "10px 14px", marginBottom: 6, borderRadius: 14,
+                                border: "1px solid " + th.glassBorder,
+                                background: done ? item.accent + "06" : th.glass,
+                                transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
                               }}>
+                                <div onClick={function(e) { toggleHomeTask(item.id, e); }} style={{
+                                  display: "flex", alignItems: "center", gap: 12,
+                                  flex: 1, cursor: "pointer",
+                                }}>
+                                  <div style={{
+                                    fontSize: 11, fontWeight: 700, color: done ? item.accent + "80" : item.accent, minWidth: 85,
+                                    fontFamily: FONT, letterSpacing: "0.04em",
+                                    transition: "color 0.3s ease",
+                                  }}>{item.time}</div>
+                                  <div style={{
+                                    fontSize: 12, fontWeight: done ? 400 : 500, color: done ? th.dim : th.text,
+                                    textDecoration: done ? "line-through" : "none",
+                                    flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                    transition: "all 0.3s ease",
+                                    fontFamily: FONT,
+                                  }}>{item.label}</div>
+                                </div>
                                 <div style={{
-                                  fontSize: 11, fontWeight: 700, color: done ? `${item.accent}80` : item.accent, minWidth: 85,
-                                  fontFamily: FONT, letterSpacing: "0.04em",
-                                  transition: "color 0.3s ease",
-                                }}>{item.time}</div>
+                                  display: "flex", alignItems: "center", gap: 6,
+                                }}>
+                                  <button onClick={function() { handleReorder("up"); }} style={{
+                                    width: 22, height: 22, borderRadius: 5, border: "none", background: "transparent",
+                                    color: th.dim, opacity: 0.5, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    transition: "all 0.2s ease",
+                                  }} onMouseEnter={function(e) { e.target.style.opacity = "1"; }} onMouseLeave={function(e) { e.target.style.opacity = "0.5"; }}>
+                                    {"\u2191"}
+                                  </button>
+                                  <button onClick={function() { handleReorder("down"); }} style={{
+                                    width: 22, height: 22, borderRadius: 5, border: "none", background: "transparent",
+                                    color: th.dim, opacity: 0.5, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    transition: "all 0.2s ease",
+                                  }} onMouseEnter={function(e) { e.target.style.opacity = "1"; }} onMouseLeave={function(e) { e.target.style.opacity = "0.5"; }}>
+                                    {"\u2193"}
+                                  </button>
+                                </div>
                                 <div style={{
-                                  fontSize: 12, fontWeight: done ? 400 : 500, color: done ? th.dim : th.text,
-                                  textDecoration: done ? "line-through" : "none",
-                                  flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                  transition: "all 0.3s ease",
-                                  fontFamily: FONT,
-                                }}>{item.label}</div>
-                              </div>
-                              <div style={{
-                                display: "flex", alignItems: "center", gap: 6,
-                              }}>
-                                <button onClick={function() { handleReorder("up"); }} style={{
-                                  width: 22, height: 22, borderRadius: 5, border: "none", background: "transparent",
-                                  color: th.dim, opacity: 0.5, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                                  width: 22, height: 22, borderRadius: 7, flexShrink: 0,
+                                  border: "2px solid " + (done ? item.accent : th.dim + "60"),
+                                  background: done ? "linear-gradient(135deg, " + item.accent + ", " + item.accent + "DD)" : "transparent",
                                   display: "flex", alignItems: "center", justifyContent: "center",
-                                  transition: "all 0.2s ease",
-                                  ":hover": { opacity: 1 },
-                                }} onMouseEnter={function(e) { e.target.style.opacity = "1"; }} onMouseLeave={function(e) { e.target.style.opacity = "0.5"; }}>
-                                  {"\u2191"}
-                                </button>
-                                <button onClick={function() { handleReorder("down"); }} style={{
-                                  width: 22, height: 22, borderRadius: 5, border: "none", background: "transparent",
-                                  color: th.dim, opacity: 0.5, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  transition: "all 0.2s ease",
-                                }} onMouseEnter={function(e) { e.target.style.opacity = "1"; }} onMouseLeave={function(e) { e.target.style.opacity = "0.5"; }}>
-                                  {"\u2193"}
-                                </button>
+                                  transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+                                  boxShadow: done ? "0 0 12px " + item.accent + "30, 0 2px 4px " + item.accent + "20" : "none",
+                                  transform: done ? "scale(1)" : "scale(0.95)",
+                                  cursor: "pointer",
+                                }} onClick={function(e) { toggleHomeTask(item.id, e); }}>
+                                  {done && <span className="pva-check-bounce" style={{ color: th.check || "#fff", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
+                                </div>
                               </div>
-                              <div style={{
-                                width: 22, height: 22, borderRadius: 7, flexShrink: 0,
-                                border: `2px solid ${done ? item.accent : th.dim + "60"}`,
-                                background: done ? `linear-gradient(135deg, ${item.accent}, ${item.accent}DD)` : "transparent",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
-                                boxShadow: done ? `0 0 12px ${item.accent}30, 0 2px 4px ${item.accent}20` : "none",
-                                transform: done ? "scale(1)" : "scale(0.95)",
-                                cursor: "pointer",
-                              }} onClick={function(e) { toggleHomeTask(item.id, e); }}>
-                                {done && <span className="pva-check-bounce" style={{ color: th.check || "#fff", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
-                              </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ); });
+                    );
+                  });
                 })()}
 
                 {/* Daily Challenge — inside routine section */}
@@ -7741,7 +7777,7 @@ function PPPPApp() {
               </>
             )}
 
-            {/* Content below MY DAILY ROUTINE — hide in focus mode */}
+            {/* Content below TODAY'S TASKS — hide in focus mode */}
             {!focusMode && (
               <>
                 <SectionDivider label="DEVOTION" th={th} />
@@ -7842,6 +7878,7 @@ function PPPPApp() {
                   <span style={{ fontSize: 14, color: state.dayRating ? "#22C55E" : th.dim }}>{state.dayRating ? "\u2713" : "\u203A"}</span>
                 </div>
               </div>
+            </div>
 
             <SectionDivider th={th} />
 
@@ -7964,22 +8001,7 @@ function PPPPApp() {
           }} />
         )}
 
-        {/* ─── FLOATING ACTION BUTTON (FAB) ─── */}
-        {view === "home" && !focusMode && (
-          <div style={{
-            position: "fixed", bottom: 90, right: 24, zIndex: 100,
-            width: 52, height: 52, borderRadius: "50%",
-            background: `linear-gradient(135deg, ${th.blue}, #3B82F6DD)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", boxShadow: "0 6px 24px rgba(59,130,246,0.3)",
-            transition: "all 0.3s ease",
-            className: "pva-fab",
-          }} className="pva-fab" onClick={function() { setShowAddTaskModal(true); }}
-          onMouseEnter={function(e) { e.target.style.transform = "scale(1.08)"; }}
-          onMouseLeave={function(e) { e.target.style.transform = "scale(1)"; }}>
-            <span style={{ fontSize: 24, color: "#fff", fontWeight: 700 }}>+</span>
-          </div>
-        )}
+        {/* FAB removed — add task via header button */}
 
         {/* ─── ADD TASK MODAL ─── */}
         {showAddTaskModal && (
