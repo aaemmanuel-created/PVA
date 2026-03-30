@@ -118,6 +118,13 @@ const FONT = "'JetBrains Mono', 'Fira Code', monospace";
 const TODAY = new Date().toISOString().slice(0,10);
 const HP_MAX = 100;
 
+// ─── LOGIN BONUS CHAIN ───
+const LOGIN_BONUS_CHAIN = [10, 20, 30, 50, 60, 80, 100];
+
+// ─── PRESTIGE SYSTEM ───
+const PRESTIGE_TITLES = ["Herald of Dawn", "Pillar of Faith", "Vessel of Glory", "Crown of Righteousness", "Throne Room Elder"];
+const PRESTIGE_BADGES = ["🏅", "⚜️", "🌟", "👑", "🔱"];
+
 // ─── STREAK MILESTONES ───
 const STREAK_MILESTONES = [
   { days: 7, title: "FIRST FLAME", subtitle: "7 days of discipline", badge: "VII", color: "#3B82F6", xpBonus: 50, message: "The foundation is set. You showed up for a full week." },
@@ -620,12 +627,19 @@ function loadState() {
         xpDecay = Math.round(prevTotalXp * decayRate);
       }
       const newTotalXp = Math.max(0, prevTotalXp - xpDecay);
+      // Login Bonus Chain
+      const prevLoginDay = r.loginBonusDay || 0;
+      const newLoginDay = (prevLoginDay % 7);
+      const loginBonusXp = LOGIN_BONUS_CHAIN[newLoginDay];
+      const bonusedTotalXp = newTotalXp + loginBonusXp;
+      // Prestige multiplier on daily reset
+      const prestigeMult = 1 + ((r.prestige || 0) * 0.1);
       const hist = [...(r.history || [])];
       if (hist.length >= 30) hist.shift();
       hist.push({ date: TODAY, pct: 0, xp: 0, cats: { person: 0, people: 0, process: 0, product: 0 }, mood: null });
       return {
         date: TODAY, completed: {}, counters: {}, notes: {}, timers: {},
-        xp: 0, totalXp: newTotalXp,
+        xp: 0, totalXp: bonusedTotalXp,
         streak: newStreak, bestStreak: Math.max(r.bestStreak || 0, newStreak),
         daysCompleted: (r.daysCompleted || 0) + (prevPct >= 50 ? 1 : 0),
         hp: newHp, redemptionMode: newHp <= 0,
@@ -635,6 +649,8 @@ function loadState() {
         dayRating: null, isSabbath: isSabbath,
         morningMood: null, eveningMood: null,
         soulCheckIns: r.soulCheckIns || [],
+        loginBonusDay: newLoginDay + 1, loginBonusXp: loginBonusXp,
+        prestige: r.prestige || 0, prestigeTitle: r.prestigeTitle || null, prestigeBadges: r.prestigeBadges || [],
       };
     }
   } catch (e) { console.warn("PPPP load error", e); }
@@ -645,6 +661,8 @@ function loadState() {
     challengeCompleted: false, bossCompleted: false,
     customTasks: null, graceDayActive: false, graceDayUsedWeek: null, dayRating: null,
     isSabbath: false, morningMood: null, eveningMood: null, soulCheckIns: [],
+    loginBonusDay: 0, loginBonusXp: 0,
+    prestige: 0, prestigeTitle: null, prestigeBadges: [],
     history: Array(7).fill(null).map((_,i) => {
       const d = new Date(); d.setDate(d.getDate() - (6 - i));
       return { date: d.toISOString().slice(0,10), pct: 0,
@@ -866,13 +884,13 @@ function TempleVisual({ stage, th }) {
 // ─── HEALTH BAR ───
 function HealthBar({ hp, th }) {
   const pct = Math.max(0, Math.min(100, hp));
-  const color = pct > 60 ? "#22C55E" : pct > 30 ? th.gold : th.red;
-  const bgColor = pct > 60 ? "rgba(34,197,94,0.12)" : pct > 30 ? th.goldDim : th.redDim;
+  const color = pct > 60 ? "#22C55E" : pct > 30 ? th.gold : th.gold;
+  const bgColor = pct > 60 ? "rgba(34,197,94,0.12)" : pct > 30 ? th.goldDim : th.goldDim;
 
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em" }}>HP</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em" }}>STRENGTH</span>
         <span style={{ fontSize: 11, fontWeight: 700, color: color }}>{pct}/{HP_MAX}</span>
       </div>
       <div style={{
@@ -889,13 +907,13 @@ function HealthBar({ hp, th }) {
   );
 }
 
-// ─── REDEMPTION MODE OVERLAY ───
+// ─── REDEMPTION MODE OVERLAY (Reframed as "Season of Renewal") ───
 function RedemptionMode({ state, setState, th }) {
   const spiritTasks = [
-    { id: "redeem_bible", label: "Read a Bible Chapter", hp: 25 },
-    { id: "redeem_prayer", label: "15 Minutes of Prayer", hp: 25 },
-    { id: "redeem_worship", label: "10 Minutes of Worship", hp: 25 },
-    { id: "redeem_psalm", label: "Read a Psalm Aloud", hp: 25 },
+    { id: "redeem_bible", label: "Rest in God's Word — read a chapter", hp: 25 },
+    { id: "redeem_prayer", label: "Draw near in prayer — 15 minutes", hp: 25 },
+    { id: "redeem_worship", label: "Lift your heart in worship — 10 minutes", hp: 25 },
+    { id: "redeem_psalm", label: "Speak life — read a Psalm aloud", hp: 25 },
   ];
 
   const completed = state.redemptionCompleted || {};
@@ -926,15 +944,15 @@ function RedemptionMode({ state, setState, th }) {
       <div style={{
         maxWidth: 400, width: "90%", padding: "32px 28px", borderRadius: 20,
         background: th === dark ? "#111827" : "#FFFFFF",
-        border: `1px solid ${th.red}40`, boxShadow: `0 0 60px ${th.red}20`,
+        border: `1px solid ${th.gold}40`, boxShadow: `0 0 60px ${th.gold}20`,
       }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>{"\u26A0\uFE0F"}</div>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: th.red, margin: "0 0 8px", letterSpacing: "-0.02em", fontFamily: FONT }}>
-            REDEMPTION MODE
+          <div style={{ fontSize: 36, marginBottom: 8 }}>{"🌅"}</div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: th.gold, margin: "0 0 8px", letterSpacing: "-0.02em", fontFamily: FONT }}>
+            SEASON OF RENEWAL
           </h2>
           <p style={{ fontSize: 12, color: th.mid, margin: 0, fontFamily: FONT, lineHeight: 1.5 }}>
-            Your HP has fallen to 0. Complete these spirit tasks to restore your strength and return to battle.
+            The Lord is calling you to a time of renewal. Draw near to Him and let His strength restore you. \u201CBut those who wait on the Lord shall renew their strength.\u201D — Isaiah 40:31
           </p>
         </div>
 
@@ -948,15 +966,15 @@ function RedemptionMode({ state, setState, th }) {
             <div key={t.id} onClick={() => toggleRedeem(t.id, t.hp)} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "14px 16px", borderRadius: 12, marginBottom: 8, cursor: "pointer",
-              background: done ? `${th.blue}10` : th.glass,
-              border: `1px solid ${done ? th.blue + "30" : th.glassBorder}`,
+              background: done ? `${th.gold}10` : th.glass,
+              border: `1px solid ${done ? th.gold + "30" : th.glassBorder}`,
               transition: "all 0.25s ease",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{
                   width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                  border: `1.5px solid ${done ? th.blue : th.dim}`,
-                  background: done ? th.blue : "transparent",
+                  border: `1.5px solid ${done ? th.gold : th.dim}`,
+                  background: done ? th.gold : "transparent",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   {done && <span style={{ color: th.check, fontSize: 12, fontWeight: 800 }}>{"\u2713"}</span>}
@@ -964,14 +982,270 @@ function RedemptionMode({ state, setState, th }) {
                 <span style={{ fontSize: 13, fontWeight: 500, color: done ? th.dim : th.text, fontFamily: FONT,
                   textDecoration: done ? "line-through" : "none" }}>{t.label}</span>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: done ? "#22C55E" : th.ghost, fontFamily: FONT }}>+{t.hp} HP</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: done ? "#22C55E" : th.ghost, fontFamily: FONT }}>+{t.hp} STR</span>
             </div>
           );
         })}
 
         <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: th.dim, fontFamily: FONT }}>
-          {totalRecovered >= 100 ? "HP fully restored! Returning to battle..." : `${totalRecovered}/100 HP recovered`}
+          {totalRecovered >= 100 ? "Your strength is renewed! Go forth in His power." : `${totalRecovered}/100 Strength renewed`}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PRESTIGE SCREEN ───
+function PrestigeScreen({ state, setState, th }) {
+  const currentPrestige = state.prestige || 0;
+  const nextTitle = PRESTIGE_TITLES[currentPrestige] || PRESTIGE_TITLES[PRESTIGE_TITLES.length - 1];
+  const nextBadge = PRESTIGE_BADGES[currentPrestige] || PRESTIGE_BADGES[PRESTIGE_BADGES.length - 1];
+
+  const handlePrestige = () => {
+    setState(p => {
+      const newPrestige = (p.prestige || 0) + 1;
+      const newTitles = [...(p.prestigeBadges || [])];
+      newTitles.push(nextTitle);
+      const newBadges = [...(p.prestigeBadges || [])];
+      newBadges.push(nextBadge);
+      return {
+        ...p,
+        xp: 0, totalXp: 0,
+        prestige: newPrestige,
+        prestigeTitle: nextTitle,
+        prestigeBadges: newBadges,
+        showPrestige: false,
+      };
+    });
+    saveState(state);
+    playCelebrate();
+  };
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1001,
+      background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center",
+      backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+    }}>
+      <div style={{
+        maxWidth: 420, width: "90%", padding: "40px 32px", borderRadius: 24,
+        background: th === dark ? "#111827" : "#FFFFFF",
+        border: `1px solid ${th.gold}40`, boxShadow: `0 0 60px ${th.gold}20`,
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 44, marginBottom: 12 }}>{"✨"}</div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: th.text, margin: "0 0 8px", letterSpacing: "-0.02em", fontFamily: FONT }}>
+            YOU HAVE REACHED OVERCOMER
+          </h2>
+          <p style={{ fontSize: 11, color: th.dim, margin: 0, fontFamily: FONT, lineHeight: 1.6, marginTop: 12 }}>
+            The highest rank. You've walked the full year. Now comes a greater honor.
+          </p>
+        </div>
+
+        <div style={{
+          background: th.glass, border: `1px solid ${th.gold}25`, borderRadius: 16,
+          padding: 20, marginBottom: 24, textAlign: "center",
+        }}>
+          <div style={{ fontSize: 12, color: th.dim, letterSpacing: "0.14em", fontWeight: 600, marginBottom: 8, fontFamily: FONT }}>YOUR PRESTIGE REWARD</div>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>{nextBadge}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 8, fontFamily: FONT }}>{nextTitle}</div>
+          <p style={{ fontSize: 10, color: th.mid, margin: 0, lineHeight: 1.6, fontFamily: FONT }}>
+            Reset to Seed, keep this permanent title and badge, and gain 10% faster XP per prestige level (total: {(1 + (currentPrestige + 1) * 0.1).toFixed(1)}x multiplier).
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: 12 }}>
+          <button onClick={handlePrestige} style={{
+            flex: 1, padding: "14px 20px", borderRadius: 12, fontSize: 12, fontWeight: 800, cursor: "pointer",
+            fontFamily: FONT, border: "none",
+            background: `linear-gradient(135deg, ${th.gold}, ${th.gold}DD)`,
+            color: "#000", letterSpacing: "0.08em",
+            transition: "all 0.3s ease", boxShadow: `0 4px 16px ${th.gold}40`,
+          }} onMouseEnter={e => e.target.style.boxShadow = `0 6px 24px ${th.gold}60`}
+             onMouseLeave={e => e.target.style.boxShadow = `0 4px 16px ${th.gold}40`}>
+            BEGIN ANEW
+          </button>
+          <button onClick={() => setState(p => ({...p, showPrestige: false}))} style={{
+            flex: 1, padding: "14px 20px", borderRadius: 12, fontSize: 12, fontWeight: 700, cursor: "pointer",
+            fontFamily: FONT, border: `1px solid ${th.dim}`,
+            background: "transparent", color: th.dim, letterSpacing: "0.08em",
+            transition: "all 0.3s ease",
+          }}>
+            NOT YET
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SABBATH EXPERIENCE ───
+function SabbathExperience({ state, setState, th }) {
+  const [gratitude, setGratitude] = useState(state.sabbathGratitude || ["", "", ""]);
+  const [reflections, setReflections] = useState(state.sabbathReflections || ["", "", ""]);
+
+  const saveGratitude = (idx, val) => {
+    const newG = [...gratitude];
+    newG[idx] = val;
+    setGratitude(newG);
+    setState(p => ({ ...p, sabbathGratitude: newG }));
+  };
+
+  const saveReflection = (idx, val) => {
+    const newR = [...reflections];
+    newR[idx] = val;
+    setReflections(newR);
+    setState(p => ({ ...p, sabbathReflections: newR }));
+  };
+
+  const weeklyXp = (state.history || []).slice(-7).reduce((sum, d) => sum + (d?.xp || 0), 0);
+  const weeklyCompleted = (state.history || []).slice(-7).filter(d => (d?.pct || 0) >= 50).length;
+  const bestDayXp = Math.max(...(state.history || []).slice(-7).map(d => d?.xp || 0), 0);
+
+  return (
+    <div style={{ padding: "0 20px" }}>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", marginBottom: 14, fontFamily: FONT }}>GRATITUDE</div>
+        {[
+          { prompt: "I am grateful for...", idx: 0 },
+          { prompt: "God showed me...", idx: 1 },
+          { prompt: "A blessing I received...", idx: 2 },
+        ].map(g => (
+          <div key={g.idx} style={{ marginBottom: 12 }}>
+            <input
+              type="text"
+              placeholder={g.prompt}
+              value={gratitude[g.idx]}
+              onChange={e => saveGratitude(g.idx, e.target.value)}
+              style={{
+                width: "100%", padding: "12px 16px", borderRadius: 12, fontFamily: FONT,
+                background: th.glass, border: `1px solid ${th.glassBorder}`,
+                color: th.text, fontSize: 12,
+                boxSizing: "border-box", outline: "none",
+                transition: "all 0.3s ease",
+              }}
+              onFocus={e => e.target.style.borderColor = th.gold}
+              onBlur={e => e.target.style.borderColor = th.glassBorder}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", marginBottom: 14, fontFamily: FONT }}>REFLECTION</div>
+        {[
+          { prompt: "What did God teach you this week?" },
+          { prompt: "Where did you see His hand at work?" },
+          { prompt: "What do you want to surrender to Him this coming week?" },
+        ].map((r, idx) => (
+          <div key={idx} style={{ marginBottom: 12 }}>
+            <textarea
+              placeholder={r.prompt}
+              value={reflections[idx]}
+              onChange={e => saveReflection(idx, e.target.value)}
+              style={{
+                width: "100%", padding: "12px 16px", borderRadius: 12, fontFamily: FONT,
+                background: th.glass, border: `1px solid ${th.glassBorder}`,
+                color: th.text, fontSize: 12, minHeight: 60,
+                boxSizing: "border-box", outline: "none", resize: "none",
+                transition: "all 0.3s ease",
+              }}
+              onFocus={e => e.target.style.borderColor = th.gold}
+              onBlur={e => e.target.style.borderColor = th.glassBorder}
+            />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", marginBottom: 14, fontFamily: FONT }}>WORSHIP & REST</div>
+        {[
+          { title: "Worship Playlist", emoji: "🎵", note: "Put on your favourite worship music and rest" },
+          { title: "Read a Psalm", emoji: "📖", note: "Pick a Psalm (suggestion: Psalm " + (Math.floor(Math.random() * 150) + 1) + ")" },
+          { title: "Prayer Walk", emoji: "🚶", note: "Go for a reflective walk and pray" },
+          { title: "Journaling", emoji: "✍️", note: "Write freely about the week and your heart" },
+        ].map((w, idx) => (
+          <div key={idx} style={{
+            ...glassStyle(th), padding: "16px 20px", marginBottom: 10,
+            border: `1px solid ${th.glassBorder}`, cursor: "default",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 18 }}>{w.emoji}</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: th.text, fontFamily: FONT }}>{w.title}</div>
+                <div style={{ fontSize: 10, color: th.dim, marginTop: 3, fontFamily: FONT }}>{w.note}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        ...glassStyle(th), padding: "20px 24px", marginBottom: 24,
+        border: `1px solid ${th.blue}25`, background: `${th.blue}08`,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", marginBottom: 12, fontFamily: FONT }}>WEEKLY REVIEW</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: th.blue, fontFamily: FONT }}>{weeklyCompleted}</div>
+            <div style={{ fontSize: 10, color: th.dim, marginTop: 4, fontFamily: FONT }}>Tasks Completed</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: th.gold, fontFamily: FONT }}>{weeklyXp}</div>
+            <div style={{ fontSize: 10, color: th.dim, marginTop: 4, fontFamily: FONT }}>XP This Week</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#22C55E", fontFamily: FONT }}>{bestDayXp}</div>
+            <div style={{ fontSize: 10, color: th.dim, marginTop: 4, fontFamily: FONT }}>Best Day</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: th.red, fontFamily: FONT }}>{state.streak || 0}</div>
+            <div style={{ fontSize: 10, color: th.dim, marginTop: 4, fontFamily: FONT }}>Streak</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── LOGIN BONUS CARD ───
+function LoginBonusCard({ state, th }) {
+  const currentDay = (state.loginBonusDay || 0);
+  return (
+    <div style={{
+      ...glassStyle(th), padding: "20px 24px", marginBottom: 12,
+      border: `1px solid ${th.gold}25`,
+      background: `linear-gradient(145deg, ${th.gold}08 0%, transparent 70%)`,
+      boxShadow: `0 0 24px ${th.gold}10`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+        <span style={{ fontSize: 16 }}>{"🎁"}</span>
+        <div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", fontFamily: FONT }}>DAILY LOGIN BONUS</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: th.mid, fontFamily: FONT }}>Day {currentDay}/7</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        {Array.from({length: 7}).map((_, i) => {
+          const isPast = i < currentDay;
+          const isCurrent = i === currentDay;
+          return (
+            <div key={i} style={{
+              flex: 1, aspectRatio: "1", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 700, fontFamily: FONT,
+              background: isCurrent ? th.gold : isPast ? th.blue : th.ghost,
+              color: isCurrent ? "#000" : isPast ? "#fff" : th.dim,
+              border: `1px solid ${isCurrent ? th.gold : isPast ? th.blue : "transparent"}`,
+              transition: "all 0.3s ease",
+              boxShadow: isCurrent ? `0 0 12px ${th.gold}40` : "none",
+            }}>
+              {i + 1}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: th.gold, fontFamily: FONT }}>
+        +{LOGIN_BONUS_CHAIN[currentDay]} XP CLAIMED
       </div>
     </div>
   );
@@ -1095,6 +1369,9 @@ function GmtTimePill({ th }) {
 function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }) {
   const challenge = getDailyChallenge(TODAY);
   const stageNames = LEVELS.map(l => l.name);
+  const streakMult = getMult(state.streak);
+  const prestigeMult = 1 + ((state.prestige || 0) * 0.1);
+  const totalMult = streakMult * prestigeMult;
 
   return (
     <div style={{
@@ -1127,8 +1404,8 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
               { label: "LEVEL", value: `Lv.${levelIdx + 1}`, color: th.text },
               { label: "RANK", value: level.name, color: th.blue },
               { label: "TEMPLE", value: stageNames[levelIdx], color: th.gold },
-              { label: "HP", value: `${state.hp}/${HP_MAX}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red },
-              { label: "MULTIPLIER", value: `x${getMult(state.streak)}`, color: th.text },
+              { label: "STR", value: `${state.hp}/${HP_MAX}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.gold },
+              { label: "MULTIPLIER", value: `x${totalMult.toFixed(2)}`, color: state.prestige > 0 ? th.gold : th.text },
             ].map(s => (
               <div key={s.label} style={{
                 padding: "12px", borderRadius: 10, textAlign: "center",
@@ -1148,7 +1425,7 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
           {/* Share buttons */}
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${getMult(state.streak)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
               window.open(`https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.green}30`,
@@ -1156,7 +1433,7 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
               fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
             }}>WHATSAPP</button>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${getMult(state.streak)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
               window.open(`mailto:?subject=PVA Daily Report - ${TODAY}&body=${encodeURIComponent(report)}`, "_blank");
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.blue}30`,
@@ -1164,7 +1441,7 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
               fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
             }}>EMAIL</button>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${getMult(state.streak)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
               navigator.clipboard.writeText(report);
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`,
@@ -1207,7 +1484,7 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
 
   const generateReport = () => {
     const date = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    const templeStatus = (state.totalXp || 0) > 0 ? `Temple: ${state.totalXp} XP` : "Temple: Just starting";
+    const templeStatus = (state.totalXp || 0) > 0 ? `Temple: ${state.totalXp} XP` : "Temple: Foundation laid \u2014 your journey begins";
     return `PVA Covenant Report - ${date}\n\n` +
       `Progress: ${Math.round(dayPct)}% | ${templeStatus} | Stage: ${level.name}\n` +
       `Streak: ${state.streak || 0} days | Tasks: ${completed.length}/${allTasks.length}\n\n` +
@@ -1602,12 +1879,39 @@ function Category({ catKey, cat, state, setState, mult, expanded, onExpand, th, 
       {expanded && (
         <div style={{ padding: "0 20px 18px" }}>
           <Bar value={doneN} max={all.length} color={c.accent} h={3} th={th} />
-          {cat.sections.map((sec, secIdx) => (
+          {cat.sections.map((sec, secIdx) => {
+            var sectionSuggestions = {
+              person: ["\uD83C\uDF05 Morning devotion", "\uD83D\uDCD6 Bible reading", "\uD83C\uDFCB Exercise", "\uD83E\uDDD8 Prayer time"],
+              people: ["\uD83C\uDF7D Family dinner", "\uD83D\uDCDE Call a friend", "\u2764\uFE0F Serve someone", "\uD83E\uDD1D Community time"],
+              process: ["\uD83D\uDCBC Deep work block", "\uD83D\uDCDD Plan tomorrow", "\uD83D\uDCDA Study session", "\u2699\uFE0F Review systems"],
+              product: ["\uD83C\uDFA8 Create something", "\u270D\uFE0F Write or journal", "\uD83D\uDE80 Ship a deliverable", "\uD83D\uDCA1 Brainstorm ideas"],
+            };
+            return (
             <div key={sec.name} style={{ marginTop: 18 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "0 4px" }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.12em" }}>{sec.name}</span>
                 <span style={{ fontSize: 10, color: th.ghost }}>{sec.time}</span>
               </div>
+              {sec.tasks.length === 0 && (
+                <div style={{ textAlign: "center", padding: "20px 16px", borderRadius: 14, border: "1px dashed " + c.accent + "30", background: c.accent + "04", marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: th.mid, marginBottom: 10, fontFamily: FONT }}>
+                    This section is ready for your first task
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+                    {(sectionSuggestions[catKey] || []).map(function(suggestion) {
+                      return (
+                        <button key={suggestion} onClick={function() { onAddTask(catKey, secIdx, suggestion.replace(/^.+\s/, "")); }}
+                          style={{
+                            padding: "5px 10px", borderRadius: 8, fontSize: 9, fontWeight: 600, cursor: "pointer",
+                            border: "1px solid " + c.accent + "20", background: c.accent + "08", color: c.accent,
+                            fontFamily: FONT, transition: "all 0.2s ease",
+                          }}>{suggestion}</button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 9, color: th.dim, marginTop: 8, fontFamily: FONT }}>Tap a suggestion to add it, or use + below</div>
+                </div>
+              )}
               {sec.tasks.map(task => (
                 <Task key={task.id} task={task} done={state.completed[task.id]} counter={state.counters[task.id]}
                   note={state.notes?.[task.id]} onToggle={onToggle} onCount={onCount} onNote={onNote}
@@ -1617,7 +1921,8 @@ function Category({ catKey, cat, state, setState, mult, expanded, onExpand, th, 
               ))}
               <AddTaskButton onAdd={(label) => onAddTask(catKey, secIdx, label)} th={th} />
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -2001,8 +2306,13 @@ function ScriptureHeader({ level, levelIdx, dayPct, th }) {
         {/* Avatar — right */}
         <div style={{ flexShrink: 0, textAlign: "center" }}>
           <HumanAvatar pct={dayPct} th={th} levelIdx={levelIdx} />
-          <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginTop: 4, letterSpacing: "-0.01em" }}>{level.name}</div>
-          <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.08em" }}>LV.{levelIdx + 1}</div>
+          {state.prestigeBadges && state.prestigeBadges.length > 0 && (
+            <div style={{ fontSize: 16, marginTop: 2, marginBottom: 2 }}>{state.prestigeBadges[state.prestigeBadges.length - 1]}</div>
+          )}
+          <div style={{ fontSize: 10, fontWeight: 700, color: state.prestigeTitle ? th.gold : th.text, marginTop: state.prestigeTitle ? 2 : 4, letterSpacing: "-0.01em" }}>
+            {state.prestigeTitle || level.name}
+          </div>
+          <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.08em" }}>LV.{levelIdx + 1}{state.prestige > 0 ? ` • P${state.prestige}` : ""}</div>
         </div>
       </div>
     </div>
@@ -2653,10 +2963,21 @@ function NotesView({ th, onBack }) {
           )}
         </div>
         {folderNotes.length === 0 && (
-          <div style={{ textAlign: "center", padding: "60px 20px", color: th.dim }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>{"\uD83D\uDCDD"}</div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: th.mid, marginBottom: 8 }}>A blank page, full of possibility.</div>
-            <div style={{ fontSize: 11, color: th.ghost }}>Tap + NEW to capture your first thought.</div>
+          <div style={{ textAlign: "center", padding: "50px 20px", color: th.dim }}>
+            <div style={{ fontSize: 36, marginBottom: 14 }}>{"\uD83D\uDCDD"}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 6, fontFamily: FONT }}>A blank page, full of possibility</div>
+            <div style={{ fontSize: 11, color: th.mid, lineHeight: 1.7, marginBottom: 16, fontFamily: FONT }}>
+              Capture revelations, sermon notes, reflections, ideas {"\u2014"} anything the Spirit stirs in you.
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+              {["\uD83D\uDCD6 Sermon notes", "\uD83D\uDCA1 Ideas", "\u270D\uFE0F Reflections", "\uD83C\uDFAF Goals", "\uD83D\uDE4F Prayer list"].map(function(n) {
+                return <div key={n} style={{
+                  padding: "5px 10px", borderRadius: 8, fontSize: 9, fontWeight: 600,
+                  border: "1px solid " + th.glassBorder, background: th.glass, color: th.mid, fontFamily: FONT,
+                }}>{n}</div>;
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: th.ghost, marginTop: 14, fontFamily: FONT }}>Tap + NEW to capture your first thought.</div>
           </div>
         )}
         {folderNotes.map(note => (
@@ -3227,6 +3548,8 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
   const doSkip = () => {
     if (name.trim()) {
       const profile = { name: name.trim(), createdAt: TODAY };
+      // Save a "skipped" routine marker so the home page doesn't ask again
+      saveRoutineData({ skipped: true, createdAt: new Date().toISOString() });
       setPendingProfile(profile);
       setShowSplash(true);
     }
@@ -3438,7 +3761,90 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         {step === 2 && !routineMode && (
           <>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>Build Your Routine</h2>
-            <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>How would you like to set up your daily routine?</p>
+            <p style={{ fontSize: 12, color: th.dim, marginBottom: 16 }}>Here{"\u2019"}s what your daily dashboard will look like:</p>
+
+            {/* ── Animated Home Page Preview ── */}
+            <div className="pva-fade-in" style={{
+              ...glassStyleElevated(th), padding: "16px 18px", marginBottom: 20,
+              position: "relative", overflow: "hidden",
+            }}>
+              {/* Mini header */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: th.text, fontFamily: FONT }}>{name.trim() || "Your"}{"\u2019"}s PVA Model</div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {["#EF4444","#F59E0B","#3B82F6","#8B5CF6"].map(function(c, i) {
+                    return <div key={i} style={{ width: 8, height: 8, borderRadius: 4, background: c, opacity: 0.7 }} />;
+                  })}
+                </div>
+              </div>
+
+              {/* Mini pillar tiles */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                {[
+                  { label: "Person", color: "#EF4444", emoji: "\uD83D\uDE4F" },
+                  { label: "People", color: "#F59E0B", emoji: "\u2764\uFE0F" },
+                  { label: "Process", color: "#3B82F6", emoji: "\u2699\uFE0F" },
+                  { label: "Product", color: "#8B5CF6", emoji: "\uD83D\uDE80" },
+                ].map(function(p, i) {
+                  return (
+                    <div key={p.label} className="pva-stagger" style={{
+                      flex: 1, padding: "8px 4px", borderRadius: 10, textAlign: "center",
+                      background: p.color + "0C", border: "1px solid " + p.color + "20",
+                    }}>
+                      <div style={{ fontSize: 14, marginBottom: 2 }}>{p.emoji}</div>
+                      <div style={{ fontSize: 7, fontWeight: 700, color: p.color, fontFamily: FONT, letterSpacing: "0.06em" }}>{p.label.toUpperCase()}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Mini routine preview */}
+              <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.12em", marginBottom: 8, fontFamily: FONT }}>MY DAILY ROUTINE</div>
+              <div style={{ borderRadius: 10, border: "1px solid " + th.glassBorder, overflow: "hidden" }}>
+                <div style={{ padding: "6px 10px", borderBottom: "1px solid " + th.glassBorder, background: th.glass }}>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: th.text, fontFamily: FONT }}>{"\u2600\uFE0F"} MORNING</span>
+                </div>
+                {[
+                  { time: "05:00", label: "Wake up & pray", color: "#EF4444", done: true },
+                  { time: "05:30", label: "Bible reading", color: "#EF4444", done: true },
+                  { time: "06:00", label: "Exercise", color: "#EF4444", done: false },
+                  { time: "07:00", label: "Breakfast", color: "#F59E0B", done: false },
+                ].map(function(t, i) {
+                  return (
+                    <div key={i} className="pva-stagger" style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "5px 10px",
+                      background: t.done ? t.color + "06" : "transparent",
+                    }}>
+                      <span style={{ fontSize: 8, fontWeight: 700, color: t.color, fontFamily: FONT, minWidth: 32, opacity: t.done ? 0.5 : 1 }}>{t.time}</span>
+                      <span style={{ fontSize: 9, fontWeight: 500, color: t.done ? th.dim : th.text, fontFamily: FONT, flex: 1, textDecoration: t.done ? "line-through" : "none" }}>{t.label}</span>
+                      <div style={{
+                        width: 12, height: 12, borderRadius: 4, flexShrink: 0,
+                        border: "1.5px solid " + (t.done ? t.color : th.dim + "40"),
+                        background: t.done ? t.color : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {t.done && <span style={{ color: "#fff", fontSize: 7, fontWeight: 800 }}>{"\u2713"}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Shimmer overlay */}
+              <div style={{
+                position: "absolute", top: 0, left: "-100%", width: "60%", height: "100%",
+                background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)",
+                animation: "pva-shimmer-sweep 3s ease-in-out infinite",
+                pointerEvents: "none",
+              }} />
+
+              <div style={{ textAlign: "center", marginTop: 10, fontSize: 9, color: th.blue, fontWeight: 700, fontFamily: FONT }}>
+                {"\u2191"} Your personalised daily dashboard
+              </div>
+            </div>
+
+            <p style={{ fontSize: 11, color: th.dim, marginBottom: 16, fontFamily: FONT }}>How would you like to set up your daily routine?</p>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <button onClick={() => setRoutineMode("guided")} style={{
                 padding: "18px 20px", borderRadius: 14, border: `1px solid ${th.blue}25`, background: th.glass,
@@ -3722,11 +4128,11 @@ function getDailyScore(dayPct) {
   return Math.round(Math.min(100, Math.max(0, dayPct)));
 }
 function getDailyMessage(score) {
-  if (score >= 85) return "You\u2019re on fire \u2014 push hard today!";
-  if (score >= 70) return "Strong foundation \u2014 keep building.";
-  if (score >= 50) return "Steady \u2014 focus on the essentials.";
-  if (score >= 30) return "Regroup \u2014 start with what matters most.";
-  return "A new day \u2014 let\u2019s get started.";
+  if (score >= 85) return "\u201CI can do all things through Christ who strengthens me.\u201D \u2014 Philippians 4:13";
+  if (score >= 70) return "\u201CCommit your work to the Lord, and your plans will be established.\u201D \u2014 Proverbs 16:3";
+  if (score >= 50) return "\u201CLet us not grow weary of doing good, for in due season we will reap.\u201D \u2014 Galatians 6:9";
+  if (score >= 30) return "\u201CBut those who wait on the Lord shall renew their strength.\u201D \u2014 Isaiah 40:31";
+  return "\u201CThis is the day that the Lord has made; let us rejoice and be glad in it.\u201D \u2014 Psalm 118:24";
 }
 function getDailyColor(score, th) {
   if (score >= 80) return "#22C55E";
@@ -4024,9 +4430,21 @@ function PrayerJournalView({ th, onBack }) {
 
       {/* Prayer List */}
       {filtered.length === 0 && <div style={{ textAlign: "center", padding: "30px 20px" }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>{"\uD83D\uDE4F"}</div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: th.mid, lineHeight: 1.6 }}>Your prayer journal is ready.</div>
-              <div style={{ fontSize: 11, color: th.dim, marginTop: 6 }}>Start with what{"\u2019"}s on your heart today.</div>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>{"\uD83D\uDE4F"}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: th.text, lineHeight: 1.6, fontFamily: FONT }}>Pour out your heart</div>
+              <div style={{ fontSize: 11, color: th.mid, marginTop: 8, lineHeight: 1.7, fontFamily: FONT }}>
+                {"\u201C"}Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God.{"\u201D"}
+              </div>
+              <div style={{ fontSize: 9, color: th.dim, marginTop: 4, fontWeight: 600, letterSpacing: "0.08em", fontFamily: FONT }}>PHILIPPIANS 4:6</div>
+              <div style={{ fontSize: 11, color: th.dim, marginTop: 14, fontFamily: FONT }}>What{"\u2019"}s on your heart today? Tap + above to write your first prayer.</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 14 }}>
+                {["\uD83D\uDE4F Gratitude", "\u2764\uFE0F Family", "\uD83C\uDF0D Nations", "\uD83D\uDCAA Strength", "\uD83D\uDD4A Peace"].map(function(p) {
+                  return <div key={p} style={{
+                    padding: "5px 10px", borderRadius: 8, fontSize: 9, fontWeight: 600,
+                    border: "1px solid " + th.glassBorder, background: th.glass, color: th.mid, fontFamily: FONT,
+                  }}>{p}</div>;
+                })}
+              </div>
             </div>}
       {filtered.map(p => (
         <div key={p.id} style={{ ...glassStyle(th), padding: "14px", marginBottom: 8 }}>
@@ -4166,9 +4584,21 @@ function VerseMemView({ th, onBack }) {
         </div>
       ))}
       {verses.length === 0 && <div style={{ textAlign: "center", padding: "30px 20px" }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>{"\uD83D\uDCD6"}</div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: th.mid, lineHeight: 1.6 }}>Your memory vault is empty.</div>
-              <div style={{ fontSize: 11, color: th.dim, marginTop: 6 }}>Add a verse and hide God{"\u2019"}s word in your heart.</div>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>{"\uD83D\uDCD6"}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: th.text, lineHeight: 1.6, fontFamily: FONT }}>Hide God{"\u2019"}s word in your heart</div>
+              <div style={{ fontSize: 11, color: th.mid, marginTop: 8, lineHeight: 1.7, fontFamily: FONT }}>
+                {"\u201C"}I have hidden your word in my heart that I might not sin against you.{"\u201D"}
+              </div>
+              <div style={{ fontSize: 9, color: th.dim, marginTop: 4, fontWeight: 600, letterSpacing: "0.08em", fontFamily: FONT }}>PSALM 119:11</div>
+              <div style={{ fontSize: 11, color: th.dim, marginTop: 14, fontFamily: FONT }}>Start with a verse that speaks to you today. Tap + above to begin.</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 14 }}>
+                {["John 3:16", "Phil 4:13", "Jer 29:11", "Prov 3:5-6", "Rom 8:28"].map(function(v) {
+                  return <div key={v} style={{
+                    padding: "5px 10px", borderRadius: 8, fontSize: 9, fontWeight: 600,
+                    border: "1px solid " + th.glassBorder, background: th.glass, color: th.mid, fontFamily: FONT,
+                  }}>{v}</div>;
+                })}
+              </div>
             </div>}
     </div>
   );
@@ -4555,9 +4985,10 @@ function GuildView({ state, th, dayPct, onBack }) {
           {/* Battle Log */}
           <div style={{ ...glassStyle(th), padding: "16px" }}>
             <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>BATTLE LOG</div>
-            {guild.log.length === 0 && <div style={{ textAlign: "center", padding: "12px 0" }}>
-              <div style={{ fontSize: 20, marginBottom: 6 }}>{"\u2694\uFE0F"}</div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: th.mid }}>No battles fought yet. Take on the boss!</div>
+            {guild.log.length === 0 && <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>{"\u2694\uFE0F"}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: th.mid, marginBottom: 4, fontFamily: FONT }}>The battlefield awaits</div>
+              <div style={{ fontSize: 10, color: th.dim, lineHeight: 1.6, fontFamily: FONT }}>Complete your daily tasks to deal damage to the boss. Every task you finish is a strike against the enemy.</div>
             </div>}
             {guild.log.slice(0, 10).map((l, i) => (
               <div key={i} style={{ fontSize: 10, color: l.type === "victory" ? "#22C55E" : l.type === "damage" ? th.red : th.mid, marginBottom: 4, lineHeight: 1.5 }}>
@@ -5042,7 +5473,7 @@ function WeeklyStatePopup({ state, th, onContinue }) {
     if (avg >= 70) return "Strong momentum \u2014 keep pressing forward.";
     if (avg >= 50) return "Solid effort \u2014 consistency is key.";
     if (avg >= 30) return "Room to grow \u2014 focus on small wins today.";
-    return "Fresh start \u2014 every day is a new opportunity.";
+    return "Fresh start \u2014 \u201CHe who began a good work in you will carry it on to completion.\u201D (Phil 1:6)";
   };
   const handleContinue = () => { setVisible(false); setTimeout(onContinue, 400); };
   return (
@@ -6246,7 +6677,7 @@ function PPPPApp() {
   const [themeMode, setThemeMode] = useState(getAutoTheme);
   const [autoTheme, setAutoTheme] = useState(true);
   const [state, setState] = useState(loadState);
-  const [view, setView] = useState(function() { return loadRoutine() ? "home" : "routine_onboarding"; });
+  const [view, setView] = useState(function() { return (loadRoutine() || loadProfile()) ? "home" : "routine_onboarding"; });
   const [hasRoutine, setHasRoutine] = useState(function() { return !!loadRoutine(); });
 
   // ─── FIREBASE AUTH STATE ───
@@ -6393,6 +6824,21 @@ function PPPPApp() {
   const [showAccountability, setShowAccountability] = useState(false);
   const [showEveningReflection, setShowEveningReflection] = useState(false);
   const [showRoutineTimer, setShowRoutineTimer] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [undoToast, setUndoToast] = useState(null);
+  const [taskOrder, setTaskOrder] = useState(() => {
+    try { const saved = localStorage.getItem("pva_task_order"); return saved ? JSON.parse(saved) : null; } catch { return null; }
+  });
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [addTaskLabel, setAddTaskLabel] = useState("");
+  const [addTaskPillar, setAddTaskPillar] = useState("person");
+  const [addTaskTime, setAddTaskTime] = useState(() => {
+    const now = new Date();
+    const mins = Math.round(now.getMinutes() / 30) * 30;
+    const h = String(now.getHours()).padStart(2, "0");
+    const m = String(mins).padStart(2, "0");
+    return `${h}:${m}`;
+  });
   const [showWeeklyState, setShowWeeklyState] = useState(() => {
     try { const last = localStorage.getItem("pva_weekly_shown"); return last !== TODAY; } catch { return true; }
   });
@@ -6410,6 +6856,7 @@ function PPPPApp() {
       return lastShown !== TODAY;
     } catch { return false; }
   });
+  const [showPrestige, setShowPrestige] = useState(false);
 
   // If no profile, show onboarding (with sign-in)
   if (!profile) {
@@ -6495,7 +6942,9 @@ function PPPPApp() {
     }
   }, [autoTheme]);
 
-  const mult = getMult(state.streak);
+  const streakMult = getMult(state.streak);
+  const prestigeMult = 1 + ((state.prestige || 0) * 0.1);
+  const mult = streakMult * prestigeMult;
   const { cur: level, nxt: nextLevel, idx: levelIdx } = getLevel(state.totalXp);
 
   const all = Object.values(tasks).flatMap(c => c.sections.flatMap(s => s.tasks));
@@ -6517,21 +6966,31 @@ function PPPPApp() {
   const dailyChallenge = getDailyChallenge(TODAY);
   const toggleChallenge = () => {
     setState(p => {
-      const was = p.challengeCompleted; const dx = dailyChallenge.xp;
+      const was = p.challengeCompleted; const dx = Math.round(dailyChallenge.xp * prestigeMult);
       if (!was) playTick();
       return { ...p, challengeCompleted: !was, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
     });
   };
 
+  const toastTimerRef = useRef(null);
   const toggleHomeTask = useCallback((id, e) => {
     const allT = Object.values(tasks).flatMap(c => c.sections.flatMap(s => s.tasks));
+    const t = allT.find(x => x.id === id);
+    const was = state.completed[id];
+    const dx = t ? Math.round(t.xp * mult) : 0;
+
     setState(p => {
       const t = allT.find(x => x.id === id); const was = p.completed[id];
       const dx = t ? Math.round(t.xp * mult) : 0;
-      if (!was) { playTick(); spawnParticles(e); }
+      if (!was) { playTick(); spawnParticles(e); if (navigator.vibrate) navigator.vibrate(30); }
       return { ...p, completed: { ...p.completed, [id]: !was }, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
     });
-  }, [tasks, mult]);
+
+    // Show undo toast
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setUndoToast({ id, label: t?.label || "Task", xp: dx, wasCompleted: was });
+    toastTimerRef.current = setTimeout(() => setUndoToast(null), 4000);
+  }, [tasks, mult, state.completed]);
 
   // Weekly Boss
   const boss = getWeeklyBoss(TODAY);
@@ -6778,6 +7237,31 @@ function PPPPApp() {
           0%, 100% { opacity: 0.6; }
           50% { opacity: 1; }
         }
+
+        /* Toast animations */
+        .pva-toast-in {
+          animation: pvaToastIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards;
+        }
+        @keyframes pvaToastIn {
+          from { transform: translateY(120px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        .pva-toast-out {
+          animation: pvaToastOut 0.3s cubic-bezier(0.25,0.46,0.45,0.94) forwards;
+        }
+        @keyframes pvaToastOut {
+          from { transform: translateY(0); opacity: 1; }
+          to { transform: translateY(120px); opacity: 0; }
+        }
+
+        /* FAB breathing and hover */
+        .pva-fab {
+          animation: pvaFabBreathe 4s ease-in-out infinite;
+        }
+        @keyframes pvaFabBreathe {
+          0%, 100% { box-shadow: 0 4px 16px rgba(59,130,246,0.3), 0 0 0 rgba(59,130,246,0.5); }
+          50% { box-shadow: 0 6px 24px rgba(59,130,246,0.4), 0 0 8px rgba(59,130,246,0.6); }
+        }
       `}</style>
 
       {/* Aurora gradient overlay — time-of-day adaptive */}
@@ -6791,6 +7275,9 @@ function PPPPApp() {
 
       {/* Redemption Mode Overlay */}
       {state.redemptionMode && <RedemptionMode state={state} setState={setState} th={th} />}
+
+      {/* Prestige Screen */}
+      {showPrestige && <PrestigeScreen state={state} setState={setState} th={th} />}
 
       {/* Weekly State Popup */}
       {showWeeklyState && profile && <WeeklyStatePopup state={state} th={th} onContinue={() => {
@@ -6814,7 +7301,14 @@ function PPPPApp() {
           claimed.push(showMilestone.days);
           localStorage.setItem("pva_milestones_claimed", JSON.stringify(claimed));
         } catch {}
-        setState(p => ({ ...p, totalXp: p.totalXp + showMilestone.xpBonus, xp: p.xp + showMilestone.xpBonus }));
+        setState(p => {
+          const newState = { ...p, totalXp: p.totalXp + showMilestone.xpBonus, xp: p.xp + showMilestone.xpBonus };
+          // Check if just reached Overcomer (365 days / 4000 XP total)
+          if (showMilestone.days === 365 && !p.showPrestige) {
+            setTimeout(() => setShowPrestige(true), 300);
+          }
+          return newState;
+        });
         setShowMilestone(null);
       }} />}
 
@@ -6890,53 +7384,58 @@ function PPPPApp() {
 
         {/* ─── HOME VIEW ─── */}
         {view === "home" && (
-          <div className="pva-fade-in">
-            {/* Daily State */}
-            <div style={{ padding: "0 20px", marginTop: 14, marginBottom: 16 }}>
-              <ReadinessCard state={state} dayPct={dayPct} th={th} level={level} levelIdx={levelIdx} />
-            </div>
-
-            {/* Stats bar */}
-            <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: "0 20px", marginBottom: 22 }}>
-              {[
-                { label: "XP", value: `${dayXp}`, color: th.blue, pulse: false, icon: "\u26A1" },
-                { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red, pulse: false, icon: "\u2764" },
-                { label: "TODAY", value: `${dayPct}%`, color: th.blue, pulse: false, icon: "\u25CE" },
-                { label: "STREAK", value: `${state.streak}`, color: th.red, pulse: state.streak >= 3, icon: "\uD83D\uDD25" },
-              ].map(x => (
-                <div key={x.label} className={`pva-card-hover ${x.pulse ? "pva-pulse" : ""}`} style={{
-                  ...glassStyleElevated(th), padding: "16px 0 14px", textAlign: "center",
-                  position: "relative", overflow: "hidden",
-                }}>
-                  <div style={{ position: "absolute", top: -4, right: -4, fontSize: 28, opacity: 0.06, pointerEvents: "none", userSelect: "none" }}>{x.icon}</div>
-                  <div className="pva-number-pop" style={{ fontSize: 22, fontWeight: 800, color: x.color, letterSpacing: "-0.04em", fontFamily: FONT }}>{x.value}</div>
-                  <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.16em", marginTop: 5, fontFamily: FONT, fontWeight: 600 }}>{x.label}</div>
+          <div className="pva-fade-in" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+            {/* Content before MY DAILY ROUTINE — hide in focus mode */}
+            {!focusMode && (
+              <>
+                {/* Daily State */}
+                <div style={{ padding: "0 20px", marginTop: 14, marginBottom: 16 }}>
+                  <ReadinessCard state={state} dayPct={dayPct} th={th} level={level} levelIdx={levelIdx} />
                 </div>
-              ))}
-            </div>
 
-            <SectionDivider label="NAVIGATE" th={th} />
-
-            {/* ─── NAV TILES (3 columns) ─── */}
-            <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: "0 20px", marginBottom: 22 }}>
-              {[
-                { view: "routine", label: "MY ROUTINE", sub: "Daily Schedule", color: "#EC4899", icon: "\uD83D\uDCC5" },
-                { view: "pva_glance", label: "MY FOCUS", sub: "PVA Overview", color: th.blue, icon: "\uD83C\uDFAF" },
-                { view: "season", label: "SEASON", sub: "Current Focus", color: th.green || "#16A34A", icon: "\uD83C\uDF3F" },
-              ].map(function(n) { return (
-                <div key={n.view} onClick={function() { setView(n.view); }} className="pva-card-hover" style={{
-                  ...glassStyle(th), padding: "20px 12px 16px", cursor: "pointer",
-                  border: `1px solid ${n.color}20`,
-                  background: `linear-gradient(145deg, ${n.color}0C 0%, transparent 70%)`,
-                  transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", textAlign: "center",
-                  position: "relative", overflow: "hidden",
-                }}>
-                  <div style={{ position: "absolute", top: -8, right: -8, fontSize: 32, opacity: 0.07, pointerEvents: "none" }}>{n.icon}</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4, fontFamily: FONT, letterSpacing: "0.02em" }}>{n.label}</div>
-                  <div style={{ fontSize: 8, color: th.dim, fontFamily: FONT }}>{n.sub}</div>
+                {/* Stats bar */}
+                <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: "0 20px", marginBottom: 22 }}>
+                  {[
+                    { label: "XP", value: `${dayXp}`, color: th.blue, pulse: false, icon: "\u26A1" },
+                    { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red, pulse: false, icon: "\u2764" },
+                    { label: "TODAY", value: `${dayPct}%`, color: th.blue, pulse: false, icon: "\u25CE" },
+                    { label: "STREAK", value: `${state.streak}`, color: th.red, pulse: state.streak >= 3, icon: "\uD83D\uDD25" },
+                  ].map(x => (
+                    <div key={x.label} className={`pva-card-hover ${x.pulse ? "pva-pulse" : ""}`} style={{
+                      ...glassStyleElevated(th), padding: "16px 0 14px", textAlign: "center",
+                      position: "relative", overflow: "hidden",
+                    }}>
+                      <div style={{ position: "absolute", top: -4, right: -4, fontSize: 28, opacity: 0.06, pointerEvents: "none", userSelect: "none" }}>{x.icon}</div>
+                      <div className="pva-number-pop" style={{ fontSize: 22, fontWeight: 800, color: x.color, letterSpacing: "-0.04em", fontFamily: FONT }}>{x.value}</div>
+                      <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.16em", marginTop: 5, fontFamily: FONT, fontWeight: 600 }}>{x.label}</div>
+                    </div>
+                  ))}
                 </div>
-              ); })}
-            </div>
+
+                <SectionDivider label="NAVIGATE" th={th} />
+
+                {/* ─── NAV TILES (3 columns) ─── */}
+                <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: "0 20px", marginBottom: 22 }}>
+                  {[
+                    { view: "routine", label: "MY ROUTINE", sub: "Daily Schedule", color: "#EC4899", icon: "\uD83D\uDCC5" },
+                    { view: "pva_glance", label: "MY FOCUS", sub: "PVA Overview", color: th.blue, icon: "\uD83C\uDFAF" },
+                    { view: "season", label: "SEASON", sub: "Current Focus", color: th.green || "#16A34A", icon: "\uD83C\uDF3F" },
+                  ].map(function(n) { return (
+                    <div key={n.view} onClick={function() { setView(n.view); }} className="pva-card-hover" style={{
+                      ...glassStyle(th), padding: "20px 12px 16px", cursor: "pointer",
+                      border: `1px solid ${n.color}20`,
+                      background: `linear-gradient(145deg, ${n.color}0C 0%, transparent 70%)`,
+                      transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", textAlign: "center",
+                      position: "relative", overflow: "hidden",
+                    }}>
+                      <div style={{ position: "absolute", top: -8, right: -8, fontSize: 32, opacity: 0.07, pointerEvents: "none" }}>{n.icon}</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4, fontFamily: FONT, letterSpacing: "0.02em" }}>{n.label}</div>
+                      <div style={{ fontSize: 8, color: th.dim, fontFamily: FONT }}>{n.sub}</div>
+                    </div>
+                  ); })}
+                </div>
+              </>
+            )}
 
             {/* ─── SABBATH MODE BANNER ─── */}
             {state.isSabbath && (
@@ -6956,7 +7455,19 @@ function PPPPApp() {
               </div>
             )}
 
-            <SectionDivider label="PROGRESS" th={th} />
+            {state.isSabbath ? (
+              <>
+                <SectionDivider label="SABBATH EXPERIENCE" th={th} />
+                <SabbathExperience state={state} setState={setState} th={th} />
+              </>
+            ) : (
+              <>
+                <SectionDivider label="PROGRESS" th={th} />
+
+                {/* LOGIN BONUS CARD */}
+                <div style={{ padding: "0 20px", marginBottom: 16 }}>
+                  <LoginBonusCard state={state} th={th} />
+                </div>
 
             {/* ─── HORIZONTAL P TILES (centre stage) ─── */}
             <div style={{ marginBottom: 24 }}>
@@ -6979,11 +7490,21 @@ function PPPPApp() {
               <div style={{ padding: "12px 20px 0" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", fontFamily: FONT }}>MY DAILY ROUTINE</div>
-                  <button onClick={function() { setShowRoutineTimer(true); }} style={{
-                    padding: "6px 14px", borderRadius: 10, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
-                    border: "1px solid #22C55E40", background: "rgba(34,197,94,0.08)", color: "#22C55E",
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}>{"\u25B6"} START ROUTINE</button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button onClick={function() { setFocusMode(!focusMode); }} style={{
+                      padding: "6px 14px", borderRadius: 10, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                      border: focusMode ? "1px solid #8B5CF640" : "1px solid transparent",
+                      background: focusMode ? "rgba(139,92,246,0.12)" : "rgba(139,92,246,0.06)",
+                      color: focusMode ? "#8B5CF6" : th.dim,
+                      display: "flex", alignItems: "center", gap: 4,
+                      transition: "all 0.3s ease",
+                    }}>{focusMode ? "\uD83D\uDC8B" : "\uD83D\uDC41"} FOCUS</button>
+                    <button onClick={function() { setShowRoutineTimer(true); }} style={{
+                      padding: "6px 14px", borderRadius: 10, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                      border: "1px solid #22C55E40", background: "rgba(34,197,94,0.08)", color: "#22C55E",
+                      display: "flex", alignItems: "center", gap: 4,
+                    }}>{"\u25B6"} START ROUTINE</button>
+                  </div>
                 </div>
 
                 {/* Anchor Habit Card */}
@@ -7064,6 +7585,44 @@ function PPPPApp() {
                     }
                     currentGroup.items.push(item);
                   });
+                  if (groups.length === 0 || allItems.length === 0) {
+                    var emptyPillarSuggestions = [
+                      { emoji: "\uD83C\uDF05", label: "Morning devotion", pillar: "Person", color: "#EF4444" },
+                      { emoji: "\uD83C\uDFCB", label: "Exercise or walk", pillar: "Person", color: "#EF4444" },
+                      { emoji: "\uD83D\uDCBC", label: "Deep work block", pillar: "Process", color: "#3B82F6" },
+                      { emoji: "\uD83C\uDF7D", label: "Family dinner", pillar: "People", color: "#F59E0B" },
+                      { emoji: "\uD83D\uDCD6", label: "Bible reading", pillar: "Person", color: "#EF4444" },
+                      { emoji: "\uD83C\uDF19", label: "Evening reflection", pillar: "Product", color: "#8B5CF6" },
+                    ];
+                    return (
+                      <div style={{ ...glassStyle(th), padding: "28px 24px", textAlign: "center", marginTop: 14 }}>
+                        <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.8 }}>{"\uD83C\uDF31"}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 6, fontFamily: FONT }}>Your routine is a blank canvas</div>
+                        <div style={{ fontSize: 11, color: th.mid, lineHeight: 1.7, marginBottom: 20, fontFamily: FONT }}>
+                          Build your daily rhythm by answering the routine questions, or add tasks one by one. Here are some ideas to get you started:
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                          {emptyPillarSuggestions.map(function(s) {
+                            return (
+                              <div key={s.label} style={{
+                                padding: "8px 14px", borderRadius: 12,
+                                border: "1px solid " + s.color + "25",
+                                background: s.color + "08",
+                                display: "flex", alignItems: "center", gap: 6,
+                              }}>
+                                <span style={{ fontSize: 14 }}>{s.emoji}</span>
+                                <span style={{ fontSize: 10, fontWeight: 600, color: th.text, fontFamily: FONT }}>{s.label}</span>
+                                <span style={{ fontSize: 8, fontWeight: 700, color: s.color, fontFamily: FONT, opacity: 0.7 }}>{s.pillar.toUpperCase()}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{ marginTop: 16, fontSize: 10, color: th.dim, fontStyle: "italic", fontFamily: FONT }}>
+                          Tap the {"\u002B"} button below to add your first task, or go to Settings {"\u2192"} My Routine to build a full schedule.
+                        </div>
+                      </div>
+                    );
+                  }
                   return groups.map(function(group) { return (
                     <div key={group.period} style={{
                       marginTop: 14, borderRadius: 22, overflow: "hidden",
@@ -7085,27 +7644,67 @@ function PPPPApp() {
                       </div>
                       {/* Tasks within this period */}
                       <div className="pva-stagger" style={{ padding: "8px 12px 12px" }}>
-                        {group.items.map(function(item) {
+                        {group.items.map(function(item, idx) {
                           var done = state.completed && state.completed[item.id];
+                          var handleReorder = function(direction) {
+                            var newOrder = taskOrder ? JSON.parse(JSON.stringify(taskOrder)) : group.items.map(i => i.id);
+                            var currentIdx = newOrder.indexOf(item.id);
+                            if (direction === "up" && currentIdx > 0) {
+                              [newOrder[currentIdx - 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx - 1]];
+                              setTaskOrder(newOrder);
+                              localStorage.setItem("pva_task_order", JSON.stringify(newOrder));
+                            } else if (direction === "down" && currentIdx < newOrder.length - 1) {
+                              [newOrder[currentIdx + 1], newOrder[currentIdx]] = [newOrder[currentIdx], newOrder[currentIdx + 1]];
+                              setTaskOrder(newOrder);
+                              localStorage.setItem("pva_task_order", JSON.stringify(newOrder));
+                            }
+                          };
                           return (
-                            <div key={item.id} onClick={function(e) { toggleHomeTask(item.id, e); }} style={{
+                            <div key={item.id} style={{
                               display: "flex", alignItems: "center", gap: 12,
                               padding: "11px 10px", marginBottom: 2, borderRadius: 12,
                               background: done ? `${item.accent}08` : "transparent",
-                              cursor: "pointer", transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
+                              transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
+                              position: "relative",
                             }}>
+                              <div onClick={function(e) { toggleHomeTask(item.id, e); }} style={{
+                                display: "flex", alignItems: "center", gap: 12,
+                                flex: 1, cursor: "pointer",
+                              }}>
+                                <div style={{
+                                  fontSize: 11, fontWeight: 700, color: done ? `${item.accent}80` : item.accent, minWidth: 85,
+                                  fontFamily: FONT, letterSpacing: "0.04em",
+                                  transition: "color 0.3s ease",
+                                }}>{item.time}</div>
+                                <div style={{
+                                  fontSize: 12, fontWeight: done ? 400 : 500, color: done ? th.dim : th.text,
+                                  textDecoration: done ? "line-through" : "none",
+                                  flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                  transition: "all 0.3s ease",
+                                  fontFamily: FONT,
+                                }}>{item.label}</div>
+                              </div>
                               <div style={{
-                                fontSize: 11, fontWeight: 700, color: done ? `${item.accent}80` : item.accent, minWidth: 85,
-                                fontFamily: FONT, letterSpacing: "0.04em",
-                                transition: "color 0.3s ease",
-                              }}>{item.time}</div>
-                              <div style={{
-                                fontSize: 12, fontWeight: done ? 400 : 500, color: done ? th.dim : th.text,
-                                textDecoration: done ? "line-through" : "none",
-                                flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                transition: "all 0.3s ease",
-                                fontFamily: FONT,
-                              }}>{item.label}</div>
+                                display: "flex", alignItems: "center", gap: 6,
+                              }}>
+                                <button onClick={function() { handleReorder("up"); }} style={{
+                                  width: 22, height: 22, borderRadius: 5, border: "none", background: "transparent",
+                                  color: th.dim, opacity: 0.5, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  transition: "all 0.2s ease",
+                                  ":hover": { opacity: 1 },
+                                }} onMouseEnter={function(e) { e.target.style.opacity = "1"; }} onMouseLeave={function(e) { e.target.style.opacity = "0.5"; }}>
+                                  {"\u2191"}
+                                </button>
+                                <button onClick={function() { handleReorder("down"); }} style={{
+                                  width: 22, height: 22, borderRadius: 5, border: "none", background: "transparent",
+                                  color: th.dim, opacity: 0.5, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  transition: "all 0.2s ease",
+                                }} onMouseEnter={function(e) { e.target.style.opacity = "1"; }} onMouseLeave={function(e) { e.target.style.opacity = "0.5"; }}>
+                                  {"\u2193"}
+                                </button>
+                              </div>
                               <div style={{
                                 width: 22, height: 22, borderRadius: 7, flexShrink: 0,
                                 border: `2px solid ${done ? item.accent : th.dim + "60"}`,
@@ -7114,7 +7713,8 @@ function PPPPApp() {
                                 transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
                                 boxShadow: done ? `0 0 12px ${item.accent}30, 0 2px 4px ${item.accent}20` : "none",
                                 transform: done ? "scale(1)" : "scale(0.95)",
-                              }}>
+                                cursor: "pointer",
+                              }} onClick={function(e) { toggleHomeTask(item.id, e); }}>
                                 {done && <span className="pva-check-bounce" style={{ color: th.check || "#fff", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
                               </div>
                             </div>
@@ -7131,11 +7731,16 @@ function PPPPApp() {
                 </div>
               </div>
             </div>
+              </>
+            )}
 
-            <SectionDivider label="DEVOTION" th={th} />
+            {/* Content below MY DAILY ROUTINE — hide in focus mode */}
+            {!focusMode && (
+              <>
+                <SectionDivider label="DEVOTION" th={th} />
 
-            {/* ─── VERSE + REFLECTION + CHALLENGE (below routine) ─── */}
-            <div style={{ padding: "0 20px", marginBottom: 20 }}>
+                {/* ─── VERSE + REFLECTION + CHALLENGE (below routine) ─── */}
+                <div style={{ padding: "0 20px", marginBottom: 20 }}>
               {/* Morning Soul Check-In */}
               <SoulCheckInCard state={state} setState={setState} th={th} time="morning" />
 
@@ -7248,6 +7853,10 @@ function PPPPApp() {
               <TempleVisual stage={levelIdx} th={th} />
             </div>
 
+                </div>
+              </>
+            )}
+
             {/* Footer */}
             <div style={{ textAlign: "center", padding: "20px 0 32px" }}>
               <div style={{ fontSize: 9, color: th.ghost, letterSpacing: "0.24em" }}>PVA {"\u00B7"} {TODAY}</div>
@@ -7348,6 +7957,112 @@ function PPPPApp() {
               setHasRoutine(false);
             }
           }} />
+        )}
+
+        {/* ─── FLOATING ACTION BUTTON (FAB) ─── */}
+        {view === "home" && !focusMode && (
+          <div style={{
+            position: "fixed", bottom: 90, right: 24, zIndex: 100,
+            width: 52, height: 52, borderRadius: "50%",
+            background: `linear-gradient(135deg, ${th.blue}, #3B82F6DD)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", boxShadow: "0 6px 24px rgba(59,130,246,0.3)",
+            transition: "all 0.3s ease",
+            className: "pva-fab",
+          }} className="pva-fab" onClick={function() { setShowAddTaskModal(true); }}
+          onMouseEnter={function(e) { e.target.style.transform = "scale(1.08)"; }}
+          onMouseLeave={function(e) { e.target.style.transform = "scale(1)"; }}>
+            <span style={{ fontSize: 24, color: "#fff", fontWeight: 700 }}>+</span>
+          </div>
+        )}
+
+        {/* ─── ADD TASK MODAL ─── */}
+        {showAddTaskModal && (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "flex-end",
+            zIndex: 1000, backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+          }} onClick={function() { setShowAddTaskModal(false); }}>
+            <div onClick={function(e) { e.stopPropagation(); }} style={{
+              width: "100%", background: th.bg, borderRadius: "28px 28px 0 0",
+              padding: "24px 20px 32px", boxShadow: "0 -4px 24px rgba(0,0,0,0.12)",
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: th.text, marginBottom: 16, fontFamily: FONT }}>ADD TASK</div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: th.dim, letterSpacing: "0.06em", display: "block", marginBottom: 6 }}>TASK LABEL</label>
+                <input type="text" placeholder="What's the task?" value={addTaskLabel} onChange={function(e) { setAddTaskLabel(e.target.value); }}
+                  style={{
+                    width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`,
+                    background: th.surface, color: th.text, fontSize: 12, fontFamily: FONT,
+                    outline: "none", boxSizing: "border-box",
+                  }} />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: th.dim, letterSpacing: "0.06em", display: "block", marginBottom: 6 }}>TIME (optional)</label>
+                <input type="time" value={addTaskTime} onChange={function(e) { setAddTaskTime(e.target.value); }}
+                  style={{
+                    width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`,
+                    background: th.surface, color: th.text, fontSize: 12, fontFamily: FONT,
+                    outline: "none", boxSizing: "border-box",
+                  }} />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: th.dim, letterSpacing: "0.06em", display: "block", marginBottom: 10 }}>PILLAR</label>
+                <div style={{ display: "flex", gap: 10 }}>
+                  {["person", "people", "process", "product"].map(function(k) {
+                    const c = colors[k];
+                    return (
+                      <button key={k} onClick={function() { setAddTaskPillar(k); }} style={{
+                        width: 40, height: 40, borderRadius: 12, border: `2px solid ${addTaskPillar === k ? c.accent : th.glassBorder}`,
+                        background: addTaskPillar === k ? `${c.accent}20` : "transparent",
+                        cursor: "pointer", transition: "all 0.2s ease",
+                      }}>
+                        <span style={{ fontSize: 16 }}>{k === "person" ? "\uD83D\uDC4B" : k === "people" ? "\uD83D\uDC6B" : k === "process" ? "\u2699\uFE0F" : "\uD83C\uDFF7"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <button onClick={function() {
+                if (addTaskLabel.trim()) {
+                  onAddTask(addTaskPillar, 0, addTaskLabel);
+                  setShowAddTaskModal(false);
+                  setAddTaskLabel("");
+                  setAddTaskPillar("person");
+                }
+              }} style={{
+                width: "100%", padding: "12px", borderRadius: 12, border: "none",
+                background: th.blue, color: "#fff", fontWeight: 700, fontSize: 12,
+                cursor: "pointer", fontFamily: FONT, transition: "all 0.2s ease",
+              }} onMouseEnter={function(e) { e.target.style.opacity = "0.9"; }}
+              onMouseLeave={function(e) { e.target.style.opacity = "1"; }}>
+                ADD TASK
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── UNDO TOAST ─── */}
+        {undoToast && (
+          <div className="pva-toast-in" style={{
+            position: "fixed", bottom: 110, left: "50%", transform: "translateX(-50%)",
+            zIndex: 200, maxWidth: 320, padding: "14px 16px", borderRadius: 12,
+            ...glassStyle(th),
+            boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          }}>
+            <div style={{ flex: 1, fontSize: 12, color: th.text, fontFamily: FONT }}>
+              Task {undoToast.wasCompleted ? "unchecked" : "completed"} <span style={{ fontWeight: 700, color: th.blue }}>+{undoToast.xp}XP</span>
+            </div>
+            <button onClick={function() { toggleHomeTask(undoToast.id, null); setUndoToast(null); }} style={{
+              padding: "6px 12px", borderRadius: 8, border: `1px solid ${th.glassBorder}`,
+              background: "transparent", color: th.blue, fontSize: 11, fontWeight: 700,
+              cursor: "pointer", fontFamily: FONT, transition: "all 0.2s ease",
+            }} onMouseEnter={function(e) { e.target.style.background = `${th.blue}20`; }}
+            onMouseLeave={function(e) { e.target.style.background = "transparent"; }}>
+              UNDO
+            </button>
+          </div>
         )}
       </div>
     </div>
