@@ -627,13 +627,13 @@ function loadState() {
         xpDecay = Math.round(prevTotalXp * decayRate);
       }
       const newTotalXp = Math.max(0, prevTotalXp - xpDecay);
+      // Prestige multiplier on daily reset (calculate before login bonus)
+      const prestigeMult = 1 + ((r.prestige || 0) * 0.1);
       // Login Bonus Chain
       const prevLoginDay = r.loginBonusDay || 0;
       const newLoginDay = (prevLoginDay % 7);
-      const loginBonusXp = LOGIN_BONUS_CHAIN[newLoginDay];
+      const loginBonusXp = Math.round(LOGIN_BONUS_CHAIN[newLoginDay] * prestigeMult);
       const bonusedTotalXp = newTotalXp + loginBonusXp;
-      // Prestige multiplier on daily reset
-      const prestigeMult = 1 + ((r.prestige || 0) * 0.1);
       const hist = [...(r.history || [])];
       if (hist.length >= 30) hist.shift();
       hist.push({ date: TODAY, pct: 0, xp: 0, cats: { person: 0, people: 0, process: 0, product: 0 }, mood: null });
@@ -665,8 +665,8 @@ function loadState() {
     prestige: 0, prestigeTitle: null, prestigeBadges: [],
     history: Array(7).fill(null).map((_,i) => {
       const d = new Date(); d.setDate(d.getDate() - (6 - i));
-      return { date: d.toISOString().slice(0,10), pct: 0,
-        cats: { person: 0, people: 0, process: 0, product: 0 }};
+      return { date: d.toISOString().slice(0,10), pct: 0, xp: 0,
+        cats: { person: 0, people: 0, process: 0, product: 0 }, mood: null };
     })
   };
 }
@@ -890,8 +890,8 @@ function HealthBar({ hp, th }) {
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em" }}>STRENGTH</span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: color }}>{pct}/{HP_MAX}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", fontFamily: FONT }}>STRENGTH</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: color, fontFamily: FONT }}>{pct}/{HP_MAX}</span>
       </div>
       <div style={{
         width: "100%", height: 10, borderRadius: 5, background: th.ghost, overflow: "hidden",
@@ -1004,11 +1004,9 @@ function PrestigeScreen({ state, setState, th }) {
   const handlePrestige = () => {
     setState(p => {
       const newPrestige = (p.prestige || 0) + 1;
-      const newTitles = [...(p.prestigeBadges || [])];
-      newTitles.push(nextTitle);
       const newBadges = [...(p.prestigeBadges || [])];
       newBadges.push(nextBadge);
-      return {
+      const newState = {
         ...p,
         xp: 0, totalXp: 0,
         prestige: newPrestige,
@@ -1016,8 +1014,9 @@ function PrestigeScreen({ state, setState, th }) {
         prestigeBadges: newBadges,
         showPrestige: false,
       };
+      saveState(newState);
+      return newState;
     });
-    saveState(state);
     playCelebrate();
   };
 
@@ -1210,7 +1209,7 @@ function SabbathExperience({ state, setState, th }) {
 
 // ─── LOGIN BONUS CARD ───
 function LoginBonusCard({ state, th }) {
-  const currentDay = (state.loginBonusDay || 0);
+  const currentDay = Math.max(0, Math.min((state.loginBonusDay || 1) - 1, 6));
   return (
     <div style={{
       ...glassStyle(th), padding: "20px 24px", marginBottom: 12,
@@ -1222,7 +1221,7 @@ function LoginBonusCard({ state, th }) {
         <span style={{ fontSize: 16 }}>{"🎁"}</span>
         <div>
           <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", fontFamily: FONT }}>DAILY LOGIN BONUS</div>
-          <div style={{ fontSize: 11, fontWeight: 500, color: th.mid, fontFamily: FONT }}>Day {currentDay}/7</div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: th.mid, fontFamily: FONT }}>Day {currentDay + 1}/7</div>
         </div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 12 }}>
@@ -1269,14 +1268,14 @@ function DailyChallengeCard({ challenge, completed, onToggle, th }) {
             fontSize: 14,
           }}>{"\u2B50"}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", marginBottom: 3 }}>DAILY CHALLENGE</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.14em", marginBottom: 3, fontFamily: FONT }}>DAILY CHALLENGE</div>
             <div style={{ fontSize: 13, fontWeight: 400, color: completed ? th.dim : th.text,
-              textDecoration: completed ? "line-through" : "none" }}>{challenge.label}</div>
+              textDecoration: completed ? "line-through" : "none", fontFamily: FONT }}>{challenge.label}</div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: th.gold, padding: "3px 10px",
-            borderRadius: 20, background: th.goldDim }}>2x +{xp}</div>
+            borderRadius: 20, background: th.goldDim, fontFamily: FONT }}>2x +{xp}</div>
           <div onClick={onToggle} style={{
             width: 24, height: 24, borderRadius: 8, cursor: "pointer",
             border: `1.5px solid ${completed ? th.gold : th.dim}`,
@@ -1425,7 +1424,7 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
           {/* Share buttons */}
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
               window.open(`https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.green}30`,
@@ -1433,7 +1432,7 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
               fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
             }}>WHATSAPP</button>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
               window.open(`mailto:?subject=PVA Daily Report - ${TODAY}&body=${encodeURIComponent(report)}`, "_blank");
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.blue}30`,
@@ -1441,7 +1440,7 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
               fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
             }}>EMAIL</button>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | HP: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
               navigator.clipboard.writeText(report);
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`,
@@ -2612,7 +2611,7 @@ function PVAGlanceView({ state, dayPct, th, onBack }) {
         {[
           { label: "COMPLETION", value: `${dayPct}%`, color: dayPct >= 80 ? "#22C55E" : dayPct >= 50 ? th.gold : th.red },
           { label: "STREAK", value: `${state.streak}d`, color: th.red },
-          { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red },
+          { label: "STR", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red },
         ].map(s => (
           <div key={s.label} style={{ ...glassStyle(th), padding: "14px 0", textAlign: "center" }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -6919,21 +6918,25 @@ function PPPPApp() {
     // Update history for today without triggering re-render loop
     if (dayPct !== lastSavedPct.current) {
       lastSavedPct.current = dayPct;
-      const hist = [...(state.history || [])];
-      if (hist.length > 0 && hist[hist.length - 1]?.date === TODAY) {
-        const catKeys2 = ["person", "people", "process", "product"];
-        const cats = {};
-        catKeys2.forEach(k => {
-          const a = (tasks[k]?.sections || []).flatMap(s => s.tasks);
-          const d = a.filter(t => t.type === "check" ? state.completed?.[t.id] : (state.counters?.[t.id]||0) >= (t.target||1)).length;
-          cats[k] = a.length > 0 ? Math.round((d / a.length) * 100) : 0;
-        });
-        hist[hist.length - 1] = { ...hist[hist.length - 1], pct: dayPct, xp: dayXp, cats };
-        state.history = hist;
-      }
+      setState(p => {
+        const hist = [...(p.history || [])];
+        if (hist.length > 0 && hist[hist.length - 1]?.date === TODAY) {
+          const catKeys2 = ["person", "people", "process", "product"];
+          const cats = {};
+          catKeys2.forEach(k => {
+            const a = (tasks[k]?.sections || []).flatMap(s => s.tasks);
+            const d = a.filter(t => t.type === "check" ? p.completed?.[t.id] : (p.counters?.[t.id]||0) >= (t.target||1)).length;
+            cats[k] = a.length > 0 ? Math.round((d / a.length) * 100) : 0;
+          });
+          hist[hist.length - 1] = { ...hist[hist.length - 1], pct: dayPct, xp: dayXp, cats };
+          const newState = { ...p, history: hist };
+          saveState(newState);
+          return newState;
+        }
+        return p;
+      });
     }
-    saveState(state);
-  }, [state]);
+  }, [dayPct, dayXp, tasks]);
   useEffect(() => {
     if (autoTheme) {
       const id = setInterval(() => setThemeMode(getAutoTheme()), 60000);
@@ -6973,6 +6976,10 @@ function PPPPApp() {
   };
 
   const toastTimerRef = useRef(null);
+  useEffect(() => {
+    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
+  }, []);
+
   const toggleHomeTask = useCallback((id, e) => {
     const allT = Object.values(tasks).flatMap(c => c.sections.flatMap(s => s.tasks));
     const t = allT.find(x => x.id === id);
@@ -7397,7 +7404,7 @@ function PPPPApp() {
                 <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: "0 20px", marginBottom: 22 }}>
                   {[
                     { label: "XP", value: `${dayXp}`, color: th.blue, pulse: false, icon: "\u26A1" },
-                    { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red, pulse: false, icon: "\u2764" },
+                    { label: "STR", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red, pulse: false, icon: "\u2764" },
                     { label: "TODAY", value: `${dayPct}%`, color: th.blue, pulse: false, icon: "\u25CE" },
                     { label: "STREAK", value: `${state.streak}`, color: th.red, pulse: state.streak >= 3, icon: "\uD83D\uDD25" },
                   ].map(x => (
