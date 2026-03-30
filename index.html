@@ -114,6 +114,7 @@ const STREAK_MULT = { 0:1, 3:1.2, 7:1.5, 14:1.8, 30:2, 60:2.5 };
 const getMult = (s) => { let m=1; for(const[t,v] of Object.entries(STREAK_MULT)) if(s>=+t) m=v; return m; };
 const getLevel = (xp) => { let c=LEVELS[0],n=LEVELS[1]; for(let i=0;i<LEVELS.length;i++) if(xp>=LEVELS[i].xp){c=LEVELS[i];n=LEVELS[i+1]||null;} return{cur:c,nxt:n,idx:LEVELS.indexOf(c)}; };
 const FONT = "'JetBrains Mono', 'Fira Code', monospace";
+
 const TODAY = new Date().toISOString().slice(0,10);
 const HP_MAX = 100;
 
@@ -339,6 +340,187 @@ function saveRoutineData(data) {
   localStorage.setItem(ROUTINE_STORAGE_KEY, JSON.stringify(data));
 }
 
+// ─── BUILD TASKS FROM ROUTINE ANSWERS ───
+// Converts routine questionnaire answers into the 4-pillar task structure
+function buildTasksFromRoutineAnswers(routine) {
+  if (!routine || !routine.answers) return null;
+  var a = routine.answers;
+
+  // Helper to compute an end time string from a start time + duration in minutes
+  function addMins(timeStr, mins) {
+    if (!timeStr) return "";
+    var clean = timeStr.replace(/\u2013/g, "-").split("-")[0].trim();
+    var parts = clean.split(":");
+    var h = parseInt(parts[0]) || 0;
+    var m = parseInt(parts[1]) || 0;
+    m += mins;
+    while (m >= 60) { h++; m -= 60; }
+    if (h >= 24) h -= 24;
+    return (h < 10 ? "0" + h : "" + h) + ":" + (m < 10 ? "0" + m : "" + m);
+  }
+  function timeRange(start, mins) {
+    if (!start) return "";
+    var clean = start.replace(/\u2013/g, "-").split("-")[0].trim();
+    return clean + "\u2013" + addMins(clean, mins);
+  }
+
+  // ─── PERSON (Spirit → Soul → Body) ───
+  var personSections = [];
+  // Wake up
+  if (a.wake_time) {
+    personSections.push({ name: "WAKE UP", time: a.wake_time, tasks: [
+      { id: "rt_wake", label: "Wake Up & Prepare", xp: 5, type: "check" }
+    ]});
+  }
+  // Morning devotion
+  if (a.morning_devotion && a.morning_devotion !== "Not yet") {
+    var devMins = a.devotion_length ? (parseInt(a.devotion_length) || 30) : 15;
+    var devStart = a.wake_time ? addMins(a.wake_time, 10) : "06:00";
+    personSections.push({ name: "MORNING DEVOTION", time: timeRange(devStart, devMins), tasks: [
+      { id: "rt_devotion", label: "Morning Devotion / Quiet Time", xp: 30, type: "check", hasNotes: true, notesPlaceholder: "What did the Lord reveal today?" }
+    ]});
+  }
+  // Exercise
+  if (a.morning_exercise && a.morning_exercise !== "No, but I want to") {
+    var exLabel = a.exercise_type || "Exercise";
+    var exStart = a.wake_time ? addMins(a.wake_time, (a.morning_devotion && a.morning_devotion !== "Not yet") ? ((a.devotion_length ? parseInt(a.devotion_length) || 30 : 15) + 15) : 15) : "06:30";
+    personSections.push({ name: "EXERCISE", time: timeRange(exStart, 30), tasks: [
+      { id: "rt_exercise", label: exLabel, xp: 20, type: "check" }
+    ]});
+  }
+  // Breakfast
+  if (a.breakfast_time && a.breakfast_time !== "I skip breakfast") {
+    personSections.push({ name: "BREAKFAST", time: a.breakfast_time, tasks: [
+      { id: "rt_breakfast", label: "Breakfast", xp: 5, type: "check" }
+    ]});
+  }
+  // Prayer times
+  if (a.prayer_times && a.prayer_times !== "Building the habit") {
+    if (a.prayer_times === "Morning" || a.prayer_times === "Multiple times daily") {
+      personSections.push({ name: "MORNING PRAYER", time: "09:00\u201309:15", tasks: [
+        { id: "rt_prayer_morning", label: "Morning Prayer", xp: 15, type: "check" }
+      ]});
+    }
+    if (a.prayer_times === "Midday" || a.prayer_times === "Multiple times daily") {
+      personSections.push({ name: "MIDDAY PRAYER", time: "12:00\u201312:15", tasks: [
+        { id: "rt_prayer_midday", label: "Midday Prayer", xp: 15, type: "check" }
+      ]});
+    }
+    if (a.prayer_times === "Evening" || a.prayer_times === "Multiple times daily") {
+      personSections.push({ name: "EVENING PRAYER", time: "18:00\u201318:15", tasks: [
+        { id: "rt_prayer_evening", label: "Evening Prayer", xp: 15, type: "check" }
+      ]});
+    }
+  }
+  if (a.prayer_times === "Building the habit") {
+    personSections.push({ name: "PRAYER", time: "09:00\u201309:15", tasks: [
+      { id: "rt_prayer_habit", label: "Prayer Time", xp: 15, type: "check" }
+    ]});
+  }
+  // Bible reading
+  if (a.bible_reading) {
+    var bibleLabel = a.bible_reading === "A reading plan" ? "Bible Reading Plan" :
+      a.bible_reading === "Just starting" ? "Bible Reading" :
+      "Bible Reading (" + a.bible_reading + ")";
+    personSections.push({ name: "BIBLE READING", time: "21:00\u201321:30", tasks: [
+      { id: "rt_bible", label: bibleLabel, xp: 20, type: "check", hasNotes: true, notesPlaceholder: "What passage did you read?" }
+    ]});
+  }
+  // Verse memorisation
+  if (a.verse_memorization && a.verse_memorization !== "Want to start") {
+    personSections.push({ name: "SCRIPTURE MEMORY", time: "21:30\u201321:45", tasks: [
+      { id: "rt_verse_mem", label: "Scripture Memorisation", xp: 15, type: "check" }
+    ]});
+  }
+  // Wind-down
+  if (a.wind_down) {
+    var windTime = a.bed_time ? addMins(a.bed_time.replace("+", ""), -30) : "22:00";
+    personSections.push({ name: "WIND DOWN", time: timeRange(windTime, 30), tasks: [
+      { id: "rt_wind_down", label: a.wind_down, xp: 10, type: "check" }
+    ]});
+  }
+  // Bedtime
+  if (a.bed_time) {
+    personSections.push({ name: "BEDTIME", time: a.bed_time.replace("+", ""), tasks: [
+      { id: "rt_bedtime", label: "Lights Out", xp: 10, type: "check" }
+    ]});
+  }
+
+  // Sort person sections by time
+  personSections.sort(function(x, y) {
+    var tx = (x.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+    var ty = (y.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+    return tx.localeCompare(ty);
+  });
+
+  // ─── PROCESS (Work & Study) ───
+  var processSections = [];
+  if (a.work_start) {
+    var focusMins = a.focus_duration ? (parseInt(a.focus_duration) || 45) : 45;
+    processSections.push({ name: "DEEP FOCUS BLOCK 1", time: timeRange(a.work_start, focusMins), tasks: [
+      { id: "rt_focus1", label: "Deep Focus Block 1", xp: 25, type: "check", hasNotes: true, notesPlaceholder: "What did you work on?" }
+    ]});
+    // Add a second focus block after lunch if work extends long enough
+    if (a.work_end && a.lunch_time) {
+      var afterLunch = addMins(a.lunch_time.replace(/\u2013/g, "-").split("-")[0].trim(), 45);
+      processSections.push({ name: "DEEP FOCUS BLOCK 2", time: timeRange(afterLunch, focusMins), tasks: [
+        { id: "rt_focus2", label: "Deep Focus Block 2", xp: 25, type: "check", hasNotes: true, notesPlaceholder: "What did you accomplish?" }
+      ]});
+    }
+  }
+  if (a.work_end) {
+    processSections.push({ name: "END OF WORK", time: a.work_end, tasks: [
+      { id: "rt_work_end", label: "Wrap Up & Review", xp: 10, type: "check" }
+    ]});
+  }
+
+  processSections.sort(function(x, y) {
+    var tx = (x.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+    var ty = (y.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+    return tx.localeCompare(ty);
+  });
+
+  // ─── PEOPLE (Community & Relationships) ───
+  var peopleSections = [];
+  // Dinner often involves family
+  if (a.dinner_time) {
+    var dinnerClean = a.dinner_time.replace("+", "").replace(/\u2013/g, "-").split("-")[0].trim();
+    peopleSections.push({ name: "DINNER / FAMILY TIME", time: timeRange(dinnerClean, 45), tasks: [
+      { id: "rt_dinner", label: "Dinner & Family Time", xp: 15, type: "check" }
+    ]});
+  }
+
+  // ─── PRODUCT (Output & Growth) ───
+  var productSections = [];
+  // Lunch
+  if (a.lunch_time) {
+    productSections.push({ name: "LUNCH BREAK", time: timeRange(a.lunch_time.replace(/\u2013/g, "-").split("-")[0].trim(), 30), tasks: [
+      { id: "rt_lunch", label: "Lunch", xp: 5, type: "check" }
+    ]});
+  }
+  // Afternoon break
+  if (a.afternoon_break && a.afternoon_break !== "Rarely") {
+    var breakLabel = a.break_activity || "Afternoon Break";
+    var breakTime = a.lunch_time ? addMins(a.lunch_time.replace(/\u2013/g, "-").split("-")[0].trim(), 150) : "15:00";
+    productSections.push({ name: "AFTERNOON BREAK", time: timeRange(breakTime, 15), tasks: [
+      { id: "rt_break", label: breakLabel, xp: 10, type: "check" }
+    ]});
+  }
+
+  productSections.sort(function(x, y) {
+    var tx = (x.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+    var ty = (y.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+    return tx.localeCompare(ty);
+  });
+
+  return {
+    person: { label: "Person", subtitle: "Spirit \u2192 Soul \u2192 Body", sections: personSections },
+    people: { label: "People", subtitle: "Family & Community", sections: peopleSections.length > 0 ? peopleSections : [{ name: "COMMUNITY", time: "19:00\u201319:30", tasks: [{ id: "rt_community", label: "Connect with someone", xp: 15, type: "check" }] }] },
+    process: { label: "Process", subtitle: "Systems & Workflows", sections: processSections.length > 0 ? processSections : [{ name: "WORK", time: "09:00\u201317:00", tasks: [{ id: "rt_work", label: "Daily Work", xp: 25, type: "check" }] }] },
+    product: { label: "Product", subtitle: "Output & Creation", sections: productSections.length > 0 ? productSections : [{ name: "CREATE", time: "12:00\u201313:00", tasks: [{ id: "rt_create", label: "Create or Build", xp: 20, type: "check" }] }] },
+  };
+}
+
 // ─── SOUND ───
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
@@ -401,26 +583,46 @@ function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const r = JSON.parse(raw || "null");
-    if (r && r.date === TODAY) return r;
+    if (r && r.date === TODAY) {
+      // Recalculate Sabbath status on each load
+      const prof = (function() { try { return JSON.parse(localStorage.getItem("pva_profile") || "null"); } catch { return null; } })();
+      const sDay = prof?.sabbathDay ?? -1;
+      r.isSabbath = sDay >= 0 && new Date().getDay() === sDay;
+      return r;
+    }
     if (r) {
       const prevPct = r.history?.[r.history.length - 1]?.pct ?? 0;
-      const hadStreakFreeze = r.streakFrozen === true;
+      const hadGraceDay = r.graceDayActive === true;
+      // Check if today is user's designated Sabbath day
+      const profile = (function() { try { return JSON.parse(localStorage.getItem("pva_profile") || "null"); } catch { return null; } })();
+      const sabbathDay = profile?.sabbathDay ?? -1; // -1 = not set
+      const todayDow = new Date().getDay(); // 0=Sun, 1=Mon, ...
+      const isSabbath = sabbathDay >= 0 && todayDow === sabbathDay;
+      const wasSabbath = (function() {
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+        return sabbathDay >= 0 && yesterday.getDay() === sabbathDay;
+      })();
+      // Anchor habit completion also protects the temple
+      const anchorHabit = profile?.anchorHabit || null;
+      const hadAnchor = anchorHabit ? !!(r.completed && r.completed[anchorHabit]) : false;
+      // Grace day, Sabbath, or anchor habit protects streak and temple
+      const isProtected = hadGraceDay || wasSabbath || hadAnchor;
       const wouldBreak = prevPct < 50;
-      const newStreak = wouldBreak ? (hadStreakFreeze ? (r.streak || 0) + 1 : 1) : (r.streak || 0) + 1;
+      const newStreak = wouldBreak ? (isProtected ? (r.streak || 0) + 1 : 1) : (r.streak || 0) + 1;
       const newHp = prevPct >= 80 ? Math.min(HP_MAX, (r.hp || HP_MAX) + 10) : (r.hp || HP_MAX);
       // Temple decay: missed/low days damage XP (the temple)
       // Below 50% completion = decay. The less you did, the more damage.
+      // Grace days and Sabbaths protect the temple from decay.
       const prevTotalXp = r.totalXp || 0;
       var xpDecay = 0;
-      if (prevPct < 50 && !hadStreakFreeze) {
-        // Scale: 0% = lose 5% of XP, 49% = lose ~0.5% of XP
+      if (prevPct < 50 && !isProtected) {
         const decayRate = 0.05 * (1 - prevPct / 50);
         xpDecay = Math.round(prevTotalXp * decayRate);
       }
       const newTotalXp = Math.max(0, prevTotalXp - xpDecay);
       const hist = [...(r.history || [])];
       if (hist.length >= 30) hist.shift();
-      hist.push({ date: TODAY, pct: 0, xp: 0, cats: { person: 0, people: 0, process: 0, product: 0 } });
+      hist.push({ date: TODAY, pct: 0, xp: 0, cats: { person: 0, people: 0, process: 0, product: 0 }, mood: null });
       return {
         date: TODAY, completed: {}, counters: {}, notes: {}, timers: {},
         xp: 0, totalXp: newTotalXp,
@@ -429,8 +631,10 @@ function loadState() {
         hp: newHp, redemptionMode: newHp <= 0,
         challengeCompleted: false, bossCompleted: false,
         customTasks: r.customTasks || null, history: hist,
-        streakFrozen: false, streakFreezeUsedWeek: r.streakFreezeUsedWeek || null,
-        dayRating: null,
+        graceDayActive: false, graceDayUsedWeek: r.graceDayUsedWeek || null,
+        dayRating: null, isSabbath: isSabbath,
+        morningMood: null, eveningMood: null,
+        soulCheckIns: r.soulCheckIns || [],
       };
     }
   } catch (e) { console.warn("PPPP load error", e); }
@@ -439,7 +643,8 @@ function loadState() {
     xp: 0, totalXp: 0, streak: 1, bestStreak: 1, daysCompleted: 0,
     hp: HP_MAX, redemptionMode: false,
     challengeCompleted: false, bossCompleted: false,
-    customTasks: null, streakFrozen: false, streakFreezeUsedWeek: null, dayRating: null,
+    customTasks: null, graceDayActive: false, graceDayUsedWeek: null, dayRating: null,
+    isSabbath: false, morningMood: null, eveningMood: null, soulCheckIns: [],
     history: Array(7).fill(null).map((_,i) => {
       const d = new Date(); d.setDate(d.getDate() - (6 - i));
       return { date: d.toISOString().slice(0,10), pct: 0,
@@ -1002,11 +1207,13 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
 
   const generateReport = () => {
     const date = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    return `PVA Accountability Report - ${date}\n\n` +
-      `Progress: ${Math.round(dayPct)}% | XP: ${dayXp} | Stage: ${level.name}\n` +
-      `Tasks completed: ${completed.length}/${allTasks.length}\n\n` +
+    const templeStatus = (state.totalXp || 0) > 0 ? `Temple: ${state.totalXp} XP` : "Temple: Just starting";
+    return `PVA Covenant Report - ${date}\n\n` +
+      `Progress: ${Math.round(dayPct)}% | ${templeStatus} | Stage: ${level.name}\n` +
+      `Streak: ${state.streak || 0} days | Tasks: ${completed.length}/${allTasks.length}\n\n` +
       `Completed:\n${completed.map(t => `  \u2713 ${t.label}`).join("\n") || "  (none yet)"}\n\n` +
-      `Remaining:\n${allTasks.filter(t => !completed.find(c => c.id === t.id)).map(t => `  - ${t.label}`).join("\n") || "  All done!"}`;
+      `Remaining:\n${allTasks.filter(t => !completed.find(c => c.id === t.id)).map(t => `  - ${t.label}`).join("\n") || "  All done!"}\n\n` +
+      `"Two are better than one" - Ecclesiastes 4:9`;
   };
 
   const sendReport = (partner, method) => {
@@ -1036,6 +1243,14 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
           <button onClick={onClose} style={{ ...btnStyle, padding: "4px 10px" }}>{"\u2715"}</button>
         </div>
 
+        {/* Covenant Scripture */}
+        <div style={{ padding: "14px 16px", borderRadius: 12, marginBottom: 16, background: "rgba(139,92,246,0.04)", border: "1px solid rgba(139,92,246,0.15)", textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: "#8B5CF6", fontStyle: "italic", lineHeight: 1.7 }}>
+            {"\u201C"}Two are better than one, because they have a good reward for their toil. For if they fall, one will lift up his fellow.{"\u201D"}
+          </div>
+          <div style={{ fontSize: 9, color: th.dim, marginTop: 6, fontWeight: 600 }}>ECCLESIASTES 4:9{"\u2013"}10</div>
+        </div>
+
         {/* Progress Summary */}
         <div style={{ background: th.glass, borderRadius: 12, padding: 14, marginBottom: 16, border: `1px solid ${th.glassBorder}` }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>TODAY{"\u2019"}S PROGRESS</div>
@@ -1046,15 +1261,22 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
           <div style={{ height: 4, borderRadius: 2, background: th.ghost, marginTop: 8, overflow: "hidden" }}>
             <div style={{ height: "100%", borderRadius: 2, width: `${dayPct}%`, background: dayPct >= 80 ? th.green : dayPct >= 50 ? th.blue : th.red, transition: "width 0.6s ease" }} />
           </div>
+          {/* Temple Health status for sharing */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>
+            <span style={{ fontSize: 12 }}>{"\uD83C\uDFDB"}</span>
+            <div style={{ fontSize: 10, color: th.dim }}>Temple: <span style={{ fontWeight: 700, color: state.totalXp > 0 ? "#22C55E" : th.dim }}>{state.totalXp || 0} XP</span></div>
+            <span style={{ fontSize: 10, color: th.ghost }}>{"\u00B7"}</span>
+            <div style={{ fontSize: 10, color: th.dim }}>Streak: <span style={{ fontWeight: 700, color: th.blue }}>{state.streak || 0}d</span></div>
+          </div>
         </div>
 
-        {/* Partners List */}
-        <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>ACCOUNTABILITY PARTNERS</div>
+        {/* Covenant Partners */}
+        <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>COVENANT PARTNERS</div>
         {partners.length === 0 && (
           <div style={{ textAlign: "center", padding: "16px 12px", marginBottom: 12 }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>{"\uD83E\uDD1D"}</div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: th.mid, lineHeight: 1.6 }}>Your accountability circle is waiting.</div>
-            <div style={{ fontSize: 10, color: th.dim, marginTop: 4 }}>Add a partner to walk this journey together.</div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: th.mid, lineHeight: 1.6 }}>Your covenant circle is waiting.</div>
+            <div style={{ fontSize: 10, color: th.dim, marginTop: 4 }}>Add a covenant partner to walk this journey together.</div>
           </div>
         )}
         {partners.map(p => (
@@ -1074,10 +1296,10 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
 
         {/* Add Partner */}
         <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: th.glass, border: `1px solid ${th.glassBorder}` }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>ADD PARTNER</div>
-          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" style={{ ...inputStyle, marginBottom: 6 }} />
-          <input value={newContact} onChange={e => setNewContact(e.target.value)} placeholder="Email (optional)" style={{ ...inputStyle, marginBottom: 8 }} />
-          <button onClick={addPartner} style={{ ...btnStyle, width: "100%", textAlign: "center", background: th.blueDim, color: th.blue, border: `1px solid ${th.blue}30` }}>ADD PARTNER</button>
+          <div style={{ fontSize: 10, fontWeight: 700, color: th.ghost, letterSpacing: "0.1em", marginBottom: 8 }}>ADD COVENANT PARTNER</div>
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Partner's name" style={{ ...inputStyle, marginBottom: 6 }} />
+          <input value={newContact} onChange={e => setNewContact(e.target.value)} placeholder="Email or phone (optional)" style={{ ...inputStyle, marginBottom: 8 }} />
+          <button onClick={addPartner} style={{ ...btnStyle, width: "100%", textAlign: "center", background: "rgba(139,92,246,0.08)", color: "#8B5CF6", border: "1px solid rgba(139,92,246,0.3)" }}>FORM COVENANT</button>
         </div>
 
         {/* Share Report */}
@@ -1100,22 +1322,28 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
 // ─── COMPONENTS ───
 function SectionDivider({ label, th }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 20px", marginBottom: 14 }}>
-      <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}, transparent)` }} />
-      {label && <span style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.18em", whiteSpace: "nowrap" }}>{label}</span>}
-      {label && <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}, transparent)` }} />}
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "6px 20px", marginBottom: 16 }}>
+      <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}, ${th.ghost}80, transparent)`, borderRadius: 1 }} />
+      {label && <span style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.22em", whiteSpace: "nowrap", fontFamily: FONT, textTransform: "uppercase" }}>{label}</span>}
+      {label && <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}80, ${th.ghost}, transparent)`, borderRadius: 1 }} />}
     </div>
   );
 }
 
-function Bar({ value, max, color, h = 4, th }) {
+function Bar({ value, max, color, h = 5, th }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div style={{ width: "100%", height: h, borderRadius: h/2, background: th.ghost, overflow: "hidden" }}>
-      <div className="pva-bar-shimmer" style={{ height: "100%", borderRadius: h/2, width: `${pct}%`,
-        background: `linear-gradient(90deg, ${color}, ${color}CC, ${color})`,
+    <div style={{ width: "100%", height: h, borderRadius: h, background: th.ghost, overflow: "hidden", position: "relative" }}>
+      <div className="pva-bar-shimmer" style={{ height: "100%", borderRadius: h, width: `${pct}%`,
+        background: `linear-gradient(90deg, ${color}CC, ${color}, ${color}EE)`,
         backgroundSize: "200% 100%",
-        boxShadow: `0 0 16px ${color}40`, transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)" }} />
+        boxShadow: `0 0 16px ${color}30, 0 1px 3px ${color}20`,
+        transition: "width 1s cubic-bezier(0.16,1,0.3,1)" }} />
+      {pct > 5 && <div style={{
+        position: "absolute", top: 0, left: 0, width: `${pct}%`, height: "50%", borderRadius: h,
+        background: "linear-gradient(180deg, rgba(255,255,255,0.20), transparent)",
+        transition: "width 1s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none",
+      }} />}
     </div>
   );
 }
@@ -1472,19 +1700,110 @@ function WeeklyView({ state, th, tasks, boss }) {
           {notDone.length > 8 && <div style={{ fontSize: 11, color: th.ghost, marginTop: 6 }}>+{notDone.length - 8} more</div>}
         </div>
       )}
+
+      {/* ─── WEEKLY INSIGHT REPORT ─── */}
+      {(() => {
+        if (hist.length < 3) return null;
+        const weekPcts = hist.map(function(d) { return d?.pct || 0; });
+        const weekAvg = Math.round(weekPcts.reduce(function(s, v) { return s + v; }, 0) / weekPcts.length);
+        // Find best and worst days
+        var bestIdx = 0, worstIdx = 0;
+        weekPcts.forEach(function(v, i) {
+          if (v > weekPcts[bestIdx]) bestIdx = i;
+          if (v < weekPcts[worstIdx]) worstIdx = i;
+        });
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const bestDay = hist[bestIdx]?.date ? dayNames[new Date(hist[bestIdx].date).getDay()] : "N/A";
+        const worstDay = hist[worstIdx]?.date ? dayNames[new Date(hist[worstIdx].date).getDay()] : "N/A";
+        // Pillar averages from history cats data
+        const pillarTotals = { person: 0, people: 0, process: 0, product: 0 };
+        var pillarCount = 0;
+        hist.forEach(function(d) {
+          if (d?.cats) {
+            pillarCount++;
+            Object.keys(d.cats).forEach(function(k) { pillarTotals[k] = (pillarTotals[k] || 0) + (d.cats[k] || 0); });
+          }
+        });
+        const pillarAvgs = {};
+        Object.keys(pillarTotals).forEach(function(k) { pillarAvgs[k] = pillarCount > 0 ? Math.round(pillarTotals[k] / pillarCount) : 0; });
+        // Weakest pillar
+        var weakestPillar = "person", weakestVal = 999;
+        Object.keys(pillarAvgs).forEach(function(k) { if (pillarAvgs[k] < weakestVal) { weakestVal = pillarAvgs[k]; weakestPillar = k; } });
+        var strongestPillar = "person", strongestVal = 0;
+        Object.keys(pillarAvgs).forEach(function(k) { if (pillarAvgs[k] > strongestVal) { strongestVal = pillarAvgs[k]; strongestPillar = k; } });
+        // Temple XP change (estimate from history)
+        const xpGained = hist.reduce(function(s, d) { return s + (d?.xp || 0); }, 0);
+        const pillarLabels = { person: "Person", people: "People", process: "Process", product: "Product" };
+        const pillarColors = { person: "#DC2626", people: "#7C3AED", process: "#16A34A", product: "#3B82F6" };
+
+        return (
+          <div style={{ ...glassStyle(th), padding: "20px", marginTop: 14, border: "1px solid rgba(139,92,246,0.15)", background: "rgba(139,92,246,0.03)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <span style={{ fontSize: 16 }}>{"\uD83D\uDCDC"}</span>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#8B5CF6", letterSpacing: "0.16em" }}>WEEKLY STEWARDSHIP REPORT</div>
+            </div>
+
+            {/* Average */}
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 32, fontWeight: 800, color: weekAvg >= 70 ? "#22C55E" : weekAvg >= 40 ? th.gold : th.red, fontFamily: FONT }}>{weekAvg}%</div>
+              <div style={{ fontSize: 10, color: th.dim }}>Average weekly completion</div>
+            </div>
+
+            {/* Insights */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: th.glass, border: "1px solid " + th.ghost }}>
+                <div style={{ fontSize: 11, color: th.text, lineHeight: 1.6 }}>
+                  {"\uD83D\uDCC8"} Your best day was <span style={{ fontWeight: 700, color: "#22C55E" }}>{bestDay}</span> ({weekPcts[bestIdx]}%), your toughest was <span style={{ fontWeight: 700, color: th.red }}>{worstDay}</span> ({weekPcts[worstIdx]}%).
+                </div>
+              </div>
+              <div style={{ padding: "10px 14px", borderRadius: 10, background: th.glass, border: "1px solid " + th.ghost }}>
+                <div style={{ fontSize: 11, color: th.text, lineHeight: 1.6 }}>
+                  {"\uD83C\uDFDB"} Your strongest pillar is <span style={{ fontWeight: 700, color: pillarColors[strongestPillar] }}>{pillarLabels[strongestPillar]}</span>. Your weakest is <span style={{ fontWeight: 700, color: pillarColors[weakestPillar] }}>{pillarLabels[weakestPillar]}</span> {"\u2014"} consider giving it more attention this week.
+                </div>
+              </div>
+              {xpGained > 0 && (
+                <div style={{ padding: "10px 14px", borderRadius: 10, background: th.glass, border: "1px solid " + th.ghost }}>
+                  <div style={{ fontSize: 11, color: th.text, lineHeight: 1.6 }}>
+                    {"\u2728"} Your temple grew <span style={{ fontWeight: 700, color: th.gold }}>{xpGained} XP</span> this week. Keep building faithfully.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pillar bars */}
+            <div style={{ marginBottom: 10 }}>
+              {["person", "people", "process", "product"].map(function(k) {
+                return (
+                  <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: pillarColors[k], width: 50, fontFamily: FONT }}>{pillarLabels[k]}</span>
+                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: th.ghost, overflow: "hidden" }}>
+                      <div style={{ height: "100%", borderRadius: 2, width: pillarAvgs[k] + "%", background: pillarColors[k], transition: "width 0.6s ease" }} />
+                    </div>
+                    <span style={{ fontSize: 9, color: th.dim, width: 28, textAlign: "right", fontFamily: FONT }}>{pillarAvgs[k]}%</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ fontSize: 10, color: "#8B5CF6", fontStyle: "italic", textAlign: "center" }}>
+              {"\u201C"}Well done, good and faithful servant.{"\u201D"} {"\u2014"} Matthew 25:21
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
 
 const glassStyle = (th) => ({
   background: th.glass, border: `1px solid ${th.glassBorder}`,
-  borderRadius: 18, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-  boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1.5px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.06)",
+  borderRadius: 20, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+  boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.02)",
 });
 const glassStyleElevated = (th) => ({
   background: th.glass, border: `1px solid ${th.glassBorder}`,
-  borderRadius: 18, backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
-  boxShadow: "0 8px 40px rgba(0,0,0,0.14), 0 3px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.08)",
+  borderRadius: 22, backdropFilter: "blur(32px)", WebkitBackdropFilter: "blur(32px)",
+  boxShadow: "0 8px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.02)",
 });
 
 // ─── MAIN ───
@@ -1702,14 +2021,14 @@ function PTile({ catKey, cat, index, pct, th, colors, onClick }) {
 
   return (
     <div onClick={onClick} style={{
-      flex: "0 0 280px", height: 400, borderRadius: 24, cursor: "pointer",
+      flex: "0 0 280px", height: 400, borderRadius: 28, cursor: "pointer",
       position: "relative", overflow: "hidden",
       background: tileGradients[catKey],
       border: `1px solid ${c.border}`,
-      backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+      backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
       scrollSnapAlign: "center",
-      transition: "transform 0.3s ease, box-shadow 0.3s ease",
-      boxShadow: `0 8px 40px ${c.accent}10`,
+      transition: "transform 0.35s cubic-bezier(0.16,1,0.3,1), box-shadow 0.35s ease",
+      boxShadow: `0 12px 48px ${c.accent}12, 0 4px 16px ${c.accent}08`,
       display: "flex", flexDirection: "column", justifyContent: "space-between",
       padding: "28px 24px",
     }}>
@@ -1717,19 +2036,23 @@ function PTile({ catKey, cat, index, pct, th, colors, onClick }) {
       <div style={{
         position: "absolute", top: -20, right: -10,
         fontSize: 200, fontWeight: 900, color: c.accent,
-        opacity: th === dark ? 0.06 : 0.07,
+        opacity: th === dark ? 0.05 : 0.06,
         lineHeight: 1, letterSpacing: "-0.06em",
         pointerEvents: "none", userSelect: "none",
+        fontFamily: FONT,
       }}>{index + 1}</div>
+      {/* Accent glow */}
+      <div style={{ position: "absolute", bottom: -30, left: "30%", width: 120, height: 120, borderRadius: "50%", background: `${c.accent}08`, filter: "blur(40px)", pointerEvents: "none" }} />
 
       {/* Top: Category number pill */}
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
       }}>
         <div style={{
-          padding: "6px 14px", borderRadius: 20,
-          background: `${c.accent}15`, border: `1px solid ${c.accent}25`,
-          fontSize: 10, fontWeight: 700, color: c.accent, letterSpacing: "0.1em",
+          padding: "6px 16px", borderRadius: 20,
+          background: `${c.accent}12`, border: `1px solid ${c.accent}20`,
+          fontSize: 10, fontWeight: 700, color: c.accent, letterSpacing: "0.12em",
+          fontFamily: FONT,
         }}>P{index + 1}</div>
       </div>
 
@@ -1737,28 +2060,35 @@ function PTile({ catKey, cat, index, pct, th, colors, onClick }) {
       <div>
         <div style={{
           fontSize: 28, fontWeight: 800, color: th.text,
-          letterSpacing: "-0.04em", marginBottom: 6, lineHeight: 1.1,
+          letterSpacing: "-0.03em", marginBottom: 8, lineHeight: 1.1,
+          fontFamily: FONT,
         }}>{cat.label}</div>
         <div style={{
-          fontSize: 12, color: th.dim, letterSpacing: "0.04em", marginBottom: 20,
+          fontSize: 12, color: th.dim, letterSpacing: "0.04em", marginBottom: 22,
+          fontFamily: FONT,
         }}>{cat.subtitle}</div>
 
         {/* Progress bar */}
         <div style={{
-          width: "100%", height: 6, borderRadius: 3,
-          background: th.ghost, overflow: "hidden", marginBottom: 10,
+          width: "100%", height: 7, borderRadius: 7,
+          background: th.ghost, overflow: "hidden", marginBottom: 12,
+          position: "relative",
         }}>
           <div style={{
-            height: "100%", borderRadius: 3, width: `${pct}%`,
-            background: c.accent, boxShadow: `0 0 12px ${c.accent}40`,
-            transition: "width 0.8s cubic-bezier(0.16,1,0.3,1)",
+            height: "100%", borderRadius: 7, width: `${pct}%`,
+            background: `linear-gradient(90deg, ${c.accent}CC, ${c.accent})`,
+            boxShadow: `0 0 14px ${c.accent}30`,
+            transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
           }} />
+          {pct > 5 && <div style={{
+            position: "absolute", top: 0, left: 0, width: `${pct}%`, height: "50%", borderRadius: 7,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.25), transparent)",
+            transition: "width 1s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none",
+          }} />}
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 32, fontWeight: 800, color: pct === 100 ? c.accent : th.mid, letterSpacing: "-0.04em" }}>
-            {pct}%
-          </span>
-          <span style={{ fontSize: 11, color: th.dim, fontWeight: 600 }}>
+          <span style={{ fontSize: 32, fontWeight: 800, color: pct === 100 ? c.accent : th.mid, letterSpacing: "-0.04em", fontFamily: FONT }}>{pct}%</span>
+          <span style={{ fontSize: 11, color: pct === 100 ? c.accent : th.dim, fontWeight: 600, fontFamily: FONT }}>
             {pct === 100 ? "\u2713 DONE" : "TAP TO OPEN"}
           </span>
         </div>
@@ -2866,13 +3196,19 @@ function OpeningSplash({ name, onFinish, th }) {
 }
 
 // ─── ONBOARDING SCREEN ───
-function OnboardingScreen({ onComplete, onCustomTasks }) {
+function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, firebaseUser }) {
   const [name, setName] = useState("");
   const [step, setStep] = useState(0);
   const [routineMode, setRoutineMode] = useState(null);
   const [showSplash, setShowSplash] = useState(false);
   const [pendingProfile, setPendingProfile] = useState(null);
   const [pendingTasks, setPendingTasks] = useState(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authMode, setAuthMode] = useState("signin"); // "signin" or "signup"
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
   const th = getAutoTheme() === "dark" ? dark : light;
 
   const doCompleteName = () => {
@@ -2932,16 +3268,16 @@ function OnboardingScreen({ onComplete, onCustomTasks }) {
                 A daily discipline system that uses 4P prioritisation.
               </p>
               <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                <span style={{ color: "#000", fontWeight: 700 }}>PERSON</span> {"\u2014"} this is you.
+                <span style={{ color: th.text, fontWeight: 700 }}>PERSON</span> {"\u2014"} this is you.
               </div>
               <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                <span style={{ color: "#000", fontWeight: 700 }}>PEOPLE</span> {"\u2014"} this is your family and community.
+                <span style={{ color: th.text, fontWeight: 700 }}>PEOPLE</span> {"\u2014"} this is your family and community.
               </div>
               <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                <span style={{ color: "#000", fontWeight: 700 }}>PROCESS</span> {"\u2014"} this is the system and workflow.
+                <span style={{ color: th.text, fontWeight: 700 }}>PROCESS</span> {"\u2014"} this is the system and workflow.
               </div>
               <div style={{ fontSize: 12, color: th.text, marginBottom: 0 }}>
-                <span style={{ color: "#000", fontWeight: 700 }}>PRODUCT</span> {"\u2014"} this is the output and creation.
+                <span style={{ color: th.text, fontWeight: 700 }}>PRODUCT</span> {"\u2014"} this is the output and creation.
               </div>
             </div>
             <button onClick={() => setStep(1)} style={{
@@ -2949,7 +3285,127 @@ function OnboardingScreen({ onComplete, onCustomTasks }) {
               border: `1px solid ${th.blue}40`, background: th.blueDim,
               color: th.blue, fontSize: 13, fontWeight: 700, cursor: "pointer",
               fontFamily: FONT, letterSpacing: "0.04em",
+              marginBottom: 16,
             }}>GET STARTED</button>
+
+            {/* Sign-In Options */}
+            {!firebaseUser && (
+              <div style={{ marginTop: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}, transparent)` }} />
+                  <span style={{ fontSize: 9, fontWeight: 600, color: th.dim, letterSpacing: "0.10em" }}>SIGN IN</span>
+                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}, transparent)` }} />
+                </div>
+
+                {/* Google Sign-In */}
+                {onSignIn && (
+                  <button onClick={onSignIn} style={{
+                    width: "100%", padding: "14px 24px", borderRadius: 12,
+                    background: "linear-gradient(135deg, #4285F4, #356AC3)",
+                    border: "none", color: "#fff", fontSize: 13, fontWeight: 700,
+                    cursor: "pointer", fontFamily: FONT, letterSpacing: "0.04em",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                    boxShadow: "0 4px 20px rgba(66,133,244,0.25)",
+                    transition: "all 0.3s ease", marginBottom: 10,
+                  }}>
+                    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.9 33.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.2-2.7-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.3 15.2 18.8 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.8-3.5-11.3-8.3l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.3 44 34 44 24c0-1.3-.2-2.7-.4-3.9z"/></svg>
+                    Sign in with Google
+                  </button>
+                )}
+
+                {/* Email/Password Toggle */}
+                {onEmailAuth && (
+                  <div>
+                    {!showEmailForm ? (
+                      <button onClick={function() { setShowEmailForm(true); }} style={{
+                        width: "100%", padding: "14px 24px", borderRadius: 12,
+                        border: "1px solid " + th.glassBorder, background: th.glass,
+                        color: th.text, fontSize: 13, fontWeight: 700,
+                        cursor: "pointer", fontFamily: FONT, letterSpacing: "0.04em",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                        backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+                        transition: "all 0.3s ease",
+                      }}>
+                        {"\u2709"} Sign in with Email
+                      </button>
+                    ) : (
+                      <div className="pva-fade-in" style={{
+                        padding: "20px", borderRadius: 16, marginTop: 4,
+                        background: th.glass, border: "1px solid " + th.glassBorder,
+                        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+                      }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: th.dim, letterSpacing: "0.12em", marginBottom: 14, textAlign: "center" }}>
+                          {authMode === "signin" ? "SIGN IN" : "CREATE ACCOUNT"}
+                        </div>
+                        <input value={authEmail} onChange={function(e) { setAuthEmail(e.target.value); setAuthError(""); }}
+                          placeholder="Email address" type="email"
+                          style={{
+                            width: "100%", padding: "12px 16px", borderRadius: 10, marginBottom: 10,
+                            border: "1px solid " + th.glassBorder, background: th.surface,
+                            color: th.text, fontSize: 13, fontWeight: 500, fontFamily: FONT,
+                            outline: "none", boxSizing: "border-box",
+                          }} />
+                        <input value={authPassword} onChange={function(e) { setAuthPassword(e.target.value); setAuthError(""); }}
+                          placeholder="Password" type="password"
+                          onKeyDown={function(e) {
+                            if (e.key === "Enter" && authEmail && authPassword) {
+                              setAuthLoading(true); setAuthError("");
+                              onEmailAuth(authEmail, authPassword, authMode === "signup").then(function(res) {
+                                setAuthLoading(false);
+                                if (res.error) setAuthError(res.error);
+                              });
+                            }
+                          }}
+                          style={{
+                            width: "100%", padding: "12px 16px", borderRadius: 10, marginBottom: 12,
+                            border: "1px solid " + th.glassBorder, background: th.surface,
+                            color: th.text, fontSize: 13, fontWeight: 500, fontFamily: FONT,
+                            outline: "none", boxSizing: "border-box",
+                          }} />
+                        {authError && (
+                          <div style={{ fontSize: 10, color: th.red || "#EF4444", marginBottom: 10, textAlign: "center", fontFamily: FONT }}>{authError}</div>
+                        )}
+                        <button disabled={!authEmail || !authPassword || authLoading}
+                          onClick={function() {
+                            setAuthLoading(true); setAuthError("");
+                            onEmailAuth(authEmail, authPassword, authMode === "signup").then(function(res) {
+                              setAuthLoading(false);
+                              if (res.error) setAuthError(res.error);
+                            });
+                          }}
+                          style={{
+                            width: "100%", padding: "13px", borderRadius: 10,
+                            border: "none",
+                            background: (authEmail && authPassword && !authLoading) ? "linear-gradient(135deg, " + (th.blue || "#3B82F6") + ", #6366F1)" : th.ghost,
+                            color: (authEmail && authPassword && !authLoading) ? "#fff" : th.dim,
+                            fontSize: 13, fontWeight: 700, cursor: (authEmail && authPassword && !authLoading) ? "pointer" : "default",
+                            fontFamily: FONT, letterSpacing: "0.04em",
+                            transition: "all 0.3s ease",
+                          }}>
+                          {authLoading ? "..." : authMode === "signin" ? "SIGN IN" : "CREATE ACCOUNT"}
+                        </button>
+                        <div style={{ marginTop: 12, textAlign: "center" }}>
+                          <span style={{ fontSize: 10, color: th.dim, fontFamily: FONT }}>
+                            {authMode === "signin" ? "No account? " : "Already have an account? "}
+                          </span>
+                          <span onClick={function() { setAuthMode(authMode === "signin" ? "signup" : "signin"); setAuthError(""); }}
+                            style={{ fontSize: 10, color: th.blue, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+                            {authMode === "signin" ? "Sign up" : "Sign in"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={{ fontSize: 9, color: th.dim, marginTop: 12, fontFamily: FONT }}>Sign in to sync progress across devices</div>
+              </div>
+            )}
+            {firebaseUser && (
+              <div style={{ marginTop: 8, fontSize: 10, color: "#22C55E", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <span>{"\u2713"}</span> Signed in as {firebaseUser.displayName || firebaseUser.email}
+              </div>
+            )}
           </>
         )}
 
@@ -3107,6 +3563,83 @@ function SettingsView({ profile, onSave, onBack, th, firebaseUser, cloudStatus, 
         }}>SAVE</button>
       </div>
 
+      {/* Sabbath Day */}
+      <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 6 }}>{"\uD83D\uDD4A"} SABBATH DAY</div>
+        <div style={{ fontSize: 11, color: th.mid, lineHeight: 1.6, marginBottom: 12 }}>
+          Choose your day of rest. On this day the app shifts to rest mode {"\u2014"} no task pressure, no XP decay, and your temple is protected.
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => {
+            const isSelected = (profile?.sabbathDay ?? -1) === i;
+            return (
+              <button key={d} onClick={() => {
+                const newVal = isSelected ? -1 : i;
+                const updated = { ...profile, sabbathDay: newVal };
+                onSave(updated);
+              }} style={{
+                padding: "8px 12px", borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                border: `1.5px solid ${isSelected ? "#8B5CF6" : th.ghost}`,
+                background: isSelected ? "rgba(139,92,246,0.12)" : th.glass,
+                color: isSelected ? "#8B5CF6" : th.dim,
+                transition: "all 0.2s ease",
+              }}>{d}</button>
+            );
+          })}
+        </div>
+        {(profile?.sabbathDay ?? -1) >= 0 && (
+          <div style={{ fontSize: 10, color: "#8B5CF6", marginTop: 10, fontStyle: "italic" }}>
+            {"\u201C"}Remember the Sabbath day, to keep it holy.{"\u201D"} {"\u2014"} Exodus 20:8
+          </div>
+        )}
+      </div>
+
+      {/* Anchor Habit */}
+      <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 6 }}>{"\u2693"} ANCHOR HABIT</div>
+        <div style={{ fontSize: 11, color: th.mid, lineHeight: 1.6, marginBottom: 12 }}>
+          Pick your one non-negotiable daily habit. Even on your hardest days, completing this one thing protects your temple from decay.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {(() => {
+            const allTasks = [];
+            var taskSource = DEFAULT_TASKS;
+            ["person", "people", "process", "product"].forEach(function(k) {
+              (taskSource[k]?.sections || []).forEach(function(s) {
+                s.tasks.forEach(function(t) {
+                  if (t.type === "check") allTasks.push(t);
+                });
+              });
+            });
+            const currentAnchor = profile?.anchorHabit || null;
+            return allTasks.slice(0, 12).map(function(t) {
+              const isSelected = currentAnchor === t.id;
+              return (
+                <button key={t.id} onClick={function() {
+                  var updated = Object.assign({}, profile, { anchorHabit: isSelected ? null : t.id });
+                  onSave(updated);
+                }} style={{
+                  padding: "10px 14px", borderRadius: 10, fontSize: 11, fontWeight: isSelected ? 700 : 400, cursor: "pointer", fontFamily: FONT,
+                  border: "1.5px solid " + (isSelected ? "#F59E0B" : th.ghost),
+                  background: isSelected ? "rgba(245,158,11,0.1)" : th.glass,
+                  color: isSelected ? "#F59E0B" : th.mid,
+                  textAlign: "left", transition: "all 0.2s ease",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  {isSelected && <span>{"\u2693"}</span>}
+                  {t.label}
+                </button>
+              );
+            });
+          })()}
+        </div>
+        {profile?.anchorHabit && (
+          <div style={{ fontSize: 10, color: "#F59E0B", marginTop: 10, fontStyle: "italic" }}>
+            {"\u201C"}Let us run with endurance the race set before us.{"\u201D"} {"\u2014"} Hebrews 12:1
+          </div>
+        )}
+      </div>
+
       <div style={{ ...glassStyle(th), padding: "20px" }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 10 }}>ABOUT</div>
         <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6 }}>
@@ -3209,31 +3742,41 @@ function ReadinessCard({ state, dayPct, th, level, levelIdx }) {
   const color = getDailyColor(score, th);
   const lvl = level || LEVELS[0];
   return (
-    <div style={{ ...glassStyleElevated(th), padding: "20px 20px", marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{
-          width: 42, height: 50, flexShrink: 0, overflow: "hidden",
+    <div className="pva-shimmer-overlay" style={{ ...glassStyleElevated(th), padding: "22px 22px", marginBottom: 16, position: "relative", overflow: "hidden" }}>
+      {/* Subtle accent glow behind the card */}
+      <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: `${color}10`, filter: "blur(30px)", pointerEvents: "none" }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 14, position: "relative" }}>
+        <div className="pva-float" style={{
+          width: 46, height: 52, flexShrink: 0, overflow: "hidden",
           display: "flex", alignItems: "center", justifyContent: "center",
-          transform: "scale(0.68)", transformOrigin: "center center",
+          transform: "scale(0.70)", transformOrigin: "center center",
         }}><HumanAvatar pct={dayPct} th={th} levelIdx={levelIdx || 0} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em" }}>DAILY STATE</span>
-              <span style={{ fontSize: 9, color: th.dim, fontFamily: FONT }}>{lvl.name}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", fontFamily: FONT }}>DAILY STATE</span>
+              <span style={{ fontSize: 9, color: color, fontWeight: 600, fontFamily: FONT, padding: "2px 8px", borderRadius: 6, background: `${color}12`, border: `1px solid ${color}20` }}>{lvl.name}</span>
             </div>
-            <span style={{ fontSize: 16, fontWeight: 800, color, fontFamily: FONT }}>{score}<span style={{ fontSize: 10, fontWeight: 600, color: th.dim }}>/100</span></span>
+            <span className="pva-number-pop" style={{ fontSize: 18, fontWeight: 800, color, fontFamily: FONT, letterSpacing: "-0.02em" }}>{score}<span style={{ fontSize: 10, fontWeight: 500, color: th.dim }}>/100</span></span>
           </div>
-          <div style={{ width: "100%", height: 7, borderRadius: 4, background: th.ghost, overflow: "hidden" }}>
+          <div style={{ width: "100%", height: 8, borderRadius: 8, background: th.ghost, overflow: "hidden", position: "relative" }}>
             <div className="pva-bar-shimmer" style={{
-              height: "100%", borderRadius: 4, width: `${score}%`,
-              background: `linear-gradient(90deg, ${color}, ${color}CC, ${color})`,
+              height: "100%", borderRadius: 8, width: `${score}%`,
+              background: `linear-gradient(90deg, ${color}BB, ${color}, ${color}EE)`,
               backgroundSize: "200% 100%",
-              boxShadow: `0 0 12px ${color}40`,
-              transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
+              boxShadow: `0 0 14px ${color}30, 0 1px 3px ${color}20`,
+              transition: "width 1.2s cubic-bezier(0.16,1,0.3,1)",
             }} />
+            {score > 5 && <div style={{
+              position: "absolute", top: 0, left: 0, width: `${score}%`, height: "50%", borderRadius: 8,
+              background: "linear-gradient(180deg, rgba(255,255,255,0.25), transparent)",
+              transition: "width 1.2s cubic-bezier(0.16,1,0.3,1)", pointerEvents: "none",
+            }} />}
           </div>
-          <div style={{ fontSize: 9, color: th.dim, fontFamily: FONT, marginTop: 5 }}>{state.totalXp || 0} XP</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+            <span style={{ fontSize: 9, color: th.dim, fontFamily: FONT }}>{state.totalXp || 0} Temple XP</span>
+            <span style={{ fontSize: 8, color: th.dim, fontStyle: "italic", fontFamily: FONT }}>{msg}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -4150,52 +4693,154 @@ function RewardsShopView({ state, th, onBack }) {
   );
 }
 
-// ─── STREAK FREEZE CARD ───
-const STREAK_FREEZE_COST = 50; // XP cost
-function StreakFreezeCard({ state, setState, th }) {
-  const isFrozen = state.streakFrozen;
-  // Check if freeze was used this week (ISO week)
+// ─── GRACE DAY CARD ───
+const GRACE_SCRIPTURES = [
+  "Even God rested on the seventh day. \u2014 Genesis 2:2",
+  "Come to me, all who are weary, and I will give you rest. \u2014 Matthew 11:28",
+  "His mercies are new every morning. \u2014 Lamentations 3:23",
+  "Be still, and know that I am God. \u2014 Psalm 46:10",
+  "The Lord is my shepherd; I shall not want. He makes me lie down. \u2014 Psalm 23:1\u20132",
+];
+function GraceDayCard({ state, setState, th }) {
+  const isActive = state.graceDayActive;
   const getWeek = (d) => { const date = new Date(d); const day = date.getDay() || 7; date.setDate(date.getDate() + 4 - day); const yearStart = new Date(date.getFullYear(), 0, 1); return Math.ceil((((date - yearStart) / 86400000) + 1) / 7); };
   const currentWeek = `${new Date().getFullYear()}-W${getWeek(TODAY)}`;
-  const usedThisWeek = state.streakFreezeUsedWeek === currentWeek;
-  const canAfford = state.totalXp >= STREAK_FREEZE_COST;
-  const canFreeze = !isFrozen && !usedThisWeek && canAfford;
+  const usedThisWeek = state.graceDayUsedWeek === currentWeek;
+  const canActivate = !isActive && !usedThisWeek;
+  const seed = TODAY.split("-").join("").split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  const graceVerse = GRACE_SCRIPTURES[seed % GRACE_SCRIPTURES.length];
 
-  const activateFreeze = () => {
-    if (!canFreeze) return;
-    setState(p => ({
-      ...p,
-      streakFrozen: true,
-      streakFreezeUsedWeek: currentWeek,
-      totalXp: p.totalXp - STREAK_FREEZE_COST,
-    }));
+  const activate = () => {
+    if (!canActivate) return;
+    setState(p => ({ ...p, graceDayActive: true, graceDayUsedWeek: currentWeek }));
   };
 
   return (
-    <div style={{ ...glassStyle(th), padding: "14px 18px", marginBottom: 14 }}>
+    <div style={{
+      ...glassStyle(th), padding: "16px 18px", marginBottom: 14,
+      background: isActive ? "rgba(139,92,246,0.06)" : th.glass,
+      border: `1px solid ${isActive ? "#8B5CF640" : th.glassBorder}`,
+    }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18 }}>{isFrozen ? "\uD83D\uDEE1\uFE0F" : "\u2744\uFE0F"}</span>
+          <span style={{ fontSize: 18 }}>{isActive ? "\uD83D\uDE4F" : "\uD83D\uDD4A"}</span>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em" }}>STREAK SHIELD</div>
-            <div style={{ fontSize: 11, fontWeight: 400, color: isFrozen ? "#22C55E" : th.mid, marginTop: 2 }}>
-              {isFrozen ? "Active \u2014 your streak is protected today" : usedThisWeek ? "Used this week \u2014 resets next week" : `${STREAK_FREEZE_COST} XP to protect your streak`}
+            <div style={{ fontSize: 9, fontWeight: 700, color: isActive ? "#8B5CF6" : th.dim, letterSpacing: "0.14em" }}>GRACE DAY</div>
+            <div style={{ fontSize: 11, fontWeight: 400, color: isActive ? "#8B5CF6" : th.mid, marginTop: 2 }}>
+              {isActive ? "Active \u2014 rest without guilt, your temple is safe"
+                : usedThisWeek ? "Used this week \u2014 resets next week"
+                : "1 per week \u2014 protects your streak and temple"}
             </div>
           </div>
         </div>
-        {!isFrozen && !usedThisWeek && (
-          <button onClick={activateFreeze} disabled={!canAfford} style={{
-            padding: "6px 14px", borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: canAfford ? "pointer" : "default", fontFamily: FONT,
-            border: `1px solid ${canAfford ? th.blue + "40" : th.ghost}`,
-            background: canAfford ? th.blueDim : th.glass,
-            color: canAfford ? th.blue : th.ghost,
+        {canActivate && (
+          <button onClick={activate} style={{
+            padding: "6px 14px", borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+            border: "1px solid #8B5CF640", background: "rgba(139,92,246,0.08)", color: "#8B5CF6",
             transition: "all 0.2s ease",
-          }}>FREEZE</button>
+          }}>REST</button>
         )}
-        {isFrozen && <span style={{ fontSize: 10, fontWeight: 700, color: "#22C55E", padding: "4px 10px", borderRadius: 8, background: "rgba(34,197,94,0.12)" }}>{"\u2713"} ACTIVE</span>}
+        {isActive && <span style={{ fontSize: 10, fontWeight: 700, color: "#8B5CF6", padding: "4px 10px", borderRadius: 8, background: "rgba(139,92,246,0.12)" }}>{"\u2713"} RESTING</span>}
       </div>
+      {isActive && (
+        <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 10, background: "rgba(139,92,246,0.05)", borderLeft: "2px solid #8B5CF640" }}>
+          <div style={{ fontSize: 11, color: "#8B5CF6", fontStyle: "italic", lineHeight: 1.6, opacity: 0.85 }}>
+            {"\u201C"}{graceVerse}{"\u201D"}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+// ─── SOUL CHECK-IN ───
+const SOUL_MOODS = [
+  { id: "peaceful", label: "Peaceful", emoji: "\uD83D\uDE0C", color: "#22C55E" },
+  { id: "grateful", label: "Grateful", emoji: "\uD83D\uDE4F", color: "#F59E0B" },
+  { id: "joyful", label: "Joyful", emoji: "\uD83D\uDE04", color: "#8B5CF6" },
+  { id: "restless", label: "Restless", emoji: "\uD83D\uDE1F", color: "#3B82F6" },
+  { id: "burdened", label: "Burdened", emoji: "\uD83D\uDE14", color: "#EF4444" },
+];
+function SoulCheckInCard({ state, setState, th, time }) {
+  const key = time === "morning" ? "morningMood" : "eveningMood";
+  const current = state[key];
+  const setMood = (moodId) => {
+    setState(p => {
+      const newCheckIns = [...(p.soulCheckIns || [])];
+      // Record for correlation analysis
+      const existing = newCheckIns.find(c => c.date === TODAY && c.time === time);
+      if (existing) { existing.mood = moodId; existing.pct = p.xp; }
+      else newCheckIns.push({ date: TODAY, time, mood: moodId, pct: 0 });
+      // Keep last 60 entries
+      while (newCheckIns.length > 60) newCheckIns.shift();
+      // Also store in today's history
+      const hist = [...(p.history || [])];
+      if (hist.length > 0) {
+        if (!hist[hist.length - 1].moods) hist[hist.length - 1].moods = {};
+        hist[hist.length - 1].moods[time] = moodId;
+      }
+      return { ...p, [key]: moodId, soulCheckIns: newCheckIns, history: hist };
+    });
+  };
+
+  return (
+    <div style={{ ...glassStyle(th), padding: "16px 18px", marginBottom: 14 }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em", marginBottom: 10 }}>
+        {time === "morning" ? "\u2600 MORNING" : "\uD83C\uDF19 EVENING"} SOUL CHECK-IN
+      </div>
+      <div style={{ fontSize: 11, color: th.mid, marginBottom: 10 }}>How is your soul {time === "morning" ? "this morning" : "this evening"}?</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {SOUL_MOODS.map(m => (
+          <button key={m.id} onClick={() => setMood(m.id)} style={{
+            padding: "8px 12px", borderRadius: 12, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+            border: `1.5px solid ${current === m.id ? m.color : th.ghost}`,
+            background: current === m.id ? m.color + "15" : th.glass,
+            color: current === m.id ? m.color : th.dim,
+            transition: "all 0.2s ease",
+            display: "flex", alignItems: "center", gap: 4,
+          }}>
+            <span style={{ fontSize: 14 }}>{m.emoji}</span> {m.label}
+          </button>
+        ))}
+      </div>
+      {current && (
+        <div style={{ fontSize: 10, color: SOUL_MOODS.find(m => m.id === current)?.color || th.dim, marginTop: 8, fontStyle: "italic" }}>
+          {current === "peaceful" ? "The peace of God guards your heart and mind."
+            : current === "grateful" ? "Give thanks in all circumstances."
+            : current === "joyful" ? "The joy of the Lord is your strength."
+            : current === "restless" ? "Cast your anxieties on Him, for He cares for you."
+            : "Come to me, all who are weary and burdened."}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SOUL INSIGHT (correlation analysis) ───
+function getSoulInsight(soulCheckIns, history) {
+  if (!soulCheckIns || soulCheckIns.length < 14) return null; // Need at least 2 weeks of data
+  // Correlate morning moods with completion percentage
+  const moodDays = {};
+  SOUL_MOODS.forEach(m => { moodDays[m.id] = { count: 0, totalPct: 0 }; });
+  (history || []).forEach(day => {
+    const morningMood = day?.moods?.morning;
+    if (morningMood && moodDays[morningMood]) {
+      moodDays[morningMood].count++;
+      moodDays[morningMood].totalPct += day.pct || 0;
+    }
+  });
+  // Find the mood with highest avg completion
+  var bestMood = null, bestAvg = 0;
+  Object.keys(moodDays).forEach(id => {
+    const d = moodDays[id];
+    if (d.count >= 3) {
+      const avg = d.totalPct / d.count;
+      if (avg > bestAvg) { bestAvg = avg; bestMood = id; }
+    }
+  });
+  if (!bestMood) return null;
+  const m = SOUL_MOODS.find(s => s.id === bestMood);
+  return { mood: m, avgPct: Math.round(bestAvg), count: moodDays[bestMood].count };
 }
 
 // ─── EVENING REFLECTION MODAL ───
@@ -4255,14 +4900,19 @@ function EveningReflectionModal({ state, setState, th, dayPct, onClose }) {
         {(() => {
           const pct = dayPct || 0;
           const xp = state.totalXp || 0;
-          const isProtected = pct >= 50;
+          const prof = (function() { try { return JSON.parse(localStorage.getItem("pva_profile") || "null"); } catch { return null; } })();
+          const anchorDone = prof?.anchorHabit ? !!state.completed[prof.anchorHabit] : false;
+          const hasGrace = state.graceDayActive || state.isSabbath || anchorDone;
+          const isProtected = pct >= 50 || hasGrace;
           const decayRate = isProtected ? 0 : 0.05 * (1 - pct / 50);
           const decay = isProtected ? 0 : Math.round(xp * decayRate);
           const templeColor = isProtected ? "#22C55E" : decay > 0 ? "#EF4444" : th.dim;
-          const templeMsg = isProtected
+          const templeMsg = hasGrace
+            ? "Grace covers your temple today. Rest well."
+            : isProtected
             ? (pct >= 80 ? "Your temple is thriving!" : "Your temple is safe today.")
             : decay > 0 ? `Your temple will lose ${decay} XP overnight.` : "Keep going to protect your temple.";
-          const templeIcon = isProtected ? "\uD83C\uDFDB" : "\u26A0";
+          const templeIcon = hasGrace ? "\uD83D\uDE4F" : isProtected ? "\uD83C\uDFDB" : "\u26A0";
           return (
             <div style={{ margin: "0 24px 14px", padding: "12px 14px", borderRadius: 12, background: `${templeColor}0A`, border: `1px solid ${templeColor}20` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -4305,6 +4955,73 @@ function EveningReflectionModal({ state, setState, th, dayPct, onClose }) {
           }}>{saved ? "\u2713 SAVED" : "SAVE REFLECTION"}</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── HABIT STACKING SUGGESTIONS ───
+const STACK_TEMPLATES = [
+  { trigger: "morning prayer", weak: "exercise", suggestion: "After prayer, immediately put on your trainers and move for 10 minutes." },
+  { trigger: "morning prayer", weak: "bible reading", suggestion: "After prayer, open your Bible while the Spirit is stirring." },
+  { trigger: "exercise", weak: "healthy eating", suggestion: "After your workout, prepare a healthy meal while your body craves nourishment." },
+  { trigger: "bible reading", weak: "journaling", suggestion: "After reading Scripture, write one thing God showed you." },
+  { trigger: "morning devotion", weak: "planning", suggestion: "After devotion, plan your day while your mind is clear and surrendered." },
+];
+function getHabitStackSuggestion(state, tasks) {
+  const hist = (state.history || []).slice(-14);
+  if (hist.length < 7) return null; // Need at least a week of data
+  // Track completion rates per task
+  const taskRates = {};
+  const allTasks = [];
+  ["person", "people", "process", "product"].forEach(k => {
+    (tasks[k]?.sections || []).forEach(s => {
+      s.tasks.forEach(t => {
+        if (t.type === "check") allTasks.push(t);
+      });
+    });
+  });
+  allTasks.forEach(t => {
+    var completed = 0;
+    hist.forEach(day => {
+      // We can only estimate from the stored history
+      // For now we use overall pct as a proxy
+    });
+    taskRates[t.id] = { label: t.label, id: t.id };
+  });
+
+  // Use current state completion to identify strong vs weak habits
+  const completed = state.completed || {};
+  const strong = allTasks.filter(t => completed[t.id]);
+  const weak = allTasks.filter(t => !completed[t.id]);
+
+  if (strong.length === 0 || weak.length === 0) return null;
+
+  // Pick a strong habit and a weak one for stacking
+  const strongHabit = strong[0];
+  const weakHabit = weak[Math.floor(Math.random() * Math.min(3, weak.length))]; // Pick from first few uncompleted
+
+  return {
+    strong: strongHabit.label,
+    weak: weakHabit.label,
+    message: `You\u2019ve completed "${strongHabit.label}" \u2014 try doing "${weakHabit.label}" right after to build momentum.`,
+  };
+}
+
+function HabitStackCard({ state, tasks, th }) {
+  const suggestion = useMemo(function() { return getHabitStackSuggestion(state, tasks); }, [
+    Object.keys(state.completed || {}).length,
+  ]);
+
+  if (!suggestion) return null;
+
+  return (
+    <div style={{ ...glassStyle(th), padding: "14px 18px", marginBottom: 14, border: `1px solid ${th.gold}20`, background: `${th.gold}06` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 14 }}>{"\uD83E\uDDF1"}</span>
+        <div style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.12em" }}>HABIT STACK</div>
+      </div>
+      <div style={{ fontSize: 11, color: th.mid, lineHeight: 1.7 }}>{suggestion.message}</div>
+      <div style={{ fontSize: 9, color: th.dim, marginTop: 6, fontStyle: "italic" }}>Build on the foundation God has already established in your routine.</div>
     </div>
   );
 }
@@ -5061,8 +5778,225 @@ function RoutineOnboardingView({ th, onComplete, existingRoutine }) {
   );
 }
 
+// ─── GUIDED ROUTINE TIMER ───
+function buildRoutineSteps(routine) {
+  if (!routine || !routine.answers) return [];
+  const a = routine.answers;
+  const steps = [];
+  // Morning
+  if (a.wake_time) steps.push({ id: "wake", label: "Wake Up", emoji: "\uD83C\uDF05", duration: 5, category: "morning", time: a.wake_time });
+  if (a.morning_devotion && a.morning_devotion !== "Not yet") {
+    const mins = a.devotion_length ? parseInt(a.devotion_length) || 30 : 15;
+    steps.push({ id: "devotion", label: "Morning Devotion", emoji: "\uD83D\uDCD6", duration: mins, category: "morning" });
+  }
+  if (a.morning_exercise && a.morning_exercise !== "No, but I want to") {
+    const exLabel = a.exercise_type ? a.exercise_type : "Exercise";
+    steps.push({ id: "exercise", label: exLabel, emoji: "\uD83D\uDCAA", duration: 30, category: "morning" });
+  }
+  if (a.breakfast_time && a.breakfast_time !== "I skip breakfast") {
+    steps.push({ id: "breakfast", label: "Breakfast", emoji: "\uD83C\uDF73", duration: 20, category: "morning" });
+  }
+  // Work
+  if (a.work_start) {
+    const focusMins = a.focus_duration ? (parseInt(a.focus_duration) || 45) : 45;
+    steps.push({ id: "work_focus", label: "Deep Focus Block", emoji: "\uD83C\uDFAF", duration: focusMins, category: "work", time: a.work_start });
+  }
+  // Afternoon
+  if (a.lunch_time) steps.push({ id: "lunch", label: "Lunch", emoji: "\uD83E\uDD57", duration: 30, category: "afternoon", time: a.lunch_time });
+  if (a.afternoon_break && a.afternoon_break !== "Rarely") {
+    const breakLabel = a.break_activity || "Break";
+    steps.push({ id: "break", label: breakLabel, emoji: "\u2615", duration: 15, category: "afternoon" });
+  }
+  // Evening
+  if (a.dinner_time) steps.push({ id: "dinner", label: "Dinner", emoji: "\uD83C\uDF7D", duration: 30, category: "evening", time: a.dinner_time });
+  if (a.wind_down) steps.push({ id: "wind_down", label: a.wind_down, emoji: "\uD83C\uDF19", duration: 20, category: "evening" });
+  // Spiritual
+  if (a.prayer_times) steps.push({ id: "prayer", label: "Prayer Time", emoji: "\uD83D\uDE4F", duration: 15, category: "spiritual" });
+  if (a.bible_reading) steps.push({ id: "bible", label: "Bible Reading", emoji: "\uD83D\uDCDC", duration: 20, category: "spiritual" });
+  if (a.bed_time) steps.push({ id: "bedtime", label: "Bedtime", emoji: "\uD83D\uDE34", duration: 5, category: "evening", time: a.bed_time });
+  return steps;
+}
+
+function GuidedRoutineTimer({ th, onClose, onComplete }) {
+  const routine = loadRoutine();
+  const steps = useMemo(function() { return buildRoutineSteps(routine); }, []);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(steps.length > 0 ? steps[0].duration * 60 : 0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [completedSteps, setCompletedSteps] = useState([]);
+  const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(function() {
+    if (!isRunning || isPaused || timeLeft <= 0) return;
+    const interval = setInterval(function() {
+      setTimeLeft(function(t) {
+        if (t <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return function() { clearInterval(interval); };
+  }, [isRunning, isPaused, timeLeft]);
+
+  // Auto-advance when timer hits 0
+  useEffect(function() {
+    if (isRunning && timeLeft === 0 && currentStep < steps.length) {
+      playTick();
+      setCompletedSteps(function(prev) { return prev.concat([currentStep]); });
+      if (currentStep < steps.length - 1) {
+        setTimeout(function() {
+          setCurrentStep(function(s) { return s + 1; });
+          setTimeLeft(steps[currentStep + 1].duration * 60);
+        }, 1500);
+      } else {
+        // All done
+        setTimeout(function() {
+          playCelebrate();
+          if (onComplete) onComplete();
+        }, 1000);
+      }
+    }
+  }, [timeLeft, isRunning, currentStep]);
+
+  const skipStep = function() {
+    setCompletedSteps(function(prev) { return prev.concat([currentStep]); });
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+      setTimeLeft(steps[currentStep + 1].duration * 60);
+    } else {
+      if (onComplete) onComplete();
+    }
+  };
+
+  const formatTime = function(secs) {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+  };
+
+  if (steps.length === 0) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)" }}>
+        <div style={{ maxWidth: 340, width: "90%", padding: "30px 24px", borderRadius: 22, background: th === dark ? "#111827" : "#fff", border: "1px solid " + th.glassBorder, textAlign: "center" }}>
+          <div style={{ fontSize: 30, marginBottom: 12 }}>{"\uD83D\uDE4F"}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 8 }}>No routine set up yet</div>
+          <div style={{ fontSize: 12, color: th.mid, marginBottom: 16 }}>Set up your daily routine first in My Routine.</div>
+          <button onClick={onClose} style={{ padding: "10px 24px", borderRadius: 10, border: "1px solid " + th.glassBorder, background: th.glass, color: th.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>CLOSE</button>
+        </div>
+      </div>
+    );
+  }
+
+  const step = steps[currentStep];
+  const cat = ROUTINE_CATEGORIES[step.category] || {};
+  const progress = steps.length > 0 ? ((completedSteps.length) / steps.length) * 100 : 0;
+  const pctOfStep = step.duration > 0 ? ((step.duration * 60 - timeLeft) / (step.duration * 60)) * 100 : 0;
+  const allDone = completedSteps.length === steps.length;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9998, display: "flex", flexDirection: "column", background: th === dark ? "linear-gradient(170deg, #0A0E1A 0%, #111827 100%)" : "linear-gradient(170deg, #F8FAFC 0%, #E2E8F0 100%)" }}>
+      {/* Top bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px" }}>
+        <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 10, border: "1px solid " + th.glassBorder, background: th.glass, color: th.dim, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>EXIT</button>
+        <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.14em" }}>GUIDED ROUTINE</div>
+        <div style={{ fontSize: 10, color: th.dim, fontFamily: FONT }}>{completedSteps.length}/{steps.length}</div>
+      </div>
+
+      {/* Overall progress */}
+      <div style={{ padding: "0 20px", marginBottom: 20 }}>
+        <div style={{ height: 4, borderRadius: 2, background: th.ghost, overflow: "hidden" }}>
+          <div style={{ height: "100%", borderRadius: 2, width: progress + "%", background: "linear-gradient(90deg, #22C55E, #3B82F6)", transition: "width 0.6s ease" }} />
+        </div>
+      </div>
+
+      {/* Step list (scrollable) */}
+      <div style={{ padding: "0 20px", marginBottom: 16, maxHeight: 100, overflowY: "auto" }}>
+        {steps.map(function(s, i) {
+          const done = completedSteps.indexOf(i) >= 0;
+          const active = i === currentStep;
+          return (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", opacity: done ? 0.4 : active ? 1 : 0.6 }}>
+              <span style={{ fontSize: 10, width: 14, textAlign: "center" }}>{done ? "\u2713" : active ? "\u25B6" : "\u25CB"}</span>
+              <span style={{ fontSize: 10, color: active ? cat.color : th.dim, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{s.emoji} {s.label}</span>
+              <span style={{ fontSize: 9, color: th.ghost, marginLeft: "auto", fontFamily: FONT }}>{s.duration}m</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Current step — main focus */}
+      {!allDone && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 30px" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>{step.emoji}</div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: cat.color, letterSpacing: "0.16em", marginBottom: 6 }}>{cat.label}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: th.text, marginBottom: 4, textAlign: "center" }}>{step.label}</div>
+          {step.time && <div style={{ fontSize: 11, color: th.dim, marginBottom: 16 }}>Scheduled: {step.time}</div>}
+
+          {/* Timer circle */}
+          <div style={{ position: "relative", width: 160, height: 160, marginBottom: 20 }}>
+            <svg viewBox="0 0 160 160" width="160" height="160">
+              <circle cx="80" cy="80" r="70" fill="none" stroke={th.ghost} strokeWidth="4" />
+              <circle cx="80" cy="80" r="70" fill="none" stroke={cat.color} strokeWidth="4"
+                strokeDasharray={2 * Math.PI * 70}
+                strokeDashoffset={2 * Math.PI * 70 * (1 - pctOfStep / 100)}
+                strokeLinecap="round"
+                style={{ transition: "stroke-dashoffset 1s linear", transform: "rotate(-90deg)", transformOrigin: "center" }} />
+            </svg>
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontSize: 36, fontWeight: 800, color: th.text, fontFamily: FONT }}>{formatTime(timeLeft)}</div>
+              <div style={{ fontSize: 9, color: th.dim }}>{step.duration} min total</div>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div style={{ display: "flex", gap: 12 }}>
+            {!isRunning ? (
+              <button onClick={function() { setIsRunning(true); }} style={{
+                padding: "14px 40px", borderRadius: 14, border: "none",
+                background: cat.color, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                boxShadow: "0 4px 20px " + cat.color + "40",
+              }}>START</button>
+            ) : (
+              <React.Fragment>
+                <button onClick={function() { setIsPaused(!isPaused); }} style={{
+                  padding: "14px 24px", borderRadius: 14, border: "1px solid " + th.glassBorder,
+                  background: th.glass, color: th.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                }}>{isPaused ? "\u25B6 RESUME" : "\u23F8 PAUSE"}</button>
+                <button onClick={skipStep} style={{
+                  padding: "14px 24px", borderRadius: 14, border: "1px solid " + th.glassBorder,
+                  background: th.glass, color: th.dim, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                }}>SKIP \u203A</button>
+              </React.Fragment>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Completion screen */}
+      {allDone && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 30px", textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>{"\u2728"}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: th.text, marginBottom: 8 }}>Routine Complete!</div>
+          <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.7, marginBottom: 24 }}>
+            Well done, faithful steward. You{"\u2019"}ve walked through your routine with intention.
+          </div>
+          <div style={{ fontSize: 11, color: "#8B5CF6", fontStyle: "italic", marginBottom: 24 }}>
+            {"\u201C"}Whatever you do, work heartily, as for the Lord.{"\u201D"} {"\u2014"} Colossians 3:23
+          </div>
+          <button onClick={onClose} style={{
+            padding: "14px 40px", borderRadius: 14, border: "none",
+            background: "#22C55E", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+          }}>DONE</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MY ROUTINE VIEW (Edit/View) ───
-function MyRoutineView({ th, onBack }) {
+function MyRoutineView({ th, onBack, onRoutineChanged }) {
   const [routine, setRoutine] = useState(loadRoutine);
   const [editingId, setEditingId] = useState(null);
   const answers = (routine && routine.answers) || {};
@@ -5075,12 +6009,14 @@ function MyRoutineView({ th, onBack }) {
     saveRoutineData(newRoutine);
     setEditingId(null);
     playTick();
+    if (onRoutineChanged) onRoutineChanged(newRoutine);
   };
 
   const handleReset = function() {
     if (confirm("Reset your routine? You\u2019ll go through the setup again.")) {
       localStorage.removeItem(ROUTINE_STORAGE_KEY);
       setRoutine(null);
+      if (onRoutineChanged) onRoutineChanged(null);
     }
   };
 
@@ -5113,6 +6049,7 @@ function MyRoutineView({ th, onBack }) {
         setRoutine(newRoutine);
         setImportError(""); setShowImportBox(false); setImportText("");
         playTick();
+        if (onRoutineChanged) onRoutineChanged(newRoutine);
         return;
       }
     } catch (e) { /* not JSON */ }
@@ -5161,6 +6098,7 @@ function MyRoutineView({ th, onBack }) {
     setRoutine(newRoutine);
     setImportError(""); setShowImportBox(false); setImportText("");
     playTick();
+    if (onRoutineChanged) onRoutineChanged(newRoutine);
   };
 
   // Group questions by category
@@ -5336,8 +6274,16 @@ function PPPPApp() {
             // Use cloud data if local has no totalXp or cloud has more
             if (!localParsed || (cloudParsed.totalXp || 0) >= (localParsed.totalXp || 0)) {
               restoreLocalData(cloudData);
-              setState(loadState());
+              var restoredState = loadState();
+              // If routine exists but no customTasks, rebuild tasks from routine
+              if (!restoredState.customTasks) {
+                var restoredRoutine = loadRoutine();
+                var builtTasks = buildTasksFromRoutineAnswers(restoredRoutine);
+                if (builtTasks) restoredState.customTasks = builtTasks;
+              }
+              setState(restoredState);
               setProfile(loadProfile());
+              setHasRoutine(!!loadRoutine());
             } else {
               // Local is ahead — push to cloud
               await saveToCloud(user.uid, gatherLocalData());
@@ -5383,6 +6329,27 @@ function PPPPApp() {
     }
   };
 
+  const handleEmailAuth = async (email, password, isSignUp) => {
+    if (!firebaseAuth) return { error: "Auth not available" };
+    try {
+      if (isSignUp) {
+        await firebaseAuth.createUserWithEmailAndPassword(email, password);
+      } else {
+        await firebaseAuth.signInWithEmailAndPassword(email, password);
+      }
+      return { success: true };
+    } catch (e) {
+      var msg = e.code === "auth/user-not-found" ? "No account found. Try signing up." :
+        e.code === "auth/wrong-password" ? "Incorrect password." :
+        e.code === "auth/email-already-in-use" ? "Email already in use. Try signing in." :
+        e.code === "auth/weak-password" ? "Password must be at least 6 characters." :
+        e.code === "auth/invalid-email" ? "Invalid email address." :
+        e.code === "auth/too-many-requests" ? "Too many attempts. Try again later." :
+        "Sign-in failed. Please try again.";
+      return { error: msg };
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await firebaseAuth.signOut();
@@ -5407,6 +6374,15 @@ function PPPPApp() {
 
   // ─── ROUTINE ONBOARDING HANDLER ───
   const handleRoutineComplete = function(answers) {
+    // When routine is completed/updated, rebuild tasks from the new answers
+    var routine = loadRoutine();
+    var newTasks = buildTasksFromRoutineAnswers(routine);
+    if (newTasks) {
+      // Save routine-generated tasks as customTasks so they persist with the state
+      setState(function(p) {
+        return Object.assign({}, p, { customTasks: newTasks });
+      });
+    }
     setHasRoutine(true);
     setView("home");
   };
@@ -5416,6 +6392,7 @@ function PPPPApp() {
   const [showSummary, setShowSummary] = useState(false);
   const [showAccountability, setShowAccountability] = useState(false);
   const [showEveningReflection, setShowEveningReflection] = useState(false);
+  const [showRoutineTimer, setShowRoutineTimer] = useState(false);
   const [showWeeklyState, setShowWeeklyState] = useState(() => {
     try { const last = localStorage.getItem("pva_weekly_shown"); return last !== TODAY; } catch { return true; }
   });
@@ -5434,9 +6411,9 @@ function PPPPApp() {
     } catch { return false; }
   });
 
-  // If no profile, show onboarding
+  // If no profile, show onboarding (with sign-in)
   if (!profile) {
-    return <OnboardingScreen onComplete={(p) => setProfile(p)} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} />;
+    return <OnboardingScreen onComplete={(p) => setProfile(p)} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} onSignIn={handleSignIn} onEmailAuth={handleEmailAuth} firebaseUser={firebaseUser} />;
   }
 
   const userName = profile.name;
@@ -5446,10 +6423,13 @@ function PPPPApp() {
   const isDark = themeMode === "dark";
   const colors = catColors(th);
 
-  // Task management
-  const tasks = useMemo(() => {
-    return state.customTasks || DEFAULT_TASKS;
-  }, [state.customTasks]);
+  // Task management — use routine-generated tasks if available, else defaults
+  const tasks = useMemo(function() {
+    if (state.customTasks) return state.customTasks;
+    var routine = loadRoutine();
+    var routineTasks = buildTasksFromRoutineAnswers(routine);
+    return routineTasks || DEFAULT_TASKS;
+  }, [state.customTasks, hasRoutine]);
 
   const getEditableTasks = () => {
     return state.customTasks ? JSON.parse(JSON.stringify(state.customTasks)) : JSON.parse(JSON.stringify(DEFAULT_TASKS));
@@ -5594,8 +6574,12 @@ function PPPPApp() {
     <div style={{ minHeight: "100vh", fontFamily: FONT, color: th.text, background: th.grad, transition: "background 0.5s ease", position: "relative", overflow: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
+
         .pppp-tiles::-webkit-scrollbar { display: none; }
         .pppp-tiles { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Smooth global transitions */
+        * { -webkit-tap-highlight-color: transparent; }
 
         /* Aurora animated background — time-of-day adaptive */
         .pva-aurora {
@@ -5603,83 +6587,197 @@ function PPPPApp() {
           animation: auroraShift 25s ease-in-out infinite alternate, auroraDrift 40s ease-in-out infinite;
         }
         .pva-aurora-morning {
-          background: radial-gradient(ellipse 70% 50% at 25% 5%, rgba(251,191,36,0.10) 0%, transparent 55%),
-                      radial-gradient(ellipse 60% 45% at 75% 15%, rgba(249,115,22,0.08) 0%, transparent 55%),
-                      radial-gradient(ellipse 50% 60% at 50% 85%, rgba(59,130,246,0.05) 0%, transparent 55%);
+          background: radial-gradient(ellipse 70% 50% at 25% 5%, rgba(251,191,36,0.12) 0%, transparent 55%),
+                      radial-gradient(ellipse 60% 45% at 75% 15%, rgba(249,115,22,0.09) 0%, transparent 55%),
+                      radial-gradient(ellipse 50% 60% at 50% 85%, rgba(59,130,246,0.06) 0%, transparent 55%);
         }
         .pva-aurora-afternoon {
-          background: radial-gradient(ellipse 65% 45% at 30% 10%, rgba(59,130,246,0.09) 0%, transparent 55%),
-                      radial-gradient(ellipse 55% 50% at 70% 20%, rgba(34,197,94,0.07) 0%, transparent 55%),
-                      radial-gradient(ellipse 45% 55% at 45% 80%, rgba(245,158,11,0.05) 0%, transparent 55%);
+          background: radial-gradient(ellipse 65% 45% at 30% 10%, rgba(59,130,246,0.10) 0%, transparent 55%),
+                      radial-gradient(ellipse 55% 50% at 70% 20%, rgba(34,197,94,0.08) 0%, transparent 55%),
+                      radial-gradient(ellipse 45% 55% at 45% 80%, rgba(245,158,11,0.06) 0%, transparent 55%);
         }
         .pva-aurora-evening {
-          background: radial-gradient(ellipse 70% 50% at 20% 8%, rgba(124,58,237,0.10) 0%, transparent 55%),
-                      radial-gradient(ellipse 55% 45% at 80% 15%, rgba(59,130,246,0.08) 0%, transparent 55%),
-                      radial-gradient(ellipse 50% 60% at 50% 90%, rgba(99,102,241,0.06) 0%, transparent 55%);
+          background: radial-gradient(ellipse 70% 50% at 20% 8%, rgba(124,58,237,0.12) 0%, transparent 55%),
+                      radial-gradient(ellipse 55% 45% at 80% 15%, rgba(59,130,246,0.09) 0%, transparent 55%),
+                      radial-gradient(ellipse 50% 60% at 50% 90%, rgba(99,102,241,0.07) 0%, transparent 55%);
         }
         .pva-aurora-night {
-          background: radial-gradient(ellipse 65% 50% at 25% 10%, rgba(99,102,241,0.08) 0%, transparent 55%),
-                      radial-gradient(ellipse 50% 45% at 75% 20%, rgba(124,58,237,0.06) 0%, transparent 55%),
-                      radial-gradient(ellipse 55% 55% at 40% 85%, rgba(30,64,175,0.05) 0%, transparent 55%);
+          background: radial-gradient(ellipse 65% 50% at 25% 10%, rgba(99,102,241,0.10) 0%, transparent 55%),
+                      radial-gradient(ellipse 50% 45% at 75% 20%, rgba(124,58,237,0.08) 0%, transparent 55%),
+                      radial-gradient(ellipse 55% 55% at 40% 85%, rgba(30,64,175,0.06) 0%, transparent 55%);
         }
         @keyframes auroraShift {
           0% { opacity: 0.7; transform: scale(1) translateY(0); }
-          33% { opacity: 1; transform: scale(1.04) translateY(-8px); }
-          66% { opacity: 0.85; transform: scale(1.02) translateY(4px); }
+          25% { opacity: 0.95; transform: scale(1.03) translateY(-6px); }
+          50% { opacity: 1; transform: scale(1.05) translateY(-10px); }
+          75% { opacity: 0.85; transform: scale(1.02) translateY(4px); }
           100% { opacity: 0.75; transform: scale(0.98) translateY(6px); }
         }
         @keyframes auroraDrift {
-          0% { filter: hue-rotate(0deg); }
-          50% { filter: hue-rotate(8deg); }
-          100% { filter: hue-rotate(0deg); }
+          0% { filter: hue-rotate(0deg) brightness(1); }
+          25% { filter: hue-rotate(4deg) brightness(1.02); }
+          50% { filter: hue-rotate(8deg) brightness(1.04); }
+          75% { filter: hue-rotate(4deg) brightness(1.02); }
+          100% { filter: hue-rotate(0deg) brightness(1); }
         }
 
         /* Fade-in-up page transition */
         .pva-fade-in {
-          animation: pvaFadeInUp 0.35s cubic-bezier(0.16,1,0.3,1) both;
+          animation: pvaFadeInUp 0.45s cubic-bezier(0.16,1,0.3,1) both;
         }
         @keyframes pvaFadeInUp {
-          from { opacity: 0; transform: translateY(14px); }
+          from { opacity: 0; transform: translateY(18px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Staggered entry for child elements */
+        .pva-stagger > * {
+          opacity: 0;
+          animation: pvaStaggerIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        .pva-stagger > *:nth-child(1) { animation-delay: 0.03s; }
+        .pva-stagger > *:nth-child(2) { animation-delay: 0.07s; }
+        .pva-stagger > *:nth-child(3) { animation-delay: 0.11s; }
+        .pva-stagger > *:nth-child(4) { animation-delay: 0.15s; }
+        .pva-stagger > *:nth-child(5) { animation-delay: 0.19s; }
+        .pva-stagger > *:nth-child(6) { animation-delay: 0.23s; }
+        .pva-stagger > *:nth-child(7) { animation-delay: 0.27s; }
+        .pva-stagger > *:nth-child(8) { animation-delay: 0.31s; }
+        .pva-stagger > *:nth-child(9) { animation-delay: 0.35s; }
+        .pva-stagger > *:nth-child(10) { animation-delay: 0.39s; }
+        .pva-stagger > *:nth-child(n+11) { animation-delay: 0.43s; }
+        @keyframes pvaStaggerIn {
+          from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Button press feedback */
+        /* Button press feedback — springy */
         button:active, [role="button"]:active, .pva-pressable:active {
-          transform: scale(0.96) !important;
-          transition: transform 0.1s ease !important;
+          transform: scale(0.94) !important;
+          transition: transform 0.08s cubic-bezier(0.25,0.1,0.25,1) !important;
         }
 
         /* Pulse animation for streak */
         .pva-pulse {
-          animation: pvaPulse 2s ease-in-out infinite;
+          animation: pvaPulse 2.5s ease-in-out infinite;
         }
         @keyframes pvaPulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.08); }
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.06); opacity: 0.9; }
         }
 
-        /* Shimmer on progress bars */
+        /* Glow pulse for important indicators */
+        .pva-glow-pulse {
+          animation: pvaGlowPulse 3s ease-in-out infinite;
+        }
+        @keyframes pvaGlowPulse {
+          0%, 100% { filter: drop-shadow(0 0 4px rgba(59,130,246,0.3)); }
+          50% { filter: drop-shadow(0 0 12px rgba(59,130,246,0.5)); }
+        }
+
+        /* Shimmer on progress bars — smoother */
         .pva-bar-shimmer {
-          animation: pvaShimmer 2.5s ease-in-out infinite;
+          animation: pvaShimmer 3s ease-in-out infinite;
         }
         @keyframes pvaShimmer {
           0% { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
 
-        /* Celebration particles */
-        .pva-particle {
-          position: fixed; pointer-events: none; z-index: 9999;
-          border-radius: 50%; animation: pvaParticle 1s ease-out forwards;
+        /* Shimmer overlay for premium feel */
+        .pva-shimmer-overlay {
+          position: relative; overflow: hidden;
         }
-        @keyframes pvaParticle {
-          0% { opacity: 1; transform: translate(0, 0) scale(1); }
-          100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
+        .pva-shimmer-overlay::after {
+          content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+          animation: pvaShimmerSlide 4s ease-in-out infinite;
+          pointer-events: none;
+        }
+        @keyframes pvaShimmerSlide {
+          0%, 100% { left: -100%; }
+          50% { left: 150%; }
         }
 
-        /* Card hover lift */
-        .pva-card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-        .pva-card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+        /* Celebration particles — improved */
+        .pva-particle {
+          position: fixed; pointer-events: none; z-index: 9999;
+          border-radius: 50%; animation: pvaParticle 1.2s cubic-bezier(0.16,1,0.3,1) forwards;
+        }
+        @keyframes pvaParticle {
+          0% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+          50% { opacity: 0.8; }
+          100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0) rotate(180deg); }
+        }
+
+        /* Checkmark bounce animation */
+        .pva-check-bounce {
+          animation: pvaCheckBounce 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+        @keyframes pvaCheckBounce {
+          0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+          50% { transform: scale(1.3) rotate(5deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        /* Ring fill animation for circular progress */
+        .pva-ring-animate {
+          transition: stroke-dashoffset 1.2s cubic-bezier(0.16,1,0.3,1);
+        }
+
+        /* Number count-up effect */
+        .pva-number-pop {
+          animation: pvaNumberPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+        @keyframes pvaNumberPop {
+          0% { transform: scale(0.8); opacity: 0.5; }
+          60% { transform: scale(1.15); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Card hover lift — enhanced */
+        .pva-card-hover {
+          transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s ease, border-color 0.3s ease;
+        }
+        .pva-card-hover:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+        }
+
+        /* Floating animation for decorative elements */
+        .pva-float {
+          animation: pvaFloat 6s ease-in-out infinite;
+        }
+        @keyframes pvaFloat {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-8px); }
+        }
+
+        /* Smooth reveal for expanding sections */
+        .pva-reveal {
+          animation: pvaReveal 0.4s cubic-bezier(0.16,1,0.3,1) both;
+          overflow: hidden;
+        }
+        @keyframes pvaReveal {
+          from { max-height: 0; opacity: 0; }
+          to { max-height: 800px; opacity: 1; }
+        }
+
+        /* Gradient text helper */
+        .pva-gradient-text {
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+
+        /* Subtle breathing for active states */
+        .pva-breathe {
+          animation: pvaBreathe 4s ease-in-out infinite;
+        }
+        @keyframes pvaBreathe {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
       `}</style>
 
       {/* Aurora gradient overlay — time-of-day adaptive */}
@@ -5707,6 +6805,7 @@ function PPPPApp() {
 
       {/* Evening Reflection */}
       {showEveningReflection && <EveningReflectionModal state={state} setState={setState} th={th} dayPct={dayPct} onClose={() => setShowEveningReflection(false)} />}
+      {showRoutineTimer && <GuidedRoutineTimer th={th} onClose={() => setShowRoutineTimer(false)} onComplete={() => setShowRoutineTimer(false)} />}
 
       {/* Milestone Celebration */}
       {showMilestone && <MilestoneCelebration milestone={showMilestone} streak={state.streak} th={th} onClaim={() => {
@@ -5732,11 +6831,12 @@ function PPPPApp() {
           {/* Row 1: Title + icons */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{
-              padding: "6px 16px", borderRadius: 20,
+              padding: "7px 18px", borderRadius: 22,
               background: th.glass, border: `1px solid ${th.glassBorder}`,
-              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+              backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
             }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: th.text, letterSpacing: "-0.02em" }}>{userName}{"\u2019"}s PVA Model</span>
+              <span style={{ fontSize: 12, fontWeight: 800, color: th.text, letterSpacing: "-0.01em", fontFamily: FONT }}>{userName}{"\u2019"}s PVA Model</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {firebaseUser && (
@@ -5797,16 +6897,20 @@ function PPPPApp() {
             </div>
 
             {/* Stats bar */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: "0 20px", marginBottom: 22 }}>
+            <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: "0 20px", marginBottom: 22 }}>
               {[
-                { label: "XP", value: `${dayXp}`, color: th.blue, pulse: false },
-                { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red, pulse: false },
-                { label: "TODAY", value: `${dayPct}%`, color: th.blue, pulse: false },
-                { label: "STREAK", value: `${state.streak}`, color: th.red, pulse: state.streak >= 3 },
+                { label: "XP", value: `${dayXp}`, color: th.blue, pulse: false, icon: "\u26A1" },
+                { label: "HP", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red, pulse: false, icon: "\u2764" },
+                { label: "TODAY", value: `${dayPct}%`, color: th.blue, pulse: false, icon: "\u25CE" },
+                { label: "STREAK", value: `${state.streak}`, color: th.red, pulse: state.streak >= 3, icon: "\uD83D\uDD25" },
               ].map(x => (
-                <div key={x.label} className={`pva-card-hover ${x.pulse ? "pva-pulse" : ""}`} style={{ ...glassStyleElevated(th), padding: "14px 0", textAlign: "center" }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: x.color, letterSpacing: "-0.04em" }}>{x.value}</div>
-                  <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.14em", marginTop: 4 }}>{x.label}</div>
+                <div key={x.label} className={`pva-card-hover ${x.pulse ? "pva-pulse" : ""}`} style={{
+                  ...glassStyleElevated(th), padding: "16px 0 14px", textAlign: "center",
+                  position: "relative", overflow: "hidden",
+                }}>
+                  <div style={{ position: "absolute", top: -4, right: -4, fontSize: 28, opacity: 0.06, pointerEvents: "none", userSelect: "none" }}>{x.icon}</div>
+                  <div className="pva-number-pop" style={{ fontSize: 22, fontWeight: 800, color: x.color, letterSpacing: "-0.04em", fontFamily: FONT }}>{x.value}</div>
+                  <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.16em", marginTop: 5, fontFamily: FONT, fontWeight: 600 }}>{x.label}</div>
                 </div>
               ))}
             </div>
@@ -5814,41 +6918,49 @@ function PPPPApp() {
             <SectionDivider label="NAVIGATE" th={th} />
 
             {/* ─── NAV TILES (3 columns) ─── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "0 20px", marginBottom: 22 }}>
-              <div onClick={() => setView("routine")} className="pva-card-hover" style={{
-                ...glassStyle(th), padding: "18px 12px", cursor: "pointer",
-                border: `1px solid #EC489925`,
-                background: `linear-gradient(135deg, #EC489910 0%, transparent 100%)`,
-                transition: "all 0.3s ease", textAlign: "center",
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4 }}>MY ROUTINE</div>
-                <div style={{ fontSize: 8, color: th.dim }}>Daily Schedule</div>
-              </div>
-              <div onClick={() => setView("pva_glance")} className="pva-card-hover" style={{
-                ...glassStyle(th), padding: "18px 12px", cursor: "pointer",
-                border: `1px solid ${th.blue}25`,
-                background: `linear-gradient(135deg, ${th.blue}10 0%, transparent 100%)`,
-                transition: "all 0.3s ease", textAlign: "center",
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4 }}>MY FOCUS</div>
-                <div style={{ fontSize: 8, color: th.dim }}>PVA Overview</div>
-              </div>
-              <div onClick={() => setView("season")} className="pva-card-hover" style={{
-                ...glassStyle(th), padding: "18px 12px", cursor: "pointer",
-                border: `1px solid ${th.green || "#16A34A"}25`,
-                background: `linear-gradient(135deg, ${th.green || "#16A34A"}10 0%, transparent 100%)`,
-                transition: "all 0.3s ease", textAlign: "center",
-              }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4 }}>SEASON</div>
-                <div style={{ fontSize: 8, color: th.dim }}>Current Focus</div>
-              </div>
+            <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: "0 20px", marginBottom: 22 }}>
+              {[
+                { view: "routine", label: "MY ROUTINE", sub: "Daily Schedule", color: "#EC4899", icon: "\uD83D\uDCC5" },
+                { view: "pva_glance", label: "MY FOCUS", sub: "PVA Overview", color: th.blue, icon: "\uD83C\uDFAF" },
+                { view: "season", label: "SEASON", sub: "Current Focus", color: th.green || "#16A34A", icon: "\uD83C\uDF3F" },
+              ].map(function(n) { return (
+                <div key={n.view} onClick={function() { setView(n.view); }} className="pva-card-hover" style={{
+                  ...glassStyle(th), padding: "20px 12px 16px", cursor: "pointer",
+                  border: `1px solid ${n.color}20`,
+                  background: `linear-gradient(145deg, ${n.color}0C 0%, transparent 70%)`,
+                  transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", textAlign: "center",
+                  position: "relative", overflow: "hidden",
+                }}>
+                  <div style={{ position: "absolute", top: -8, right: -8, fontSize: 32, opacity: 0.07, pointerEvents: "none" }}>{n.icon}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginBottom: 4, fontFamily: FONT, letterSpacing: "0.02em" }}>{n.label}</div>
+                  <div style={{ fontSize: 8, color: th.dim, fontFamily: FONT }}>{n.sub}</div>
+                </div>
+              ); })}
             </div>
+
+            {/* ─── SABBATH MODE BANNER ─── */}
+            {state.isSabbath && (
+              <div className="pva-shimmer-overlay" style={{
+                margin: "0 20px 16px", padding: "22px 24px", borderRadius: 22,
+                background: "linear-gradient(145deg, rgba(139,92,246,0.08) 0%, rgba(99,102,241,0.04) 50%, rgba(139,92,246,0.02) 100%)",
+                border: "1px solid rgba(139,92,246,0.18)",
+                textAlign: "center", position: "relative", overflow: "hidden",
+              }}>
+                <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: "rgba(139,92,246,0.06)", filter: "blur(25px)", pointerEvents: "none" }} />
+                <div className="pva-float" style={{ fontSize: 24, marginBottom: 8 }}>{"\uD83D\uDD4A"}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#8B5CF6", letterSpacing: "0.14em", marginBottom: 8, fontFamily: FONT }}>SABBATH REST</div>
+                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.8, fontStyle: "italic", fontFamily: FONT }}>
+                  {"\u201C"}Remember the Sabbath day, to keep it holy. Six days you shall labour, and do all your work, but the seventh day is a Sabbath to the Lord your God.{"\u201D"}
+                </div>
+                <div style={{ fontSize: 9, color: th.dim, marginTop: 8, fontWeight: 600, letterSpacing: "0.06em", fontFamily: FONT }}>EXODUS 20:8{"\u2013"}10 {"\u00B7"} No decay today {"\u00B7"} Your temple is safe</div>
+              </div>
+            )}
 
             <SectionDivider label="PROGRESS" th={th} />
 
             {/* ─── HORIZONTAL P TILES (centre stage) ─── */}
             <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", marginBottom: 14, padding: "0 20px" }}>THE FOUR PILLARS</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.16em", marginBottom: 14, padding: "0 20px", fontFamily: FONT }}>THE FOUR PILLARS</div>
               <div ref={scrollRef} className="pppp-tiles" style={{
                 display: "flex", gap: 16, overflowX: "auto", overflowY: "hidden",
                 scrollSnapType: "x mandatory", paddingBottom: 8,
@@ -5865,7 +6977,56 @@ function PPPPApp() {
 
               {/* Daily Routine — timings from all categories with time-of-day subheadings */}
               <div style={{ padding: "12px 20px 0" }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", marginBottom: 12 }}>MY DAILY ROUTINE</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: th.dim, letterSpacing: "0.14em", fontFamily: FONT }}>MY DAILY ROUTINE</div>
+                  <button onClick={function() { setShowRoutineTimer(true); }} style={{
+                    padding: "6px 14px", borderRadius: 10, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                    border: "1px solid #22C55E40", background: "rgba(34,197,94,0.08)", color: "#22C55E",
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}>{"\u25B6"} START ROUTINE</button>
+                </div>
+
+                {/* Anchor Habit Card */}
+                {(() => {
+                  const anchorId = profile?.anchorHabit;
+                  if (!anchorId) return null;
+                  const allT = catKeys.flatMap(function(k) { return tasks[k].sections.flatMap(function(s) { return s.tasks; }); });
+                  const anchorTask = allT.find(function(t) { return t.id === anchorId; });
+                  if (!anchorTask) return null;
+                  const done = !!state.completed[anchorId];
+                  return (
+                    <div onClick={function(e) { toggleHomeTask(anchorId, e); }} className="pva-shimmer-overlay" style={{
+                      ...glassStyle(th), padding: "16px 20px", marginBottom: 14, cursor: "pointer",
+                      border: "1.5px solid " + (done ? "#22C55E30" : "#F59E0B30"),
+                      background: done ? "linear-gradient(145deg, rgba(34,197,94,0.06) 0%, rgba(34,197,94,0.01) 100%)" : "linear-gradient(145deg, rgba(245,158,11,0.06) 0%, rgba(245,158,11,0.01) 100%)",
+                      position: "relative", overflow: "hidden",
+                      transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span className={done ? "" : "pva-breathe"} style={{ fontSize: 18 }}>{"\u2693"}</span>
+                          <div>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: done ? "#22C55E" : "#F59E0B", letterSpacing: "0.14em", fontFamily: FONT }}>ANCHOR HABIT</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: done ? th.dim : th.text, marginTop: 3, textDecoration: done ? "line-through" : "none", fontFamily: FONT }}>{anchorTask.label}</div>
+                          </div>
+                        </div>
+                        <div style={{
+                          width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+                          border: "2px solid " + (done ? "#22C55E" : "#F59E0B"),
+                          background: done ? "linear-gradient(135deg, #22C55E, #16A34A)" : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+                          boxShadow: done ? "0 0 12px rgba(34,197,94,0.3), 0 2px 4px rgba(34,197,94,0.2)" : "none",
+                        }}>
+                          {done && <span className="pva-check-bounce" style={{ color: "#fff", fontSize: 13, fontWeight: 800 }}>{"\u2713"}</span>}
+                        </div>
+                      </div>
+                      {!done && <div style={{ fontSize: 9, color: th.dim, marginTop: 8, fontStyle: "italic", fontFamily: FONT }}>Complete this to protect your temple, even on tough days.</div>}
+                      {done && <div style={{ fontSize: 9, color: "#22C55E", marginTop: 8, fontFamily: FONT }}>{"\u2713"} Temple protected for today</div>}
+                    </div>
+                  );
+                })()}
+
                 {(() => {
                   const allItems = [];
                   catKeys.forEach(k => {
@@ -5903,56 +7064,71 @@ function PPPPApp() {
                     }
                     currentGroup.items.push(item);
                   });
-                  return groups.map(group => (
+                  return groups.map(function(group) { return (
                     <div key={group.period} style={{
-                      marginTop: 14, borderRadius: 18, overflow: "hidden",
+                      marginTop: 14, borderRadius: 22, overflow: "hidden",
                       ...glassStyle(th),
-                      boxShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1.5px 6px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.08)",
+                      boxShadow: "0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.08)",
                     }}>
                       {/* Period heading */}
                       <div style={{
-                        fontSize: 15, fontWeight: 800, color: th.text, letterSpacing: "0.12em",
+                        fontSize: 14, fontWeight: 800, color: th.text, letterSpacing: "0.10em",
                         fontFamily: FONT,
-                        padding: "16px 20px 12px",
+                        padding: "18px 22px 14px",
                         borderBottom: `1px solid ${th.glassBorder}`,
-                      }}>{group.period}</div>
+                        background: `linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%)`,
+                      }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 14 }}>{group.period === "MORNING" ? "\u2600\uFE0F" : group.period === "AFTERNOON" ? "\uD83C\uDF24" : group.period === "EVENING" ? "\uD83C\uDF19" : "\u2728"}</span>
+                          {group.period}
+                        </span>
+                      </div>
                       {/* Tasks within this period */}
-                      <div style={{ padding: "6px 10px 10px" }}>
-                        {group.items.map(item => {
-                          const done = state.completed?.[item.id];
+                      <div className="pva-stagger" style={{ padding: "8px 12px 12px" }}>
+                        {group.items.map(function(item) {
+                          var done = state.completed && state.completed[item.id];
                           return (
-                            <div key={item.id} onClick={(e) => toggleHomeTask(item.id, e)} style={{
+                            <div key={item.id} onClick={function(e) { toggleHomeTask(item.id, e); }} style={{
                               display: "flex", alignItems: "center", gap: 12,
-                              padding: "10px 10px", marginBottom: 2, borderRadius: 10,
+                              padding: "11px 10px", marginBottom: 2, borderRadius: 12,
                               background: done ? `${item.accent}08` : "transparent",
-                              cursor: "pointer", transition: "all 0.2s ease",
+                              cursor: "pointer", transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
                             }}>
                               <div style={{
-                                fontSize: 10, fontWeight: 800, color: item.accent, minWidth: 80,
+                                fontSize: 11, fontWeight: 700, color: done ? `${item.accent}80` : item.accent, minWidth: 85,
                                 fontFamily: FONT, letterSpacing: "0.04em",
+                                transition: "color 0.3s ease",
                               }}>{item.time}</div>
                               <div style={{
-                                fontSize: 12, fontWeight: 400, color: done ? th.dim : th.text,
+                                fontSize: 12, fontWeight: done ? 400 : 500, color: done ? th.dim : th.text,
                                 textDecoration: done ? "line-through" : "none",
                                 flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                transition: "all 0.3s ease",
+                                fontFamily: FONT,
                               }}>{item.label}</div>
                               <div style={{
-                                width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                                border: `1.5px solid ${done ? item.accent : th.dim}`,
-                                background: done ? item.accent : "transparent",
+                                width: 22, height: 22, borderRadius: 7, flexShrink: 0,
+                                border: `2px solid ${done ? item.accent : th.dim + "60"}`,
+                                background: done ? `linear-gradient(135deg, ${item.accent}, ${item.accent}DD)` : "transparent",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                transition: "all 0.25s ease",
-                                boxShadow: done ? `0 0 10px ${item.accent}30` : "none",
+                                transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+                                boxShadow: done ? `0 0 12px ${item.accent}30, 0 2px 4px ${item.accent}20` : "none",
+                                transform: done ? "scale(1)" : "scale(0.95)",
                               }}>
-                                {done && <span style={{ color: th.check || "#fff", fontSize: 10, fontWeight: 800 }}>{"\u2713"}</span>}
+                                {done && <span className="pva-check-bounce" style={{ color: th.check || "#fff", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
                               </div>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                  ));
+                  ); });
                 })()}
+
+                {/* Daily Challenge — inside routine section */}
+                <div style={{ marginTop: 16 }}>
+                  <DailyChallengeCard challenge={dailyChallenge} completed={state.challengeCompleted} onToggle={toggleChallenge} th={th} />
+                </div>
               </div>
             </div>
 
@@ -5960,6 +7136,9 @@ function PPPPApp() {
 
             {/* ─── VERSE + REFLECTION + CHALLENGE (below routine) ─── */}
             <div style={{ padding: "0 20px", marginBottom: 20 }}>
+              {/* Morning Soul Check-In */}
+              <SoulCheckInCard state={state} setState={setState} th={th} time="morning" />
+
               {/* Verse of the Day */}
               {(() => {
                 const verse = getDailyVerse(TODAY);
@@ -5983,13 +7162,13 @@ function PPPPApp() {
                 ) : null}
               </div>
 
-              {/* Daily Challenge */}
-              <DailyChallengeCard challenge={dailyChallenge} completed={state.challengeCompleted} onToggle={toggleChallenge} th={th} />
-
-              {/* Streak Freeze */}
+              {/* Grace Day */}
               <div style={{ marginTop: 14 }}>
-                <StreakFreezeCard state={state} setState={setState} th={th} />
+                <GraceDayCard state={state} setState={setState} th={th} />
               </div>
+
+              {/* Habit Stack Suggestion (shows after some tasks are done) */}
+              <HabitStackCard state={state} tasks={tasks} th={th} />
 
               {/* Next Milestone Indicator */}
               {(() => {
@@ -6007,6 +7186,25 @@ function PPPPApp() {
                         <div style={{ height: "100%", borderRadius: 2, width: `${progress}%`, background: `linear-gradient(90deg, ${next.color}88, ${next.color})`, transition: "width 0.6s ease" }} />
                       </div>
                       <div style={{ fontSize: 9, color: th.dim, marginTop: 5, fontFamily: FONT }}>{next.days - state.streak} days to go {"\u00B7"} +{next.xpBonus} XP reward</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Evening Soul Check-In */}
+              <div style={{ marginTop: 18 }}>
+                <SoulCheckInCard state={state} setState={setState} th={th} time="evening" />
+              </div>
+
+              {/* Soul Insight (after 2+ weeks of data) */}
+              {(() => {
+                const insight = getSoulInsight(state.soulCheckIns, state.history);
+                if (!insight) return null;
+                return (
+                  <div style={{ ...glassStyle(th), padding: "14px 18px", marginBottom: 14, border: `1px solid ${insight.mood.color}20`, background: `${insight.mood.color}06` }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: insight.mood.color, letterSpacing: "0.12em", marginBottom: 6 }}>SOUL INSIGHT</div>
+                    <div style={{ fontSize: 11, color: th.mid, lineHeight: 1.6 }}>
+                      On mornings you feel <span style={{ fontWeight: 700, color: insight.mood.color }}>{insight.mood.emoji} {insight.mood.label}</span>, you complete an average of <span style={{ fontWeight: 700, color: insight.mood.color }}>{insight.avgPct}%</span> of your tasks. <span style={{ fontSize: 10, color: th.dim }}>({insight.count} days tracked)</span>
                     </div>
                   </div>
                 );
@@ -6138,7 +7336,18 @@ function PPPPApp() {
 
         {/* ─── MY ROUTINE VIEW ─── */}
         {view === "routine" && (
-          <MyRoutineView th={th} onBack={goHome} />
+          <MyRoutineView th={th} onBack={goHome} onRoutineChanged={function(newRoutine) {
+            if (newRoutine) {
+              var newTasks = buildTasksFromRoutineAnswers(newRoutine);
+              if (newTasks) {
+                setState(function(p) { return Object.assign({}, p, { customTasks: newTasks }); });
+              }
+            } else {
+              // Routine was reset — revert to default tasks
+              setState(function(p) { var s = Object.assign({}, p); delete s.customTasks; return s; });
+              setHasRoutine(false);
+            }
+          }} />
         )}
       </div>
     </div>
