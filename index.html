@@ -118,8 +118,34 @@ const FONT = "'JetBrains Mono', 'Fira Code', monospace";
 const TODAY = new Date().toISOString().slice(0,10);
 const HP_MAX = 100;
 
+// ─── TIMEZONE AWARENESS ───
+const getUserTimezone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) { return "UTC"; } };
+const USER_TZ = getUserTimezone();
+
 // ─── LOGIN BONUS CHAIN ───
 const LOGIN_BONUS_CHAIN = [10, 20, 30, 50, 60, 80, 100];
+
+// ─── TEMPLE RESTORATION ───
+const RESTORATION_SCRIPTURES = [
+  { day: 1, ref: "Nehemiah 2:17", text: "Come, let us rebuild the wall of Jerusalem." },
+  { day: 2, ref: "Nehemiah 4:6", text: "So we rebuilt the wall... for the people had a mind to work." },
+  { day: 3, ref: "Nehemiah 6:3", text: "I am doing a great work and I cannot come down." },
+  { day: 4, ref: "Isaiah 61:4", text: "They shall build up the ancient ruins; they shall raise up the former devastations." },
+  { day: 5, ref: "Joel 2:25", text: "I will restore to you the years that the swarming locust has eaten." },
+  { day: 6, ref: "Psalm 51:10", text: "Create in me a clean heart, O God, and renew a right spirit within me." },
+  { day: 7, ref: "Revelation 21:5", text: "Behold, I am making all things new." },
+];
+
+// ─── TESTIMONY MILESTONES ───
+const TESTIMONY_MILESTONES = [
+  { id: "streak_7", check: function(s) { return s.streak >= 7; }, label: "7-Day Faithful", prompt: "What has God taught you in this first week of faithfulness?" },
+  { id: "streak_30", check: function(s) { return s.streak >= 30; }, label: "30-Day Steadfast", prompt: "How has a month of discipline changed your walk with God?" },
+  { id: "streak_100", check: function(s) { return s.streak >= 100; }, label: "100-Day Overcomer", prompt: "Share your testimony of 100 days of perseverance." },
+  { id: "days_50", check: function(s) { return s.daysCompleted >= 50; }, label: "50 Days Completed", prompt: "What fruit have you seen from 50 days of obedience?" },
+  { id: "level_warrior", check: function(s) { return (s.totalXp || 0) >= 600; }, label: "Warrior Rank", prompt: "How has God strengthened you for battle?" },
+  { id: "level_champion", check: function(s) { return (s.totalXp || 0) >= 1500; }, label: "Champion Rank", prompt: "What victories has God given you on this journey?" },
+  { id: "restored", check: function(s) { return s.restorationBadge; }, label: "Temple Restored", prompt: "How did God bring you back from a season of struggle?" },
+];
 
 // ─── PRESTIGE SYSTEM ───
 const PRESTIGE_TITLES = ["Herald of Dawn", "Pillar of Faith", "Vessel of Glory", "Crown of Righteousness", "Throne Room Elder"];
@@ -206,7 +232,21 @@ const light = {
   gold: "#D97706", goldDim: "rgba(217,119,6,0.1)", scripture: "#3B6B8A",
   green: "#16A34A", greenDim: "rgba(22,163,74,0.1)",
 };
-const getAutoTheme = () => { const h = new Date().getHours(); return h >= 6 && h < 18 ? "light" : "dark"; };
+const getAutoTheme = (darkStart, lightStart) => {
+  try {
+    const prof = JSON.parse(localStorage.getItem("pva_profile") || "null");
+    const autoEnabled = prof?.autoThemeEnabled !== false;
+    if (!autoEnabled) return null;
+    const ds = darkStart !== undefined ? darkStart : (prof?.darkModeStart ?? 18);
+    const ls = lightStart !== undefined ? lightStart : (prof?.lightModeStart ?? 6);
+    const h = new Date().getHours();
+    if (h >= ds || h < ls) return "dark";
+    return "light";
+  } catch(e) {
+    const h = new Date().getHours();
+    return h >= 6 && h < 18 ? "light" : "dark";
+  }
+};
 
 const catColors = (th) => ({
   person:  { accent: "#DC2626", dim: "rgba(220,38,38,0.1)", border: "rgba(220,38,38,0.4)" },
@@ -351,7 +391,10 @@ function saveRoutineData(data) {
 // Converts routine questionnaire answers into the 4-pillar task structure
 function buildTasksFromRoutineAnswers(routine) {
   if (!routine || !routine.answers) return null;
+  // If this routine was imported via free-form text, use the direct tasks
+  if (routine.directTasks) return routine.directTasks;
   var a = routine.answers;
+  if (a._freeform) return null; // freeform without directTasks — shouldn't happen
 
   // Helper to compute an end time string from a start time + duration in minutes
   function addMins(timeStr, mins) {
@@ -528,6 +571,127 @@ function buildTasksFromRoutineAnswers(routine) {
   };
 }
 
+// ─── FREE-FORM TEXT → TASKS PARSER ───
+// Parses any schedule-like text (one task per line) directly into the 4-pillar task structure.
+// Accepts formats like:
+//   "Morning prayer 7am", "Gym 6:30-7:30", "9:00 Bible study", "Work 09:00–17:00"
+//   "5:30am - Wake up and prepare", "Lunch at 12:30", "22:00 Bedtime"
+function parseTextToTasks(text) {
+  var lines = text.split("\n").map(function(l) { return l.trim(); }).filter(Boolean);
+  if (lines.length === 0) return null;
+
+  // Regex to extract time from a line: supports 7am, 7:30am, 07:00, 9pm, 13:00, etc.
+  var timeRegex = /(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/i;
+  var rangeRegex = /(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?\s*[\u2013\-–to]+\s*(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/i;
+
+  function normaliseHour(h, m, ampm) {
+    h = parseInt(h) || 0;
+    m = parseInt(m) || 0;
+    if (ampm) {
+      ampm = ampm.toLowerCase();
+      if (ampm === "pm" && h < 12) h += 12;
+      if (ampm === "am" && h === 12) h = 0;
+    }
+    return (h < 10 ? "0" + h : "" + h) + ":" + (m < 10 ? "0" + m : "" + m);
+  }
+
+  function extractTime(line) {
+    var lower = line.toLowerCase();
+    // Try range first (e.g., "9:00-17:00" or "9am to 5pm")
+    var rm = lower.match(rangeRegex);
+    if (rm && rm[4]) {
+      var start = normaliseHour(rm[1], rm[2], rm[3]);
+      var end = normaliseHour(rm[4], rm[5], rm[6]);
+      return start + "\u2013" + end;
+    }
+    // Single time
+    var tm = lower.match(timeRegex);
+    if (tm) {
+      return normaliseHour(tm[1], tm[2], tm[3]);
+    }
+    return "";
+  }
+
+  function extractLabel(line) {
+    // Remove time patterns FIRST (before bullets, since bullets regex eats leading digits)
+    var label = line
+      .replace(/\d{1,2}[:\.]?\d{0,2}\s*(am|pm)\s*[\u2013\-–to]+\s*\d{1,2}[:\.]?\d{0,2}\s*(am|pm)?/gi, "") // time ranges with am/pm (e.g. "9am-5pm")
+      .replace(/\d{1,2}[:\.](\d{2})\s*[\u2013\-–to]+\s*\d{1,2}[:\.](\d{2})/g, "") // 24h time ranges (e.g. "09:00-17:00")
+      .replace(/\d{1,2}[:\.]?\d{0,2}\s*(am|pm)/gi, "") // single times with am/pm (e.g. "9pm", "6:30am")
+      .replace(/\d{1,2}[:\.](\d{2})/g, "") // single 24h times (e.g. "12:30")
+      .replace(/^\s*[\-\u2022\u2013\*\.]+\s*/, "") // bullets (not digits — those were times)
+      .replace(/^\s*\d+[\.\)]\s*/, "") // numbered lists like "1." or "2)"
+      .replace(/^\s*[\-:\u2013–]+\s*/, "") // leading separators
+      .replace(/\s*[\-:\u2013–]+\s*$/, "") // trailing separators
+      .replace(/\bat\b/gi, "") // "at"
+      .replace(/\s*\/\s*/g, " / ") // normalise slashes
+      .replace(/\s{2,}/g, " ") // collapse multiple spaces
+      .trim();
+    // Capitalise first letter
+    if (label.length > 0) label = label.charAt(0).toUpperCase() + label.slice(1);
+    return label || "Task";
+  }
+
+  // Categorise by keywords
+  var spiritualWords = ["pray", "prayer", "bible", "devotion", "worship", "scripture", "church", "faith", "quiet time", "sermon", "fasting", "fast", "meditation", "meditate", "reading plan", "verse"];
+  var peopleWords = ["family", "dinner", "friend", "call", "fellowship", "community", "mentor", "marriage", "date", "children", "kids", "spouse", "connect"];
+  var processWords = ["work", "study", "focus", "meeting", "deep work", "email", "admin", "project", "office", "code", "write", "research", "review", "task"];
+  var personWords = ["wake", "exercise", "gym", "run", "walk", "stretch", "yoga", "breakfast", "lunch", "sleep", "bed", "nap", "rest", "journal", "wind down", "shower", "morning"];
+
+  function categoriseLine(label) {
+    var lower = label.toLowerCase();
+    for (var i = 0; i < spiritualWords.length; i++) { if (lower.indexOf(spiritualWords[i]) >= 0) return "person"; } // Spiritual goes to Person pillar
+    for (var i = 0; i < peopleWords.length; i++) { if (lower.indexOf(peopleWords[i]) >= 0) return "people"; }
+    for (var i = 0; i < processWords.length; i++) { if (lower.indexOf(processWords[i]) >= 0) return "process"; }
+    for (var i = 0; i < personWords.length; i++) { if (lower.indexOf(personWords[i]) >= 0) return "person"; }
+    return "product"; // default
+  }
+
+  var personSections = [];
+  var peopleSections = [];
+  var processSections = [];
+  var productSections = [];
+  var taskIdCounter = 0;
+
+  lines.forEach(function(line) {
+    var time = extractTime(line);
+    var label = extractLabel(line);
+    if (!label || label === "Task" && !time) return; // skip empty lines
+    var cat = categoriseLine(label);
+    var xp = label.toLowerCase().indexOf("devotion") >= 0 || label.toLowerCase().indexOf("prayer") >= 0 || label.toLowerCase().indexOf("bible") >= 0 ? 25 :
+             label.toLowerCase().indexOf("exercise") >= 0 || label.toLowerCase().indexOf("gym") >= 0 || label.toLowerCase().indexOf("focus") >= 0 ? 20 :
+             label.toLowerCase().indexOf("work") >= 0 || label.toLowerCase().indexOf("study") >= 0 ? 25 : 15;
+    var section = { name: label.toUpperCase().slice(0, 30), time: time, tasks: [
+      { id: "imp_" + taskIdCounter++, label: label, xp: xp, type: "check" }
+    ]};
+    if (cat === "person") personSections.push(section);
+    else if (cat === "people") peopleSections.push(section);
+    else if (cat === "process") processSections.push(section);
+    else productSections.push(section);
+  });
+
+  var totalTasks = personSections.length + peopleSections.length + processSections.length + productSections.length;
+  if (totalTasks === 0) return null;
+
+  // Sort each by time
+  var sortByTime = function(a, b) {
+    var ta = (a.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+    var tb = (b.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+    return ta.localeCompare(tb);
+  };
+  personSections.sort(sortByTime);
+  peopleSections.sort(sortByTime);
+  processSections.sort(sortByTime);
+  productSections.sort(sortByTime);
+
+  return {
+    person: { label: "Person", subtitle: "Spirit \u2192 Soul \u2192 Body", sections: personSections.length > 0 ? personSections : [{ name: "PERSONAL", time: "", tasks: [{ id: "imp_default_person", label: "Personal time", xp: 10, type: "check" }] }] },
+    people: { label: "People", subtitle: "Family & Community", sections: peopleSections.length > 0 ? peopleSections : [{ name: "COMMUNITY", time: "", tasks: [{ id: "imp_default_people", label: "Connect with someone", xp: 15, type: "check" }] }] },
+    process: { label: "Process", subtitle: "Systems & Workflows", sections: processSections.length > 0 ? processSections : [{ name: "WORK", time: "", tasks: [{ id: "imp_default_process", label: "Daily work", xp: 25, type: "check" }] }] },
+    product: { label: "Product", subtitle: "Output & Creation", sections: productSections.length > 0 ? productSections : [{ name: "CREATE", time: "", tasks: [{ id: "imp_default_product", label: "Create or build", xp: 20, type: "check" }] }] },
+  };
+}
+
 // ─── SOUND ───
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
@@ -627,6 +791,33 @@ function loadState() {
         xpDecay = Math.round(prevTotalXp * decayRate);
       }
       const newTotalXp = Math.max(0, prevTotalXp - xpDecay);
+      // Check for temple restoration trigger
+      const prevLevel = getLevel(prevTotalXp);
+      const newLevel = getLevel(newTotalXp);
+      const shouldTriggerRestoration = newLevel.idx < prevLevel.idx && !r.restorationActive;
+      let restorationActive = r.restorationActive || false;
+      let restorationDay = r.restorationDay || 0;
+      let restorationStartXp = r.restorationStartXp || 0;
+      let restorationDaysCompleted = r.restorationDaysCompleted || 0;
+      let restorationBadge = r.restorationBadge || false;
+      if (shouldTriggerRestoration) {
+        restorationActive = true;
+        restorationDay = 1;
+        restorationStartXp = newTotalXp;
+        restorationDaysCompleted = 0;
+      }
+      if (restorationActive) {
+        if (prevPct >= 50) restorationDaysCompleted += 1;
+        restorationDay += 1;
+        if (restorationDay > 7) {
+          if (restorationDaysCompleted >= 7) {
+            const bonusXp = 200;
+            newTotalXp + bonusXp;
+            restorationBadge = true;
+          }
+          restorationActive = false;
+        }
+      }
       // Prestige multiplier on daily reset (calculate before login bonus)
       const prestigeMult = 1 + ((r.prestige || 0) * 0.1);
       // Login Bonus Chain
@@ -651,6 +842,8 @@ function loadState() {
         soulCheckIns: r.soulCheckIns || [],
         loginBonusDay: newLoginDay + 1, loginBonusXp: loginBonusXp,
         prestige: r.prestige || 0, prestigeTitle: r.prestigeTitle || null, prestigeBadges: r.prestigeBadges || [],
+        restorationActive: restorationActive, restorationDay: restorationDay, restorationStartXp: restorationStartXp,
+        restorationDaysCompleted: restorationDaysCompleted, restorationBadge: restorationBadge,
       };
     }
   } catch (e) { console.warn("PPPP load error", e); }
@@ -663,6 +856,7 @@ function loadState() {
     isSabbath: false, morningMood: null, eveningMood: null, soulCheckIns: [],
     loginBonusDay: 0, loginBonusXp: 0,
     prestige: 0, prestigeTitle: null, prestigeBadges: [],
+    restorationActive: false, restorationDay: 0, restorationStartXp: 0, restorationDaysCompleted: 0, restorationBadge: false,
     history: Array(7).fill(null).map((_,i) => {
       const d = new Date(); d.setDate(d.getDate() - (6 - i));
       return { date: d.toISOString().slice(0,10), pct: 0, xp: 0,
@@ -1341,11 +1535,99 @@ function BossBattleCard({ boss, completed, progress, th }) {
   );
 }
 
-// ─── GMT DATE & TIME PILLS (for top bar) ───
-function GmtDatePill({ th }) {
+// ─── TEMPLE RESTORATION CARD ───
+function TempleRestoration({ state, th }) {
+  if (!state.restorationActive) return null;
+  const day = Math.min(state.restorationDay || 1, 7);
+  const completed = state.restorationDaysCompleted || 0;
+  const scripture = RESTORATION_SCRIPTURES[day - 1] || RESTORATION_SCRIPTURES[0];
+  return (
+    <div style={{
+      ...glassStyle(th), padding: "20px", margin: "0 20px 16px", marginBottom: 16,
+      border: "1px solid " + th.gold + "30", background: "linear-gradient(135deg, " + th.gold + "08 0%, transparent 100%)",
+    }}>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 28, marginBottom: 8 }}>{"\uD83D\uDDF3"}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: th.gold, letterSpacing: "0.1em", marginBottom: 2 }}>REBUILD THE WALLS</div>
+        <div style={{ fontSize: 10, color: th.dim, marginBottom: 12 }}>Temple Restoration Challenge {"\u2022"} Day {day}/7</div>
+        <div style={{ fontSize: 12, color: th.text, fontStyle: "italic", lineHeight: 1.6, marginBottom: 12 }}>
+          {"\u201C"}{scripture.text}{"\u201D"}
+        </div>
+        <div style={{ fontSize: 9, color: th.dim, fontWeight: 600 }}>{scripture.ref}</div>
+      </div>
+      <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 12 }}>
+        {Array.from({ length: 7 }, function(_, i) {
+          const isFilled = i < completed;
+          return (
+            <div key={i} style={{
+              width: 24, height: 24, borderRadius: 4,
+              background: isFilled ? th.gold : "transparent",
+              border: "1.5px solid " + (isFilled ? th.gold : th.ghost),
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, color: isFilled ? th.bg : th.dim,
+            }}>
+              {isFilled ? "\u2713" : "\u2014"}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 9, textAlign: "center", color: th.dim }}>
+        {completed} of 7 days completed {"\u2022"} Keep going!
+      </div>
+    </div>
+  );
+}
+
+// ─── TESTIMONY MODAL ───
+function TestimonyModal({ milestone, onSave, onSkip, th }) {
+  const [text, setText] = useState("");
+  if (!milestone) return null;
+  return (
+    <div onClick={onSkip} style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 300, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+    }}>
+      <div onClick={function(e) { e.stopPropagation(); }} style={{
+        background: th.bg, borderRadius: 20, padding: "24px 20px 32px", maxWidth: 440,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)", border: "1px solid " + th.glassBorder,
+      }}>
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 16, marginBottom: 8 }}>{"\uD83D\uDC4F"}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: th.text, marginBottom: 4 }}>{milestone.label}</div>
+          <div style={{ fontSize: 10, color: th.dim, fontFamily: FONT }}>Revelation 12:11 {"\u2014"} They overcame by their testimony</div>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: th.mid, marginBottom: 8 }}>{milestone.prompt}</div>
+          <textarea value={text} onChange={function(e) { setText(e.target.value); }} placeholder="Share your testimony..." style={{
+            width: "100%", minHeight: 120, padding: "12px", borderRadius: 10,
+            border: "1px solid " + th.glassBorder, background: th.surface, color: th.text,
+            fontSize: 12, fontFamily: FONT, outline: "none", boxSizing: "border-box",
+            resize: "none",
+          }} />
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={function() { if (text.trim()) { onSave(text); setText(""); } }} style={{
+            flex: 1, padding: "12px", borderRadius: 10, border: "none",
+            background: th.blue, color: "#fff", fontWeight: 700, fontSize: 11,
+            cursor: "pointer", fontFamily: FONT,
+          }}>SAVE TESTIMONY</button>
+          <button onClick={onSkip} style={{
+            flex: 1, padding: "12px", borderRadius: 10,
+            border: "1px solid " + th.glassBorder, background: "transparent",
+            color: th.dim, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT,
+          }}>SKIP FOR NOW</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── LOCAL TIME PILLS (for top bar) ───
+function LocalDatePill({ th }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(id); }, []);
-  const gmt = new Date(now.toLocaleString("en-US", { timeZone: "GMT" }));
+  const local = new Date(now.toLocaleString("en-US", { timeZone: USER_TZ }));
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return (
@@ -1355,18 +1637,19 @@ function GmtDatePill({ th }) {
       backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
     }}>
       <span style={{ fontSize: 10, fontWeight: 700, color: th.mid, letterSpacing: "0.02em", fontFamily: FONT }}>
-        {days[gmt.getDay()]} {gmt.getDate()} {months[gmt.getMonth()]}
+        {days[local.getDay()]} {local.getDate()} {months[local.getMonth()]}
       </span>
     </div>
   );
 }
-function GmtTimePill({ th }) {
+function LocalTimePill({ th }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
-  const gmt = new Date(now.toLocaleString("en-US", { timeZone: "GMT" }));
-  const h = String(gmt.getHours()).padStart(2, "0");
-  const m = String(gmt.getMinutes()).padStart(2, "0");
-  const s = String(gmt.getSeconds()).padStart(2, "0");
+  const local = new Date(now.toLocaleString("en-US", { timeZone: USER_TZ }));
+  const h = String(local.getHours()).padStart(2, "0");
+  const m = String(local.getMinutes()).padStart(2, "0");
+  const s = String(local.getSeconds()).padStart(2, "0");
+  const tzAbbr = new Date().toLocaleString("en-US", { timeZone: USER_TZ, timeZoneName: "short" }).split(" ").pop() || "TZ";
   return (
     <div style={{
       padding: "6px 14px", borderRadius: 20,
@@ -1374,8 +1657,66 @@ function GmtTimePill({ th }) {
       backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
     }}>
       <span style={{ fontSize: 10, fontWeight: 700, color: th.mid, letterSpacing: "0.02em", fontFamily: FONT }}>
-        {h}:{m}<span style={{ fontSize: 9, color: th.dim }}>:{s}</span> <span style={{ fontSize: 8, color: th.dim, letterSpacing: "0.08em" }}>GMT</span>
+        {h}:{m}<span style={{ fontSize: 9, color: th.dim }}>:{s}</span> <span style={{ fontSize: 8, color: th.dim, letterSpacing: "0.08em" }}>{tzAbbr}</span>
       </span>
+    </div>
+  );
+}
+
+// ─── TESTIMONY WALL VIEW ───
+function TestimonyWall({ th, onBack }) {
+  const [testimonies, setTestimonies] = useState(function() {
+    try { return JSON.parse(localStorage.getItem("pva_testimonies") || "[]"); } catch(e) { return []; }
+  });
+  return (
+    <div style={{ padding: "20px", paddingBottom: 100 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
+        <button onClick={onBack} style={{
+          width: 40, height: 40, borderRadius: 12, cursor: "pointer",
+          border: "1px solid " + th.glassBorder, background: th.glass,
+          color: th.text, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: FONT, backdropFilter: "blur(20px)",
+        }}>{"\u2190"}</button>
+        <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>My Testimonies</div>
+      </div>
+      <div style={{ ...glassStyle(th), padding: "16px 20px", marginBottom: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6 }}>
+          {"\u201C"}They overcame him by the blood of the Lamb and by the word of their testimony.{"\u201D"}
+        </div>
+        <div style={{ fontSize: 10, color: th.dim, marginTop: 8, fontWeight: 600 }}>Revelation 12:11</div>
+      </div>
+      {testimonies.length === 0 ? (
+        <div style={{ ...glassStyle(th), padding: "40px 20px", textAlign: "center", borderRadius: 16 }}>
+          <div style={{ fontSize: 14, color: th.dim, marginBottom: 8 }}>No testimonies yet</div>
+          <div style={{ fontSize: 11, color: th.ghost }}>Reach a milestone and save your testimony here</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {testimonies.map(function(t, i) {
+            const milestone = TESTIMONY_MILESTONES.find(m => m.id === t.id);
+            return (
+              <div key={i} style={{
+                ...glassStyle(th), padding: "16px 20px", borderRadius: 16,
+                border: "1px solid " + th.glassBorder,
+              }}>
+                <div style={{ display: "flex", alignItems: "start", gap: 12, marginBottom: 10 }}>
+                  <div style={{ fontSize: 18 }}>{"\uD83D\uDC4F"}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: th.text, marginBottom: 2 }}>{milestone?.label || t.id}</div>
+                    <div style={{ fontSize: 9, color: th.dim }}>Saved on {t.date}</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, marginBottom: 10 }}>{t.text}</div>
+                {milestone && (
+                  <div style={{ fontSize: 9, color: th.dim, fontStyle: "italic", borderTop: "1px solid " + th.glassBorder, paddingTop: 8 }}>
+                    {milestone.prompt}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -4061,6 +4402,75 @@ function SettingsView({ profile, onSave, onBack, th, firebaseUser, cloudStatus, 
         )}
       </div>
 
+      {/* Theme Schedule */}
+      <div style={{ ...glassStyle(th), padding: "20px", marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 6 }}>{"\uD83D\uDD06"} THEME SCHEDULE</div>
+        <div style={{ fontSize: 11, color: th.mid, lineHeight: 1.6, marginBottom: 12 }}>
+          Auto-switch between light and dark mode based on time of day.
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <input type="checkbox" checked={profile?.autoThemeEnabled !== false} onChange={function(e) {
+              const updated = { ...profile, autoThemeEnabled: e.target.checked };
+              onSave(updated);
+            }} style={{ cursor: "pointer" }} />
+            <label style={{ fontSize: 11, fontWeight: 600, color: th.text, cursor: "pointer" }}>Enable Auto Theme</label>
+          </div>
+        </div>
+        {profile?.autoThemeEnabled !== false && (
+          <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 8 }}>DARK MODE STARTS</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button onClick={function() {
+                  const h = Math.max(0, (profile?.darkModeStart ?? 18) - 1);
+                  const updated = { ...profile, darkModeStart: h };
+                  onSave(updated);
+                }} style={{
+                  width: 30, height: 30, borderRadius: 6, border: "1px solid " + th.glassBorder,
+                  background: th.glass, color: th.text, cursor: "pointer", fontSize: 14, fontWeight: 700,
+                }}>−</button>
+                <div style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: th.text }}>
+                  {String(profile?.darkModeStart ?? 18).padStart(2, "0")}:00
+                </div>
+                <button onClick={function() {
+                  const h = Math.min(23, (profile?.darkModeStart ?? 18) + 1);
+                  const updated = { ...profile, darkModeStart: h };
+                  onSave(updated);
+                }} style={{
+                  width: 30, height: 30, borderRadius: 6, border: "1px solid " + th.glassBorder,
+                  background: th.glass, color: th.text, cursor: "pointer", fontSize: 14, fontWeight: 700,
+                }}>+</button>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 8 }}>LIGHT MODE STARTS</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button onClick={function() {
+                  const h = Math.max(0, (profile?.lightModeStart ?? 6) - 1);
+                  const updated = { ...profile, lightModeStart: h };
+                  onSave(updated);
+                }} style={{
+                  width: 30, height: 30, borderRadius: 6, border: "1px solid " + th.glassBorder,
+                  background: th.glass, color: th.text, cursor: "pointer", fontSize: 14, fontWeight: 700,
+                }}>−</button>
+                <div style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: th.text }}>
+                  {String(profile?.lightModeStart ?? 6).padStart(2, "0")}:00
+                </div>
+                <button onClick={function() {
+                  const h = Math.min(23, (profile?.lightModeStart ?? 6) + 1);
+                  const updated = { ...profile, lightModeStart: h };
+                  onSave(updated);
+                }} style={{
+                  width: 30, height: 30, borderRadius: 6, border: "1px solid " + th.glassBorder,
+                  background: th.glass, color: th.text, cursor: "pointer", fontSize: 14, fontWeight: 700,
+                }}>+</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div style={{ ...glassStyle(th), padding: "20px" }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 10 }}>ABOUT</div>
         <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6 }}>
@@ -6010,14 +6420,24 @@ function RoutineOnboardingView({ th, onComplete, existingRoutine }) {
         if (timeMatch) parsed[q.id] = timeMatch;
       }
     });
-    if (Object.keys(parsed).length === 0) {
-      setUploadError("Couldn\u2019t match your text to routine items. Try a format like:\nWake up: 06:00\nDevtion: 30 min\nExercise: Walk/Run\nWork start: 09:00\nBedtime: 22:30");
+    if (Object.keys(parsed).length > 0) {
+      var routineData = { answers: parsed, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
+      saveRoutineData(routineData);
+      onComplete(parsed);
+      playCelebrate();
       return;
     }
-    var routineData = { answers: parsed, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
-    saveRoutineData(routineData);
-    onComplete(parsed);
-    playCelebrate();
+    // Fall back to free-form text → direct task parsing
+    var directTasks = parseTextToTasks(text);
+    if (directTasks) {
+      // Save a minimal routine marker and set tasks directly
+      var markerRoutine = { answers: { _freeform: true }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true, directTasks: directTasks };
+      saveRoutineData(markerRoutine);
+      onComplete({ _freeform: true, _directTasks: directTasks });
+      playCelebrate();
+      return;
+    }
+    setUploadError("Couldn\u2019t parse your text. Try one task per line, like:\n5:30am Wake up\n6:00am Morning prayer\n9:00 Work\n12:30 Lunch\n22:00 Bedtime");
   };
 
   // Get visible questions (respecting showIf)
@@ -6113,7 +6533,7 @@ function RoutineOnboardingView({ th, onComplete, existingRoutine }) {
               Paste your routine below. Use a simple format like "Wake up: 06:00" per line, or paste a PVA export:
             </div>
             <textarea value={pasteText} onChange={function(e) { setPasteText(e.target.value); setUploadError(""); }}
-              placeholder={"Wake up: 06:00\nDevotion: 30 min\nExercise: Walk/Run\nWork start: 09:00\nLunch: 12:30\nDinner: 19:00\nBedtime: 22:30"}
+              placeholder={"5:30am Wake up\n6:00am Morning devotion\n6:45am Exercise\n9:00 Work / Deep focus\n12:30 Lunch\n6pm Family dinner\n9pm Bible reading\n10:30pm Bedtime"}
               style={{
                 width: "100%", minHeight: 100, padding: 12, borderRadius: 12,
                 border: "1px solid " + th.glassBorder, background: th.surface,
@@ -6535,16 +6955,27 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
         });
       }
     });
-    if (Object.keys(parsed).length === 0) {
-      setImportError("Couldn\u2019t match your text. Try: \"Wake up: 06:00\" per line.");
+    if (Object.keys(parsed).length > 0) {
+      var newRoutine = { answers: parsed, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
+      saveRoutineData(newRoutine);
+      setRoutine(newRoutine);
+      setImportError(""); setShowImportBox(false); setImportText("");
+      playTick();
+      if (onRoutineChanged) onRoutineChanged(newRoutine);
       return;
     }
-    var newRoutine = { answers: parsed, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
-    saveRoutineData(newRoutine);
-    setRoutine(newRoutine);
-    setImportError(""); setShowImportBox(false); setImportText("");
-    playTick();
-    if (onRoutineChanged) onRoutineChanged(newRoutine);
+    // Fall back to free-form text → direct task parsing
+    var directTasks = parseTextToTasks(text);
+    if (directTasks) {
+      var newRoutine = { answers: { _freeform: true }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true, directTasks: directTasks };
+      saveRoutineData(newRoutine);
+      setRoutine(newRoutine);
+      setImportError(""); setShowImportBox(false); setImportText("");
+      playTick();
+      if (onRoutineChanged) onRoutineChanged(newRoutine);
+      return;
+    }
+    setImportError("Couldn\u2019t parse your text. Try one task per line, like:\n5:30am Wake up\n6:00am Morning prayer\n9:00 Work\n22:00 Bedtime");
   };
 
   // Group questions by category
@@ -6595,7 +7026,7 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
             Paste your routine below (plain text or PVA export):
           </div>
           <textarea value={importText} onChange={function(e) { setImportText(e.target.value); setImportError(""); }}
-            placeholder={"Wake up: 06:00\nDevotion: 30 min\nExercise: Walk/Run\nWork start: 09:00\nLunch: 12:30\nDinner: 19:00\nBedtime: 22:30"}
+            placeholder={"5:30am Wake up\n6:00am Morning devotion\n6:45am Exercise\n9:00 Work / Deep focus\n12:30 Lunch\n6pm Family dinner\n9pm Bible reading\n10:30pm Bedtime"}
             style={{
               width: "100%", minHeight: 100, padding: 12, borderRadius: 12,
               border: "1px solid " + th.glassBorder, background: th.surface,
@@ -6617,6 +7048,91 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
           </div>
         </div>
       )}
+
+      {/* ─── GENERATED DAILY SCHEDULE PREVIEW ─── */}
+      {(function() {
+        var preview = (routine && routine.directTasks) ? routine.directTasks : buildTasksFromRoutineAnswers(routine);
+        if (!preview) return null;
+        var allItems = [];
+        ["person", "people", "process", "product"].forEach(function(k) {
+          var pillar = preview[k];
+          if (!pillar || !pillar.sections) return;
+          pillar.sections.forEach(function(s) {
+            s.tasks.forEach(function(t) {
+              allItems.push({ time: s.time, label: t.label, pillar: pillar.label, id: t.id, xp: t.xp });
+            });
+          });
+        });
+        allItems.sort(function(a, b) {
+          var ta = (a.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+          var tb = (b.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+          return ta.localeCompare(tb);
+        });
+        if (allItems.length === 0) return null;
+        var getPeriod = function(item) {
+          var t = (item.time || "99:99").replace(/\u2013/g, "-").split("-")[0].trim();
+          var h = parseInt(t.split(":")[0]) || 99;
+          if (h < 12) return "MORNING";
+          if (h < 17) return "AFTERNOON";
+          if (h < 99) return "EVENING";
+          return "FLEXIBLE";
+        };
+        var groups = [];
+        var currentGroup = null;
+        allItems.forEach(function(item) {
+          var period = getPeriod(item);
+          if (!currentGroup || currentGroup.period !== period) {
+            currentGroup = { period: period, items: [] };
+            groups.push(currentGroup);
+          }
+          currentGroup.items.push(item);
+        });
+        var periodColors = { MORNING: "#F59E0B", AFTERNOON: "#22C55E", EVENING: "#8B5CF6", FLEXIBLE: th.blue };
+        return (
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 4px 10px" }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: th.text, letterSpacing: "0.14em", fontFamily: FONT }}>YOUR DAILY SCHEDULE</span>
+              <div style={{ flex: 1, height: 1, background: th.glassBorder }} />
+              <span style={{ fontSize: 9, color: th.dim, fontFamily: FONT }}>{allItems.length} tasks</span>
+            </div>
+            {groups.map(function(group) {
+              var pColor = periodColors[group.period] || th.blue;
+              return (
+                <div key={group.period} style={{ marginBottom: 12 }}>
+                  <div style={{
+                    ...glassStyle(th), padding: "10px 16px", marginBottom: 4, borderRadius: 14,
+                    borderLeft: "3px solid " + pColor,
+                  }}>
+                    <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.10em", color: pColor, fontFamily: FONT }}>{group.period}</span>
+                  </div>
+                  {group.items.map(function(item) {
+                    return (
+                      <div key={item.id} style={{
+                        ...glassStyle(th), padding: "8px 16px", marginBottom: 2, borderRadius: 12,
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: pColor, minWidth: 85, fontFamily: FONT }}>{item.time || "\u2014"}</span>
+                          <span style={{ fontSize: 11, fontWeight: 500, color: th.text, fontFamily: FONT }}>{item.label}</span>
+                        </div>
+                        <span style={{ fontSize: 9, color: th.dim, fontFamily: FONT }}>+{item.xp} XP</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            <div style={{ padding: "8px 4px 0", fontSize: 9, color: th.dim, fontStyle: "italic", fontFamily: FONT }}>
+              This schedule syncs to your Today's Tasks on the home screen.
+            </div>
+          </div>
+        );
+      })()}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 4px 10px" }}>
+        <span style={{ fontSize: 10, fontWeight: 800, color: th.text, letterSpacing: "0.14em", fontFamily: FONT }}>ROUTINE SETTINGS</span>
+        <div style={{ flex: 1, height: 1, background: th.glassBorder }} />
+      </div>
 
       {categories.map(function(catKey) {
         var catInfo = ROUTINE_CATEGORIES[catKey];
@@ -6686,14 +7202,52 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
   );
 }
 
+// ─── BOTTOM TAB BAR ───
+function BottomTabBar({ view, setView, th }) {
+  const tabs = [
+    { id: "home", label: "HOME", icon: "\u2302" },
+    { id: "weekly", label: "WEEKLY", icon: "\uD83D\uDCC5" },
+    { id: "season", label: "SEASON", icon: "\uD83C\uDF3F" },
+    { id: "settings", label: "SETTINGS", icon: "\u2699" },
+  ];
+  return (
+    <div style={{
+      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200,
+      display: "flex", justifyContent: "space-around", alignItems: "center",
+      padding: "8px 0 " + ("env(safe-area-inset-bottom, 8px)"),
+      background: th.glass, backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+      borderTop: "1px solid " + th.glassBorder,
+    }}>
+      {tabs.map(function(tab) {
+        const homeViews = ["home","category","routine","pva_glance","intercession","notes","prayer_journal","verse_mem","pets","guild","rewards","routine_onboarding","trends","testimony_wall"];
+        const active = (view === tab.id) || (tab.id === "home" && homeViews.indexOf(view) !== -1);
+        return (
+          <div key={tab.id} onClick={function() { setView(tab.id); }} style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            cursor: "pointer", padding: "6px 16px", borderRadius: 12,
+            transition: "all 0.2s ease",
+          }}>
+            <span style={{ fontSize: 18, color: active ? th.blue : th.dim, transition: "color 0.2s ease" }}>{tab.icon}</span>
+            <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", color: active ? th.blue : th.dim, fontFamily: FONT }}>{tab.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── MAIN APP ───
 function PPPPApp() {
   const [profile, setProfile] = useState(loadProfile);
-  const [themeMode, setThemeMode] = useState(getAutoTheme);
+  const [themeMode, setThemeMode] = useState(function() {
+    const auto = getAutoTheme();
+    return auto || (profile?.theme || "light");
+  });
   const [autoTheme, setAutoTheme] = useState(true);
   const [state, setState] = useState(loadState);
   const [view, setView] = useState(function() { return (loadRoutine() || loadProfile()) ? "home" : "routine_onboarding"; });
   const [hasRoutine, setHasRoutine] = useState(function() { return !!loadRoutine(); });
+  const [testimonyMilestone, setTestimonyMilestone] = useState(null);
 
   // ─── FIREBASE AUTH STATE ───
   const [firebaseUser, setFirebaseUser] = useState(null);
@@ -6821,12 +7375,31 @@ function PPPPApp() {
   // ─── ROUTINE ONBOARDING HANDLER ───
   const handleRoutineComplete = function(answers) {
     // When routine is completed/updated, rebuild tasks from the new answers
-    var routine = loadRoutine();
-    var newTasks = buildTasksFromRoutineAnswers(routine);
+    var newTasks = null;
+    // Check if free-form direct tasks were passed
+    if (answers && answers._directTasks) {
+      newTasks = answers._directTasks;
+    } else {
+      // Try loading the full routine object from localStorage first (most reliable)
+      var routine = loadRoutine();
+      // If routine has directTasks (free-form import), use those
+      if (routine && routine.directTasks) {
+        newTasks = routine.directTasks;
+      } else {
+        // If loadRoutine didn't find it (race condition), construct from the answers passed in
+        if (!routine && answers) {
+          routine = { answers: answers, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+          saveRoutineData(routine);
+        }
+        newTasks = buildTasksFromRoutineAnswers(routine);
+      }
+    }
     if (newTasks) {
       // Save routine-generated tasks as customTasks so they persist with the state
       setState(function(p) {
-        return Object.assign({}, p, { customTasks: newTasks });
+        var updated = Object.assign({}, p, { customTasks: newTasks });
+        saveState(updated);
+        return updated;
       });
     }
     setHasRoutine(true);
@@ -6890,6 +7463,27 @@ function PPPPApp() {
   const th = themeMode === "dark" ? dark : light;
   const isDark = themeMode === "dark";
   const colors = catColors(th);
+
+  // ─── AUTO-SYNC ROUTINE → CUSTOM TASKS ───
+  // On load and whenever hasRoutine changes, if there's a routine in localStorage
+  // but no customTasks in state, rebuild and persist them immediately.
+  useEffect(function() {
+    if (!state.customTasks) {
+      var routine = loadRoutine();
+      if (routine) {
+        // Handle both questionnaire-based and free-form imported routines
+        var newTasks = routine.directTasks || buildTasksFromRoutineAnswers(routine);
+        if (newTasks) {
+          setState(function(p) {
+            if (p.customTasks) return p; // another update beat us
+            var updated = Object.assign({}, p, { customTasks: newTasks });
+            saveState(updated);
+            return updated;
+          });
+        }
+      }
+    }
+  }, [hasRoutine]);
 
   // Task management — use routine-generated tasks if available, else defaults
   const tasks = useMemo(function() {
@@ -6967,6 +7561,21 @@ function PPPPApp() {
     }
   }, [autoTheme]);
 
+  // Check for testimony milestones
+  useEffect(() => {
+    try {
+      const testimonies = JSON.parse(localStorage.getItem("pva_testimonies") || "[]");
+      const savedIds = testimonies.map(t => t.id);
+      const firstUnsaved = TESTIMONY_MILESTONES.find(function(m) {
+        if (savedIds.indexOf(m.id) !== -1) return false;
+        return m.check(state);
+      });
+      if (firstUnsaved && !testimonyMilestone) {
+        setTestimonyMilestone(firstUnsaved);
+      }
+    } catch (e) {}
+  }, [state]);
+
   const streakMult = getMult(state.streak);
   const prestigeMult = 1 + ((state.prestige || 0) * 0.1);
   const mult = streakMult * prestigeMult;
@@ -7012,7 +7621,9 @@ function PPPPApp() {
       const t = allT.find(x => x.id === id); const was = p.completed[id];
       const dx = t ? Math.round(t.xp * mult) : 0;
       if (!was) { playTick(); spawnParticles(e); if (navigator.vibrate) navigator.vibrate(30); }
-      return { ...p, completed: { ...p.completed, [id]: !was }, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
+      var updated = { ...p, completed: { ...p.completed, [id]: !was }, xp: p.xp + (was ? -dx : dx), totalXp: p.totalXp + (was ? -dx : dx) };
+      saveState(updated);
+      return updated;
     });
 
     // Show undo toast
@@ -7394,22 +8005,10 @@ function PPPPApp() {
           {/* Row 2: Date/time + action buttons */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <GmtDatePill th={th} />
-              <GmtTimePill th={th} />
+              <LocalDatePill th={th} />
+              <LocalTimePill th={th} />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {view !== "home" && (
-                <button onClick={goHome} style={{
-                  padding: "7px 16px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
-                  background: th.glass, color: th.mid, fontSize: 10, fontWeight: 600,
-                  cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
-                }}>HOME</button>
-              )}
-              <button onClick={() => setView(view === "weekly" ? "home" : "weekly")} style={{
-                padding: "7px 16px", borderRadius: 20, border: `1px solid ${view === "weekly" ? th.blue + "40" : th.glassBorder}`,
-                background: view === "weekly" ? th.blueDim : th.glass, color: view === "weekly" ? th.blue : th.mid,
-                fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT, backdropFilter: "blur(20px)",
-              }}>WEEKLY</button>
               <button onClick={() => { setShowAccountability(true); setShowSummary(true); }} style={{
                 padding: "7px 16px", borderRadius: 20, border: `1px solid ${th.glassBorder}`,
                 background: th.glass, color: th.mid, fontSize: 10, fontWeight: 600,
@@ -7421,7 +8020,7 @@ function PPPPApp() {
 
         {/* ─── HOME VIEW ─── */}
         {view === "home" && (
-          <div className="pva-fade-in" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+          <div className="pva-fade-in" style={{ display: "flex", flexDirection: "column", minHeight: "100vh", paddingBottom: 80 }}>
             {/* Content before MY DAILY ROUTINE — hide in focus mode */}
             {!focusMode && (
               <>
@@ -7460,8 +8059,8 @@ function PPPPApp() {
                   ].map(function(n) { return (
                     <div key={n.view} onClick={function() { setView(n.view); }} className="pva-card-hover" style={{
                       ...glassStyle(th), padding: "20px 12px 16px", cursor: "pointer",
-                      border: `1px solid ${n.color}20`,
-                      background: `linear-gradient(145deg, ${n.color}0C 0%, transparent 70%)`,
+                      border: "1px solid " + n.color + "20",
+                      background: "linear-gradient(145deg, " + n.color + "0C 0%, transparent 70%)",
                       transition: "all 0.3s cubic-bezier(0.16,1,0.3,1)", textAlign: "center",
                       position: "relative", overflow: "hidden",
                     }}>
@@ -7470,6 +8069,21 @@ function PPPPApp() {
                       <div style={{ fontSize: 8, color: th.dim, fontFamily: FONT }}>{n.sub}</div>
                     </div>
                   ); })}
+                </div>
+
+                {/* MY TESTIMONIES CARD */}
+                <div onClick={function() { setView("testimony_wall"); }} style={{
+                  ...glassStyle(th), padding: "14px 20px", margin: "0 20px 16px", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>{"\uD83D\uDCDC"}</span>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: th.text, fontFamily: FONT }}>MY TESTIMONIES</div>
+                      <div style={{ fontSize: 9, color: th.dim, fontFamily: FONT }}>Rev 12:11 — They overcame by their testimony</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 12, color: th.dim }}>{"\u203A"}</span>
                 </div>
               </>
             )}
@@ -7500,6 +8114,9 @@ function PPPPApp() {
             ) : (
               <>
                 <SectionDivider label="PROGRESS" th={th} />
+
+                {/* TEMPLE RESTORATION ─── */}
+                {state.restorationActive && <TempleRestoration state={state} th={th} />}
 
                 {/* LOGIN BONUS CARD removed — now a popup */}
 
@@ -7989,16 +8606,46 @@ function PPPPApp() {
         {view === "routine" && (
           <MyRoutineView th={th} onBack={goHome} onRoutineChanged={function(newRoutine) {
             if (newRoutine) {
-              var newTasks = buildTasksFromRoutineAnswers(newRoutine);
+              var newTasks = newRoutine.directTasks || buildTasksFromRoutineAnswers(newRoutine);
               if (newTasks) {
-                setState(function(p) { return Object.assign({}, p, { customTasks: newTasks }); });
+                setState(function(p) {
+                  var updated = Object.assign({}, p, { customTasks: newTasks });
+                  saveState(updated);
+                  return updated;
+                });
               }
+              setHasRoutine(true);
             } else {
               // Routine was reset — revert to default tasks
-              setState(function(p) { var s = Object.assign({}, p); delete s.customTasks; return s; });
+              setState(function(p) {
+                var s = Object.assign({}, p);
+                delete s.customTasks;
+                saveState(s);
+                return s;
+              });
               setHasRoutine(false);
             }
           }} />
+        )}
+
+        {/* ─── TESTIMONY WALL VIEW ─── */}
+        {view === "testimony_wall" && (
+          <TestimonyWall th={th} onBack={goHome} />
+        )}
+
+        {/* ─── BOTTOM TAB BAR ─── */}
+        <BottomTabBar view={view} setView={setView} th={th} />
+
+        {/* ─── TESTIMONY MODAL ─── */}
+        {testimonyMilestone && (
+          <TestimonyModal milestone={testimonyMilestone} onSave={function(text) {
+            try {
+              const testimonies = JSON.parse(localStorage.getItem("pva_testimonies") || "[]");
+              testimonies.push({ id: testimonyMilestone.id, text: text, date: TODAY, shared: false });
+              localStorage.setItem("pva_testimonies", JSON.stringify(testimonies));
+            } catch (e) {}
+            setTestimonyMilestone(null);
+          }} onSkip={function() { setTestimonyMilestone(null); }} th={th} />
         )}
 
         {/* FAB removed — add task via header button */}
