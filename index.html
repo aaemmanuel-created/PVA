@@ -4830,7 +4830,7 @@ function PetsView({ state, th, onBack }) {
                   ...glassStyle(th), padding: "14px 8px", textAlign: "center", cursor: unlocked ? "pointer" : "default",
                   opacity: unlocked ? 1 : 0.4, border: isActive ? `2px solid ${catColors[k]}` : `1px solid ${th.glassBorder}`,
                 }}>
-                  <div style={{ fontSize: 24 }}>{unlocked ? pet.icon : "--"}}</div>
+                  <div style={{ fontSize: 24 }}>{unlocked ? pet.icon : "--"}</div>
                   <div style={{ fontSize: 9, fontWeight: 700, color: th.text, marginTop: 4 }}>{pet.name}</div>
                   <div style={{ fontSize: 8, color: th.dim, marginTop: 2 }}>{pet.desc}</div>
                 </div>
@@ -4851,7 +4851,7 @@ function PetsView({ state, th, onBack }) {
               ...glassStyle(th), padding: "16px", textAlign: "center", cursor: unlocked ? "pointer" : "default",
               opacity: unlocked ? 1 : 0.4, border: isActive ? `2px solid ${th.gold}` : `1px solid ${th.glassBorder}`,
             }}>
-              <div style={{ fontSize: 28 }}>{unlocked ? m.icon : "--"}}</div>
+              <div style={{ fontSize: 28 }}>{unlocked ? m.icon : "--"}</div>
               <div style={{ fontSize: 10, fontWeight: 700, color: th.text, marginTop: 4 }}>{m.name}</div>
               <div style={{ fontSize: 8, color: th.dim, marginTop: 2 }}>{m.desc}</div>
             </div>
@@ -7835,7 +7835,6 @@ function PPPPApp() {
                   <span style={{ fontSize: 14, color: state.dayRating ? "#22C55E" : th.dim }}>{state.dayRating ? "\u2713" : "\u203A"}</span>
                 </div>
               </div>
-            </div>
 
             <SectionDivider th={th} />
 
@@ -7853,7 +7852,6 @@ function PPPPApp() {
               <TempleVisual stage={levelIdx} th={th} />
             </div>
 
-                </div>
               </>
             )}
 
