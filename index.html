@@ -6376,58 +6376,10 @@ function RoutineOnboardingView({ th, onComplete, existingRoutine }) {
         return;
       }
     } catch (e) { /* not JSON, try plain text parsing */ }
-    // Parse plain text — match lines to questions and options
-    var lines = text.split("\n").map(function(l) { return l.trim().toLowerCase(); }).filter(Boolean);
-    var parsed = {};
-    ROUTINE_QUESTIONS.forEach(function(q) {
-      var keywords = q.question.toLowerCase().replace(/[?'"\u2019]/g, "").split(" ").filter(function(w) { return w.length > 3; });
-      var matchedLine = null;
-      lines.forEach(function(line) {
-        var hits = keywords.filter(function(kw) { return line.indexOf(kw) >= 0; }).length;
-        if (hits >= 2 || (hits >= 1 && keywords.length <= 3)) matchedLine = line;
-      });
-      if (matchedLine) {
-        // Try to match an option from this line
-        var bestOption = null, bestScore = 0;
-        q.options.forEach(function(opt) {
-          var optLower = opt.toLowerCase().replace(/[\u2013\u2014]/g, "-");
-          if (matchedLine.indexOf(optLower) >= 0) { bestOption = opt; bestScore = 100; }
-          else {
-            var optWords = optLower.split(/[\s\/,]+/).filter(function(w) { return w.length > 1; });
-            var score = optWords.filter(function(w) { return matchedLine.indexOf(w) >= 0; }).length;
-            if (score > bestScore) { bestScore = score; bestOption = opt; }
-          }
-        });
-        if (bestOption && bestScore > 0) parsed[q.id] = bestOption;
-      }
-      // Also try direct time matching for time-based questions
-      if (!parsed[q.id] && q.options.some(function(o) { return /^\d{2}:\d{2}/.test(o); })) {
-        var timeMatch = null;
-        lines.forEach(function(line) {
-          var kHits = keywords.filter(function(kw) { return line.indexOf(kw) >= 0; }).length;
-          if (kHits >= 1) {
-            var tm = line.match(/(\d{1,2}[:.]\d{2})/);
-            if (tm) {
-              var t = tm[1].replace(".", ":");
-              if (t.length === 4) t = "0" + t;
-              q.options.forEach(function(opt) { if (opt.indexOf(t) >= 0) timeMatch = opt; });
-            }
-          }
-        });
-        if (timeMatch) parsed[q.id] = timeMatch;
-      }
-    });
-    if (Object.keys(parsed).length > 0) {
-      var routineData = { answers: parsed, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
-      saveRoutineData(routineData);
-      onComplete(parsed);
-      playCelebrate();
-      return;
-    }
-    // Fall back to free-form text → direct task parsing
+    // For plain text: ALWAYS try free-form parser first — it handles task lists
+    // much better than the questionnaire matcher, which only catches partial matches
     var directTasks = parseTextToTasks(text);
     if (directTasks) {
-      // Save a minimal routine marker and set tasks directly
       var markerRoutine = { answers: { _freeform: true }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true, directTasks: directTasks };
       saveRoutineData(markerRoutine);
       onComplete({ _freeform: true, _directTasks: directTasks });
@@ -6900,7 +6852,7 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
   const handleImportSubmit = function() {
     var text = importText.trim();
     if (!text) { setImportError("Please paste your routine first."); return; }
-    // Try JSON first
+    // Try JSON first (PVA export format)
     try {
       var data = JSON.parse(text);
       var importedAnswers = data.answers || data;
@@ -6908,6 +6860,8 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
       var matchCount = Object.keys(importedAnswers).filter(function(k) { return validKeys.indexOf(k) >= 0; }).length;
       if (matchCount > 0) {
         var newRoutine = { answers: importedAnswers, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
+        // If it also has directTasks, keep them
+        if (data.directTasks) newRoutine.directTasks = data.directTasks;
         saveRoutineData(newRoutine);
         setRoutine(newRoutine);
         setImportError(""); setShowImportBox(false); setImportText("");
@@ -6916,52 +6870,8 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
         return;
       }
     } catch (e) { /* not JSON */ }
-    // Parse plain text
-    var lines = text.split("\n").map(function(l) { return l.trim().toLowerCase(); }).filter(Boolean);
-    var parsed = {};
-    ROUTINE_QUESTIONS.forEach(function(q) {
-      var keywords = q.question.toLowerCase().replace(/[?'"\u2019]/g, "").split(" ").filter(function(w) { return w.length > 3; });
-      var matchedLine = null;
-      lines.forEach(function(line) {
-        var hits = keywords.filter(function(kw) { return line.indexOf(kw) >= 0; }).length;
-        if (hits >= 2 || (hits >= 1 && keywords.length <= 3)) matchedLine = line;
-      });
-      if (matchedLine) {
-        var bestOption = null, bestScore = 0;
-        q.options.forEach(function(opt) {
-          var optLower = opt.toLowerCase().replace(/[\u2013\u2014]/g, "-");
-          if (matchedLine.indexOf(optLower) >= 0) { bestOption = opt; bestScore = 100; }
-          else {
-            var optWords = optLower.split(/[\s\/,]+/).filter(function(w) { return w.length > 1; });
-            var score = optWords.filter(function(w) { return matchedLine.indexOf(w) >= 0; }).length;
-            if (score > bestScore) { bestScore = score; bestOption = opt; }
-          }
-        });
-        if (bestOption && bestScore > 0) parsed[q.id] = bestOption;
-      }
-      if (!parsed[q.id] && q.options.some(function(o) { return /^\d{2}:\d{2}/.test(o); })) {
-        lines.forEach(function(line) {
-          var kHits = keywords.filter(function(kw) { return line.indexOf(kw) >= 0; }).length;
-          if (kHits >= 1) {
-            var tm = line.match(/(\d{1,2}[:.]\d{2})/);
-            if (tm) {
-              var t = tm[1].replace(".", ":"); if (t.length === 4) t = "0" + t;
-              q.options.forEach(function(opt) { if (opt.indexOf(t) >= 0 && !parsed[q.id]) parsed[q.id] = opt; });
-            }
-          }
-        });
-      }
-    });
-    if (Object.keys(parsed).length > 0) {
-      var newRoutine = { answers: parsed, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true };
-      saveRoutineData(newRoutine);
-      setRoutine(newRoutine);
-      setImportError(""); setShowImportBox(false); setImportText("");
-      playTick();
-      if (onRoutineChanged) onRoutineChanged(newRoutine);
-      return;
-    }
-    // Fall back to free-form text → direct task parsing
+    // For plain text: ALWAYS try free-form parser first — it handles task lists
+    // much better than the questionnaire matcher, which only catches partial matches
     var directTasks = parseTextToTasks(text);
     if (directTasks) {
       var newRoutine = { answers: { _freeform: true }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), imported: true, directTasks: directTasks };
@@ -6987,9 +6897,23 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
           <span style={{ fontSize: 14, fontWeight: 800, color: th.text, fontFamily: FONT }}>MY ROUTINE</span>
         </div>
         <div style={{ ...glassStyle(th), padding: 30, textAlign: "center" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>{"\uD83D\uDCC5"}</div>
           <div style={{ fontSize: 13, color: th.mid, marginBottom: 16, fontFamily: FONT }}>No routine set up yet.</div>
-          <div style={{ fontSize: 11, color: th.dim, fontFamily: FONT }}>Go through the setup to build your daily routine.</div>
+          <div style={{ fontSize: 11, color: th.dim, fontFamily: FONT, marginBottom: 20 }}>Paste your tasks below to import your routine:</div>
+          <textarea value={importText} onChange={function(e) { setImportText(e.target.value); setImportError(""); }}
+            placeholder={"5:30am Wake up\n6:00am Morning devotion\n6:45am Exercise\n9:00 Work / Deep focus\n12:30 Lunch\n6pm Family dinner\n9pm Bible reading\n10:30pm Bedtime"}
+            style={{
+              width: "100%", minHeight: 120, padding: 12, borderRadius: 12,
+              border: "1px solid " + th.glassBorder, background: th.surface,
+              color: th.text, fontSize: 11, fontFamily: FONT, resize: "vertical",
+              outline: "none", textAlign: "left",
+            }} />
+          {importError && (
+            <div style={{ padding: "6px 0", fontSize: 10, color: th.red, fontFamily: FONT }}>{importError}</div>
+          )}
+          <button onClick={handleImportSubmit}
+            style={{ marginTop: 12, padding: "10px 24px", borderRadius: 14, border: "none",
+              background: th.blue, color: "#fff", fontSize: 11, fontWeight: 700,
+              cursor: "pointer", fontFamily: FONT }}>IMPORT ROUTINE</button>
         </div>
       </div>
     );
