@@ -8382,25 +8382,52 @@ function PPPPApp() {
                                   boxSizing: "border-box",
                                 }} />
                               </div>
-                              <div style={{ marginBottom: 20 }}>
-                                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.10em", marginBottom: 8, fontFamily: FONT }}>PILLAR</div>
-                                <div style={{ display: "flex", gap: 6 }}>
+                              <div style={{ marginBottom: 22 }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.10em", marginBottom: 10, fontFamily: FONT }}>PILLAR</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                                   {pillarOptions.map(function(p) {
                                     var isSelected = currentPillar === p.key;
                                     return (
                                       <div key={p.key} onClick={function() { setEditingHomeTask(Object.assign({}, et, { newCatKey: p.key })); }} style={{
-                                        flex: 1, padding: "8px 4px", borderRadius: 10, cursor: "pointer",
-                                        textAlign: "center", transition: "all 0.2s ease",
+                                        display: "flex", alignItems: "center", gap: 12,
+                                        padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                                        transition: "all 0.2s ease",
                                         border: isSelected ? "2px solid " + p.accent : "1.5px solid " + th.glassBorder,
-                                        background: isSelected ? p.accent + "15" : th.surface,
+                                        background: isSelected ? p.accent + "12" : th.surface,
                                       }}>
-                                        <div style={{ fontSize: 11, fontWeight: 800, color: isSelected ? p.accent : th.dim, fontFamily: FONT }}>{p.key === "person" ? "P1" : p.key === "people" ? "P2" : p.key === "process" ? "P3" : "P4"}</div>
-                                        <div style={{ fontSize: 7, fontWeight: 600, color: isSelected ? p.accent : th.ghost, fontFamily: FONT, marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>{p.key}</div>
+                                        <div style={{
+                                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                                          display: "flex", alignItems: "center", justifyContent: "center",
+                                          background: isSelected ? p.accent : p.accent + "20",
+                                          transition: "all 0.2s ease",
+                                        }}>
+                                          <span style={{ fontSize: 13, fontWeight: 900, color: isSelected ? "#fff" : p.accent, fontFamily: FONT }}>{p.key === "person" ? "P1" : p.key === "people" ? "P2" : p.key === "process" ? "P3" : "P4"}</span>
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                          <div style={{ fontSize: 12, fontWeight: 700, color: isSelected ? p.accent : th.text, fontFamily: FONT, textTransform: "capitalize" }}>{p.key}</div>
+                                        </div>
+                                        <div style={{
+                                          width: 20, height: 20, borderRadius: 10, flexShrink: 0,
+                                          border: isSelected ? "2px solid " + p.accent : "2px solid " + th.ghost,
+                                          background: isSelected ? p.accent : "transparent",
+                                          display: "flex", alignItems: "center", justifyContent: "center",
+                                          transition: "all 0.2s ease",
+                                        }}>
+                                          {isSelected && <span style={{ color: "#fff", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
+                                        </div>
                                       </div>
                                     );
                                   })}
                                 </div>
                               </div>
+                              {/* Save button — full width, prominent */}
+                              <button onClick={handleSave} style={{
+                                width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
+                                background: "linear-gradient(135deg, " + accentColor + ", " + accentColor + "CC)",
+                                color: "#fff", fontSize: 13, fontWeight: 800, letterSpacing: "0.10em",
+                                cursor: "pointer", fontFamily: FONT, marginBottom: 10,
+                                boxShadow: "0 4px 14px " + accentColor + "40",
+                              }}>SAVE CHANGES</button>
                               <div style={{ display: "flex", gap: 8 }}>
                                 <button onClick={handleDelete} style={{
                                   flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + th.red + "30",
@@ -8412,12 +8439,6 @@ function PPPPApp() {
                                   background: th.glass, color: th.text, fontSize: 10, fontWeight: 700,
                                   cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
                                 }}>CANCEL</button>
-                                <button onClick={handleSave} style={{
-                                  flex: 1.5, padding: "10px 0", borderRadius: 10, border: "none",
-                                  background: "linear-gradient(135deg, " + accentColor + ", " + accentColor + "CC)",
-                                  color: "#fff", fontSize: 10, fontWeight: 700,
-                                  cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
-                                }}>SAVE</button>
                               </div>
                             </div>
                           </div>
