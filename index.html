@@ -7352,6 +7352,7 @@ function PPPPApp() {
     try { const saved = localStorage.getItem("pva_task_order"); return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
   const [activeTaskAction, setActiveTaskAction] = useState(null); // { id, x, y } for long-press action bar
+  const [editingHomeTask, setEditingHomeTask] = useState(null); // { id, label, time, catKey, secIdx, accent }
   const longPressRef = useRef(null);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [addTaskLabel, setAddTaskLabel] = useState("");
@@ -8295,6 +8296,134 @@ function PPPPApp() {
                         );
                       })()}
 
+                      {/* Edit task modal */}
+                      {editingHomeTask && (function() {
+                        var et = editingHomeTask;
+                        var pillarOptions = [
+                          { key: "person", label: "P1 \u2014 Person", accent: catColors(th).person },
+                          { key: "people", label: "P2 \u2014 People", accent: catColors(th).people },
+                          { key: "process", label: "P3 \u2014 Process", accent: catColors(th).process },
+                          { key: "product", label: "P4 \u2014 Product", accent: catColors(th).product },
+                        ];
+                        var currentPillar = et.newCatKey || et.catKey;
+                        var currentAccent = pillarOptions.find(function(p) { return p.key === currentPillar; });
+                        var accentColor = currentAccent ? currentAccent.accent : et.accent;
+                        var handleSave = function() {
+                          var newLabel = et.label.trim();
+                          if (!newLabel) return;
+                          var newCat = et.newCatKey || et.catKey;
+                          setState(function(p) {
+                            var ct = p.customTasks ? JSON.parse(JSON.stringify(p.customTasks)) : null;
+                            if (!ct) return p;
+                            if (newCat !== et.catKey) {
+                              /* Move task to new pillar: remove from old, add to new */
+                              var oldSec = ct[et.catKey] && ct[et.catKey].sections && ct[et.catKey].sections[et.secIdx];
+                              if (oldSec) {
+                                oldSec.tasks = oldSec.tasks.filter(function(tk) { return tk.id !== et.id; });
+                              }
+                              /* Find or create a section in the new pillar with matching time */
+                              var newSections = ct[newCat] && ct[newCat].sections;
+                              if (newSections) {
+                                var targetSec = null;
+                                for (var si = 0; si < newSections.length; si++) {
+                                  if (newSections[si].time === (et.time || "")) { targetSec = newSections[si]; break; }
+                                }
+                                if (!targetSec) {
+                                  targetSec = { time: et.time || "", tasks: [] };
+                                  newSections.push(targetSec);
+                                }
+                                targetSec.tasks.push({ id: et.id, label: newLabel, xp: 15, type: "check", hasNotes: true, notesPlaceholder: "Notes..." });
+                              }
+                            } else {
+                              /* Same pillar: just update label and time */
+                              var sec = ct[et.catKey] && ct[et.catKey].sections && ct[et.catKey].sections[et.secIdx];
+                              if (sec) {
+                                var task = sec.tasks.find(function(tk) { return tk.id === et.id; });
+                                if (task) task.label = newLabel;
+                                sec.time = et.time || sec.time;
+                              }
+                            }
+                            var updated = Object.assign({}, p, { customTasks: ct });
+                            saveState(updated);
+                            return updated;
+                          });
+                          setEditingHomeTask(null);
+                        };
+                        var handleDelete = function() {
+                          onDeleteTask(et.catKey, et.secIdx, et.id);
+                          setEditingHomeTask(null);
+                        };
+                        return (
+                          <div onClick={function() { setEditingHomeTask(null); }} style={{
+                            position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 300,
+                            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+                            display: "flex", alignItems: "center", justifyContent: "center", padding: 20,
+                          }}>
+                            <div onClick={function(e) { e.stopPropagation(); }} style={{
+                              ...glassStyleElevated(th), width: "100%", maxWidth: 340,
+                              borderRadius: 20, padding: "24px 20px",
+                              border: "1.5px solid " + accentColor + "30",
+                              boxShadow: "0 12px 40px rgba(0,0,0,0.2)",
+                            }}>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: accentColor, letterSpacing: "0.14em", marginBottom: 16, fontFamily: FONT }}>EDIT TASK</div>
+                              <div style={{ marginBottom: 14 }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.10em", marginBottom: 6, fontFamily: FONT }}>TASK NAME</div>
+                                <input type="text" value={et.label} onChange={function(e) { setEditingHomeTask(Object.assign({}, et, { label: e.target.value })); }} style={{
+                                  width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid " + th.glassBorder,
+                                  background: th.surface, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none",
+                                  boxSizing: "border-box",
+                                }} />
+                              </div>
+                              <div style={{ marginBottom: 14 }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.10em", marginBottom: 6, fontFamily: FONT }}>TIME</div>
+                                <input type="text" value={et.time} placeholder="e.g. 07:30" onChange={function(e) { setEditingHomeTask(Object.assign({}, et, { time: e.target.value })); }} style={{
+                                  width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid " + th.glassBorder,
+                                  background: th.surface, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none",
+                                  boxSizing: "border-box",
+                                }} />
+                              </div>
+                              <div style={{ marginBottom: 20 }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.10em", marginBottom: 8, fontFamily: FONT }}>PILLAR</div>
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  {pillarOptions.map(function(p) {
+                                    var isSelected = currentPillar === p.key;
+                                    return (
+                                      <div key={p.key} onClick={function() { setEditingHomeTask(Object.assign({}, et, { newCatKey: p.key })); }} style={{
+                                        flex: 1, padding: "8px 4px", borderRadius: 10, cursor: "pointer",
+                                        textAlign: "center", transition: "all 0.2s ease",
+                                        border: isSelected ? "2px solid " + p.accent : "1.5px solid " + th.glassBorder,
+                                        background: isSelected ? p.accent + "15" : th.surface,
+                                      }}>
+                                        <div style={{ fontSize: 11, fontWeight: 800, color: isSelected ? p.accent : th.dim, fontFamily: FONT }}>{p.key === "person" ? "P1" : p.key === "people" ? "P2" : p.key === "process" ? "P3" : "P4"}</div>
+                                        <div style={{ fontSize: 7, fontWeight: 600, color: isSelected ? p.accent : th.ghost, fontFamily: FONT, marginTop: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>{p.key}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button onClick={handleDelete} style={{
+                                  flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + th.red + "30",
+                                  background: th.red + "10", color: th.red, fontSize: 10, fontWeight: 700,
+                                  cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
+                                }}>DELETE</button>
+                                <button onClick={function() { setEditingHomeTask(null); }} style={{
+                                  flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + th.glassBorder,
+                                  background: th.glass, color: th.text, fontSize: 10, fontWeight: 700,
+                                  cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
+                                }}>CANCEL</button>
+                                <button onClick={handleSave} style={{
+                                  flex: 1.5, padding: "10px 0", borderRadius: 10, border: "none",
+                                  background: "linear-gradient(135deg, " + accentColor + ", " + accentColor + "CC)",
+                                  color: "#fff", fontSize: 10, fontWeight: 700,
+                                  cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
+                                }}>SAVE</button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {groups.map(function(group, gi) {
                         var doneCount = group.items.filter(function(i) { return state.completed && state.completed[i.id]; }).length;
                         var periodAccent = group.period === "MORNING" ? "#DC2626" : group.period === "AFTERNOON" ? "#16A34A" : group.period === "EVENING" ? "#1E3A8A" : th.blue;
@@ -8350,8 +8479,8 @@ function PPPPApp() {
                                       background: done ? item.accent + "06" : "transparent",
                                       transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
                                     }}>
-                                    {/* Time + Label */}
-                                    <div onClick={function(e) { e.stopPropagation(); toggleHomeTask(item.id, e); }} style={{
+                                    {/* Time + Label — tap to edit */}
+                                    <div onClick={function(e) { e.stopPropagation(); setEditingHomeTask({ id: item.id, label: item.label, time: item.time || "", catKey: item.catKey, secIdx: item.secIdx, accent: item.accent }); }} style={{
                                       display: "flex", flexDirection: "column", flex: 1, cursor: "pointer", minWidth: 0,
                                     }}>
                                       <div style={{
