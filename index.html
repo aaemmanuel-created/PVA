@@ -7351,6 +7351,8 @@ function PPPPApp() {
   const [taskOrder, setTaskOrder] = useState(() => {
     try { const saved = localStorage.getItem("pva_task_order"); return saved ? JSON.parse(saved) : null; } catch { return null; }
   });
+  const [activeTaskAction, setActiveTaskAction] = useState(null); // { id, x, y } for long-press action bar
+  const longPressRef = useRef(null);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [addTaskLabel, setAddTaskLabel] = useState("");
   const [addTaskPillar, setAddTaskPillar] = useState("person");
@@ -8261,91 +8263,139 @@ function PPPPApp() {
                       </div>
                     );
                   }
-                  return groups.map(function(group) {
-                    var doneCount = group.items.filter(function(i) { return state.completed && state.completed[i.id]; }).length;
-                    return (
-                      <div key={group.period}>
-                        {/* Period heading card — thicker standalone glass card */}
-                        <div style={{
-                          ...glassStyle(th),
-                          padding: "16px 22px",
-                          marginTop: 14, marginBottom: 8,
-                          borderRadius: 16,
-                          background: "linear-gradient(135deg, " + th.glass + " 0%, transparent 100%)",
-                          border: "1px solid " + th.glassBorder,
-                        }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.10em", color: th.text, fontFamily: FONT }}>{group.period}</span>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: th.dim, fontFamily: FONT }}>
-                              {doneCount}/{group.items.length}
-                            </span>
-                          </div>
-                        </div>
+                  /* Pillar short labels */
+                  var pillarTag = { person: "P1", people: "P2", process: "P3", product: "P4" };
 
-                        {/* Individual task cards — slimmer glass cards */}
-                        <div className="pva-stagger">
-                          {group.items.map(function(item, idx) {
-                            var done = state.completed && state.completed[item.id];
-                            return (
-                              <div key={item.id} style={{
-                                ...glassStyle(th),
-                                display: "flex", alignItems: "center", gap: 10,
-                                padding: "10px 14px", marginBottom: 6, borderRadius: 14,
-                                border: "1px solid " + th.glassBorder,
-                                background: done ? item.accent + "06" : th.glass,
-                                transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
-                              }}>
-                                {/* Time + Label */}
-                                <div onClick={function(e) { toggleHomeTask(item.id, e); }} style={{
-                                  display: "flex", flexDirection: "column", flex: 1, cursor: "pointer", minWidth: 0,
-                                }}>
-                                  <div style={{
-                                    fontSize: 9, fontWeight: 700, color: done ? item.accent + "80" : item.accent,
-                                    fontFamily: FONT, letterSpacing: "0.04em",
-                                    transition: "color 0.3s ease", marginBottom: 2,
-                                  }}>{item.time}</div>
-                                  <div style={{
-                                    fontSize: 12, fontWeight: done ? 400 : 500, color: done ? th.dim : th.text,
-                                    textDecoration: done ? "line-through" : "none",
-                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                    transition: "all 0.3s ease",
-                                    fontFamily: FONT,
-                                  }}>{item.label}</div>
-                                </div>
-                                {/* Reorder arrows */}
-                                <div style={{
-                                  display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0,
-                                }}>
-                                  <button onClick={function() { handleMoveTask(item, idx, group, "up"); }} style={{
-                                    width: 26, height: 20, borderRadius: 6, border: "1px solid " + th.glassBorder,
-                                    background: th.glass, color: th.mid, cursor: "pointer", fontSize: 10, fontWeight: 700,
-                                    display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
-                                  }}>{"\u25B2"}</button>
-                                  <button onClick={function() { handleMoveTask(item, idx, group, "down"); }} style={{
-                                    width: 26, height: 20, borderRadius: 6, border: "1px solid " + th.glassBorder,
-                                    background: th.glass, color: th.mid, cursor: "pointer", fontSize: 10, fontWeight: 700,
-                                    display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
-                                  }}>{"\u25BC"}</button>
-                                </div>
-                                {/* Checkbox — right side */}
-                                <div style={{
-                                  width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                                  border: done ? "2.5px solid " + item.accent : "2.5px solid " + th.mid,
-                                  background: done ? "linear-gradient(135deg, " + item.accent + ", " + item.accent + "DD)" : th.glass,
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
-                                  boxShadow: done ? "0 0 12px " + item.accent + "30, 0 2px 4px " + item.accent + "20" : "inset 0 1px 3px rgba(0,0,0,0.08)",
-                                  cursor: "pointer",
-                                }} onClick={function(e) { toggleHomeTask(item.id, e); }}>
-                                  {done && <span className="pva-check-bounce" style={{ color: th.check || "#fff", fontSize: 15, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
-                                </div>
+                  return (
+                    <div>
+                      {/* Long-press action bar overlay */}
+                      {activeTaskAction && (function() {
+                        var act = activeTaskAction;
+                        return (
+                          <div onClick={function() { setActiveTaskAction(null); }} style={{
+                            position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 200,
+                          }}>
+                            <div onClick={function(e) { e.stopPropagation(); }} style={{
+                              position: "fixed", top: act.y - 44, left: Math.max(12, Math.min(act.x - 80, window.innerWidth - 200)),
+                              display: "flex", gap: 4, padding: "6px 8px", borderRadius: 12,
+                              background: th.bg, border: "1px solid " + th.glassBorder,
+                              boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                              zIndex: 201,
+                            }}>
+                              <button onClick={function() { handleMoveTask(act.item, act.idx, act.group, "up"); setActiveTaskAction(null); }} style={{
+                                padding: "6px 10px", borderRadius: 8, border: "1px solid " + th.glassBorder,
+                                background: th.glass, color: th.text, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                              }}>{"\u25B2"} UP</button>
+                              <button onClick={function() { handleMoveTask(act.item, act.idx, act.group, "down"); setActiveTaskAction(null); }} style={{
+                                padding: "6px 10px", borderRadius: 8, border: "1px solid " + th.glassBorder,
+                                background: th.glass, color: th.text, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
+                              }}>{"\u25BC"} DOWN</button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {groups.map(function(group, gi) {
+                        var doneCount = group.items.filter(function(i) { return state.completed && state.completed[i.id]; }).length;
+                        var periodAccent = group.period === "MORNING" ? "#DC2626" : group.period === "AFTERNOON" ? "#16A34A" : group.period === "EVENING" ? "#1E3A8A" : th.blue;
+                        /* Sort: pending first, completed last */
+                        var sorted = group.items.slice().sort(function(a, b) {
+                          var aDone = state.completed && state.completed[a.id] ? 1 : 0;
+                          var bDone = state.completed && state.completed[b.id] ? 1 : 0;
+                          return aDone - bDone;
+                        });
+                        return (
+                          <div key={group.period} style={{
+                            marginTop: gi === 0 ? 8 : 20, marginBottom: 6,
+                            borderRadius: 16, overflow: "hidden",
+                            border: "1.5px solid " + periodAccent + "30",
+                            backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+                            boxShadow: "0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+                          }}>
+                            {/* Period header — accent tinted top */}
+                            <div style={{
+                              padding: "18px 20px",
+                              background: "linear-gradient(135deg, " + periodAccent + "14 0%, " + th.glass + " 100%)",
+                              borderBottom: "1px solid " + periodAccent + "20",
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.12em", color: periodAccent, fontFamily: FONT }}>{group.period}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: th.dim, fontFamily: FONT, padding: "3px 10px", borderRadius: 8, background: periodAccent + "10" }}>{doneCount}/{group.items.length}</span>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  });
+                            </div>
+
+                            {/* Task rows — joined but visually separated */}
+                            <div style={{ background: th.glass }}>
+                              {sorted.map(function(item, idx) {
+                                var done = state.completed && state.completed[item.id];
+                                var isLast = idx === sorted.length - 1;
+                                /* Long-press handlers */
+                                var onTouchStart = function(e) {
+                                  var touch = e.touches ? e.touches[0] : e;
+                                  longPressRef.current = setTimeout(function() {
+                                    setActiveTaskAction({ id: item.id, item: item, idx: idx, group: group, x: touch.clientX, y: touch.clientY });
+                                  }, 500);
+                                };
+                                var onTouchEnd = function() {
+                                  if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+                                };
+                                return (
+                                  <div key={item.id}
+                                    onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
+                                    onMouseDown={onTouchStart} onMouseUp={onTouchEnd} onMouseLeave={onTouchEnd}
+                                    style={{
+                                      display: "flex", alignItems: "center", gap: 10,
+                                      padding: "11px 14px",
+                                      borderBottom: isLast ? "none" : "1px solid " + th.glassBorder,
+                                      background: done ? item.accent + "06" : "transparent",
+                                      transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
+                                    }}>
+                                    {/* Time + Label */}
+                                    <div onClick={function(e) { e.stopPropagation(); toggleHomeTask(item.id, e); }} style={{
+                                      display: "flex", flexDirection: "column", flex: 1, cursor: "pointer", minWidth: 0,
+                                    }}>
+                                      <div style={{
+                                        fontSize: 9, fontWeight: 700, color: done ? item.accent + "60" : item.accent,
+                                        fontFamily: FONT, letterSpacing: "0.04em",
+                                        transition: "color 0.3s ease", marginBottom: 2,
+                                      }}>{item.time || "\u2014"}</div>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                        <div style={{
+                                          fontSize: 12, fontWeight: done ? 400 : 500, color: done ? th.dim : th.text,
+                                          textDecoration: done ? "line-through" : "none",
+                                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                          transition: "all 0.3s ease", fontFamily: FONT,
+                                        }}>{item.label}</div>
+                                        <span style={{
+                                          fontSize: 7, fontWeight: 800, color: done ? th.ghost : item.accent,
+                                          letterSpacing: "0.06em", fontFamily: FONT, flexShrink: 0,
+                                          padding: "1px 5px", borderRadius: 4,
+                                          background: done ? "transparent" : item.accent + "12",
+                                          border: done ? "none" : "1px solid " + item.accent + "18",
+                                        }}>{pillarTag[item.catKey] || "PD"}</span>
+                                      </div>
+                                    </div>
+                                    {/* Checkbox — right side, glassy */}
+                                    <div onClick={function(e) { e.stopPropagation(); toggleHomeTask(item.id, e); }} style={{
+                                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                      border: done ? "2.5px solid " + item.accent : "2px solid " + item.accent + "50",
+                                      background: done ? "linear-gradient(135deg, " + item.accent + ", " + item.accent + "DD)" : "linear-gradient(135deg, " + th.glass + ", transparent)",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
+                                      boxShadow: done ? "0 0 14px " + item.accent + "35, 0 2px 6px " + item.accent + "25" : "inset 0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(255,255,255,0.1)",
+                                      cursor: "pointer",
+                                    }}>
+                                      {done && <span className="pva-check-bounce" style={{ color: th.check || "#fff", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
                 })()}
 
                 {/* Daily Challenge — inside routine section */}
@@ -8379,16 +8429,7 @@ function PPPPApp() {
                 );
               })()}
 
-              {/* 2. Today's Reflection */}
-              <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 14 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>TODAY{"\u2019"}S REFLECTION</div>
-                <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6, fontWeight: 400, fontStyle: "normal" }}>{getDailyPrompt(TODAY)}</div>
-                {state.notes?.devotional_today !== undefined ? (
-                  <div style={{ fontSize: 11, color: th.text, marginTop: 8, padding: "8px 10px", borderRadius: 8, background: th.surface, lineHeight: 1.5 }}>{state.notes.devotional_today}</div>
-                ) : null}
-              </div>
-
-              {/* 3. Evening Reflection */}
+              {/* 2. Evening Reflection */}
               <div onClick={function() { setShowEveningReflection(true); }} style={{
                 ...glassStyle(th), padding: "16px 18px", marginBottom: 14, cursor: "pointer",
                 border: "1px solid " + (state.dayRating ? "#22C55E25" : th.blue + "20"),
@@ -8409,12 +8450,7 @@ function PPPPApp() {
                 </div>
               </div>
 
-              {/* 4. Grace Day */}
-              <div style={{ marginBottom: 14 }}>
-                <GraceDayCard state={state} setState={setState} th={th} />
-              </div>
-
-              {/* 5. My Testimonies */}
+              {/* 4. My Testimonies */}
               <div onClick={function() { setView("testimony_wall"); }} style={{
                 ...glassStyle(th), padding: "14px 16px", marginBottom: 14, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -8426,6 +8462,11 @@ function PPPPApp() {
                   </div>
                 </div>
                 <span style={{ fontSize: 12, color: th.dim }}>{"\u203A"}</span>
+              </div>
+
+              {/* 5. Grace Day */}
+              <div style={{ marginBottom: 14 }}>
+                <GraceDayCard state={state} setState={setState} th={th} />
               </div>
 
               {/* 6. Next Milestone */}
