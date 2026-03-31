@@ -582,7 +582,8 @@ function parseTextToTasks(text) {
 
   // Regex to extract time from a line: supports 7am, 7:30am, 07:00, 9pm, 13:00, etc.
   var timeRegex = /(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/i;
-  var rangeRegex = /(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?\s*[\u2013\-–to]+\s*(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/i;
+  var rangeRegex = /(\d{1,2})[:\.](\d{2})\s*(am|pm)?\s+(\d{1,2})[:\.](\d{2})\s*(am|pm)?/i;
+  var rangeRegexSep = /(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?\s*[\u2013\-\u2014–to]+\s*(\d{1,2})[:\.]?(\d{2})?\s*(am|pm)?/i;
 
   function normaliseHour(h, m, ampm) {
     h = parseInt(h) || 0;
@@ -597,12 +598,19 @@ function parseTextToTasks(text) {
 
   function extractTime(line) {
     var lower = line.toLowerCase();
-    // Try range first (e.g., "9:00-17:00" or "9am to 5pm")
+    // Try space-separated range first (e.g., "07:30 08:30") — requires colon in both times
     var rm = lower.match(rangeRegex);
     if (rm && rm[4]) {
       var start = normaliseHour(rm[1], rm[2], rm[3]);
       var end = normaliseHour(rm[4], rm[5], rm[6]);
       return start + "\u2013" + end;
+    }
+    // Try separator-based range (e.g., "9:00-17:00", "9am to 5pm", "9:00 to 17:00")
+    var rs = lower.match(rangeRegexSep);
+    if (rs && rs[4]) {
+      var start2 = normaliseHour(rs[1], rs[2], rs[3]);
+      var end2 = normaliseHour(rs[4], rs[5], rs[6]);
+      return start2 + "\u2013" + end2;
     }
     // Single time
     var tm = lower.match(timeRegex);
@@ -616,7 +624,8 @@ function parseTextToTasks(text) {
     // Remove time patterns FIRST (before bullets, since bullets regex eats leading digits)
     var label = line
       .replace(/\d{1,2}[:\.]?\d{0,2}\s*(am|pm)\s*[\u2013\-–to]+\s*\d{1,2}[:\.]?\d{0,2}\s*(am|pm)?/gi, "") // time ranges with am/pm (e.g. "9am-5pm")
-      .replace(/\d{1,2}[:\.](\d{2})\s*[\u2013\-–to]+\s*\d{1,2}[:\.](\d{2})/g, "") // 24h time ranges (e.g. "09:00-17:00")
+      .replace(/\d{1,2}[:\.](\d{2})\s*[\u2013\-–to]+\s*\d{1,2}[:\.](\d{2})/g, "") // 24h time ranges with separator (e.g. "09:00-17:00", "09:00 to 17:00")
+      .replace(/\d{1,2}[:\.](\d{2})\s+\d{1,2}[:\.](\d{2})/g, "") // 24h time ranges space-separated (e.g. "07:30 08:30")
       .replace(/\d{1,2}[:\.]?\d{0,2}\s*(am|pm)/gi, "") // single times with am/pm (e.g. "9pm", "6:30am")
       .replace(/\d{1,2}[:\.](\d{2})/g, "") // single 24h times (e.g. "12:30")
       .replace(/^\s*[\-\u2022\u2013\*\.]+\s*/, "") // bullets (not digits — those were times)
@@ -653,10 +662,15 @@ function parseTextToTasks(text) {
   var productSections = [];
   var taskIdCounter = 0;
 
+  // Common section header words to skip (lines with no time that are just period labels)
+  var headerWords = ["morning", "afternoon", "evening", "night", "evening/night", "evening / night", "midday", "dawn", "dusk"];
+
   lines.forEach(function(line) {
     var time = extractTime(line);
     var label = extractLabel(line);
     if (!label || label === "Task" && !time) return; // skip empty lines
+    // Skip section headers like "Morning", "Afternoon", "Evening/Night" that have no time
+    if (!time && headerWords.indexOf(label.toLowerCase().trim()) >= 0) return;
     var cat = categoriseLine(label);
     var xp = label.toLowerCase().indexOf("devotion") >= 0 || label.toLowerCase().indexOf("prayer") >= 0 || label.toLowerCase().indexOf("bible") >= 0 ? 25 :
              label.toLowerCase().indexOf("exercise") >= 0 || label.toLowerCase().indexOf("gym") >= 0 || label.toLowerCase().indexOf("focus") >= 0 ? 20 :
