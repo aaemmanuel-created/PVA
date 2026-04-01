@@ -218,7 +218,7 @@ const dark = {
   dim: "rgba(255,255,255,0.30)", ghost: "rgba(255,255,255,0.13)", blue: "#3B82F6", red: "#EF4444",
   blueDim: "rgba(59,130,246,0.15)", redDim: "rgba(239,68,68,0.12)",
   check: "#0A0E1A", cardHover: "rgba(255,255,255,0.06)",
-  grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.10) 0%, transparent 50%), #0A0E1A",
+  grad: "linear-gradient(180deg, #12100E 0%, #0A0E1A 40%, #080C1E 100%)",
   gold: "#F59E0B", goldDim: "rgba(245,158,11,0.12)", scripture: "#94B8DB",
   green: "#22C55E", greenDim: "rgba(34,197,94,0.12)",
 };
@@ -228,7 +228,7 @@ const light = {
   dim: "rgba(0,0,0,0.3)", ghost: "rgba(0,0,0,0.1)", blue: "#2563EB", red: "#DC2626",
   blueDim: "rgba(37,99,235,0.1)", redDim: "rgba(220,38,38,0.08)",
   check: "#FFFFFF", cardHover: "rgba(0,0,0,0.03)",
-  grad: "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37,99,235,0.06) 0%, transparent 50%), #F8F9FC",
+  grad: "linear-gradient(180deg, #FDF8F5 0%, #F8F9FC 40%, #F0F1F8 100%)",
   gold: "#D97706", goldDim: "rgba(217,119,6,0.1)", scripture: "#3B6B8A",
   green: "#16A34A", greenDim: "rgba(22,163,74,0.1)",
 };
@@ -1969,7 +1969,7 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
 // ─── COMPONENTS ───
 function SectionDivider({ label, th }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "6px 20px", marginBottom: 16 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "6px 20px", marginTop: 10, marginBottom: 22 }}>
       <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}, ${th.ghost}80, transparent)`, borderRadius: 1 }} />
       {label && <span style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.22em", whiteSpace: "nowrap", fontFamily: FONT, textTransform: "uppercase" }}>{label}</span>}
       {label && <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}80, ${th.ghost}, transparent)`, borderRadius: 1 }} />}
@@ -7353,6 +7353,13 @@ function PPPPApp() {
   });
   const [activeTaskAction, setActiveTaskAction] = useState(null); // { id, x, y } for long-press action bar
   const [editingHomeTask, setEditingHomeTask] = useState(null); // { id, label, time, catKey, secIdx, accent }
+  const [confirmDeleteTask, setConfirmDeleteTask] = useState(false);
+  const [statsIsStuck, setStatsIsStuck] = useState(false);
+  const statsSentinelRef = useRef(null);
+  const [viewDirection, setViewDirection] = useState("forward"); // "forward" or "back"
+  const [prevDayPct, setPrevDayPct] = useState(0);
+  const [todayThresholdPop, setTodayThresholdPop] = useState(0);
+  const [chainHighlightId, setChainHighlightId] = useState(null);
   const longPressRef = useRef(null);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [addTaskLabel, setAddTaskLabel] = useState("");
@@ -7567,6 +7574,19 @@ function PPPPApp() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setUndoToast({ id, label: t?.label || "Task", xp: dx, wasCompleted: was });
     toastTimerRef.current = setTimeout(() => setUndoToast(null), 4000);
+
+    // Chain highlight — find next unchecked task after this one
+    if (!was) {
+      var allIds = allT.map(function(x) { return x.id; });
+      var myIdx = allIds.indexOf(id);
+      for (var ci = myIdx + 1; ci < allIds.length; ci++) {
+        if (!state.completed[allIds[ci]]) {
+          setChainHighlightId(allIds[ci]);
+          setTimeout(function() { setChainHighlightId(null); }, 900);
+          break;
+        }
+      }
+    }
   }, [tasks, mult, state.completed]);
 
   // Weekly Boss
@@ -7599,10 +7619,34 @@ function PPPPApp() {
     if (dayPct === 100 && !celebrate) { setCelebrate(true); playCelebrate(); }
   }, [dayPct]);
 
+  // Sticky stats bar detection
+  useEffect(function() {
+    var el = statsSentinelRef.current;
+    if (!el) return;
+    var obs = new IntersectionObserver(function(entries) {
+      setStatsIsStuck(!entries[0].isIntersecting);
+    }, { threshold: 0 });
+    obs.observe(el);
+    return function() { obs.disconnect(); };
+  }, [view]);
+
+  // TODAY% threshold pulse
+  useEffect(function() {
+    var thresholds = [25, 50, 75, 100];
+    for (var i = 0; i < thresholds.length; i++) {
+      if (prevDayPct < thresholds[i] && dayPct >= thresholds[i]) {
+        setTodayThresholdPop(Date.now());
+        break;
+      }
+    }
+    setPrevDayPct(dayPct);
+  }, [dayPct]);
+
   const toggleTheme = () => { setAutoTheme(false); setThemeMode(m => m === "dark" ? "light" : "dark"); };
 
-  const openCategory = (catKey) => { setActiveCat(catKey); setView("category"); };
-  const goHome = () => { setView("home"); setActiveCat(null); };
+  const navigateTo = function(v, dir) { setViewDirection(dir || "forward"); setView(v); };
+  const openCategory = (catKey) => { setActiveCat(catKey); navigateTo("category", "forward"); };
+  const goHome = () => { navigateTo("home", "back"); setActiveCat(null); };
 
   const catKeys = ["person", "people", "process", "product"];
 
@@ -7754,6 +7798,86 @@ function PPPPApp() {
           0% { transform: scale(0) rotate(-45deg); opacity: 0; }
           50% { transform: scale(1.3) rotate(5deg); opacity: 1; }
           100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        /* Confetti burst on checkbox complete */
+        @keyframes pvaConfetti1 { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(-14px,-18px) scale(0); opacity:0; } }
+        @keyframes pvaConfetti2 { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(12px,-20px) scale(0); opacity:0; } }
+        @keyframes pvaConfetti3 { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(16px,-6px) scale(0); opacity:0; } }
+        @keyframes pvaConfetti4 { 0% { transform: translate(0,0) scale(1); opacity:1; } 100% { transform: translate(-10px,-22px) scale(0); opacity:0; } }
+        .pva-confetti-1 { animation: pvaConfetti1 0.5s ease-out both; }
+        .pva-confetti-2 { animation: pvaConfetti2 0.5s ease-out 0.05s both; }
+        .pva-confetti-3 { animation: pvaConfetti3 0.5s ease-out 0.1s both; }
+        .pva-confetti-4 { animation: pvaConfetti4 0.5s ease-out 0.07s both; }
+
+        /* Task row tap scale */
+        .pva-task-tap { transition: transform 0.15s ease; }
+        .pva-task-tap:active { transform: scale(0.98); }
+
+        /* Sticky stats bar slide-down entrance */
+        @keyframes pvaStickyIn {
+          from { opacity: 0; transform: translateY(-100%); filter: blur(8px); }
+          to { opacity: 1; transform: translateY(0); filter: blur(0); }
+        }
+        .pva-sticky-animate {
+          animation: pvaStickyIn 0.2s ease-out both;
+        }
+
+        /* View transition — slide in from right */
+        @keyframes pvaSlideInRight {
+          from { opacity: 0; transform: translateX(40px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes pvaSlideInLeft {
+          from { opacity: 0; transform: translateX(-40px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        .pva-view-forward {
+          animation: pvaSlideInRight 0.25s ease-out both;
+        }
+        .pva-view-back {
+          animation: pvaSlideInLeft 0.25s ease-out both;
+        }
+
+        /* Task row stagger within period groups */
+        .pva-task-stagger > * {
+          opacity: 0;
+          animation: pvaTaskRowIn 0.35s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        .pva-task-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+        .pva-task-stagger > *:nth-child(2) { animation-delay: 0.08s; }
+        .pva-task-stagger > *:nth-child(3) { animation-delay: 0.12s; }
+        .pva-task-stagger > *:nth-child(4) { animation-delay: 0.16s; }
+        .pva-task-stagger > *:nth-child(5) { animation-delay: 0.20s; }
+        .pva-task-stagger > *:nth-child(6) { animation-delay: 0.24s; }
+        .pva-task-stagger > *:nth-child(7) { animation-delay: 0.28s; }
+        .pva-task-stagger > *:nth-child(8) { animation-delay: 0.32s; }
+        .pva-task-stagger > *:nth-child(9) { animation-delay: 0.36s; }
+        .pva-task-stagger > *:nth-child(10) { animation-delay: 0.40s; }
+        .pva-task-stagger > *:nth-child(n+11) { animation-delay: 0.44s; }
+        @keyframes pvaTaskRowIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Threshold pulse for stat tile */
+        @keyframes pvaThresholdPop {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.08); }
+          100% { transform: scale(1); }
+        }
+        .pva-threshold-pop {
+          animation: pvaThresholdPop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        /* Chain highlight — next task flash */
+        @keyframes pvaChainFlash {
+          0% { box-shadow: inset 0 0 0 0 transparent; }
+          30% { box-shadow: inset 0 0 0 2px rgba(59,130,246,0.4); }
+          100% { box-shadow: inset 0 0 0 0 transparent; }
+        }
+        .pva-chain-highlight {
+          animation: pvaChainFlash 0.8s ease-out;
         }
 
         /* Ring fill animation for circular progress */
@@ -7969,7 +8093,7 @@ function PPPPApp() {
 
         {/* ─── HOME VIEW ─── */}
         {view === "home" && (
-          <div className="pva-fade-in" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+          <div key={view} className={viewDirection === "back" ? "pva-view-back" : "pva-view-forward"} style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
             {/* Content before MY DAILY ROUTINE — hide in focus mode */}
             {!focusMode && (
               <>
@@ -7978,21 +8102,25 @@ function PPPPApp() {
                   <ReadinessCard state={state} dayPct={dayPct} th={th} level={level} levelIdx={levelIdx} />
                 </div>
 
-                {/* Stats bar */}
-                <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: "0 20px", marginBottom: 22 }}>
+                {/* Stats bar sentinel — for sticky detection */}
+                <div ref={statsSentinelRef} style={{ height: 1, marginBottom: -1 }} />
+                {/* Stats bar — sticky */}
+                <div className={statsIsStuck ? "pva-sticky-animate" : ""} style={{ position: "sticky", top: 0, zIndex: 50, paddingTop: 4, paddingBottom: 8, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
+                <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, padding: "0 20px" }}>
                   {[
                     { label: "XP", value: `${dayXp}`, color: th.blue, pulse: false },
                     { label: "STR", value: `${state.hp}`, color: state.hp > 60 ? "#22C55E" : state.hp > 30 ? th.gold : th.red, pulse: false },
                     { label: "TODAY", value: `${dayPct}%`, color: th.blue, pulse: false },
                     { label: "STREAK", value: `${state.streak}`, color: th.red, pulse: state.streak >= 3 },
                   ].map(x => (
-                    <div key={x.label} className={`pva-card-hover ${x.pulse ? "pva-pulse" : ""}`} style={{
+                    <div key={x.label + (x.label === "TODAY" ? todayThresholdPop : "")} className={`pva-card-hover ${x.pulse ? "pva-pulse" : ""} ${x.label === "TODAY" && todayThresholdPop ? "pva-threshold-pop" : ""}`} style={{
                       ...glassStyleElevated(th), padding: "16px 0 14px", textAlign: "center",
                     }}>
                       <div className="pva-number-pop" style={{ fontSize: 22, fontWeight: 800, color: x.color, letterSpacing: "-0.04em", fontFamily: FONT }}>{x.value}</div>
                       <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.16em", marginTop: 5, fontFamily: FONT, fontWeight: 600 }}>{x.label}</div>
                     </div>
                   ))}
+                </div>
                 </div>
 
                 <SectionDivider label="NAVIGATE" th={th} />
@@ -8004,7 +8132,7 @@ function PPPPApp() {
                     { view: "pva_glance", label: "MY FOCUS", sub: "PVA Overview", color: th.blue },
                     { view: "season", label: "SEASON", sub: "Current Focus", color: th.green || "#16A34A" },
                   ].map(function(n) { return (
-                    <div key={n.view} onClick={function() { setView(n.view); }} className="pva-card-hover" style={{
+                    <div key={n.view} onClick={function() { navigateTo(n.view, "forward"); }} className="pva-card-hover" style={{
                       ...glassStyle(th), padding: "20px 12px 16px", cursor: "pointer",
                       border: "1px solid " + n.color + "20",
                       background: "linear-gradient(145deg, " + n.color + "0C 0%, transparent 70%)",
@@ -8047,34 +8175,7 @@ function PPPPApp() {
               <>
                 <SectionDivider label="PROGRESS" th={th} />
 
-                {/* TEMPLE RESTORATION — thin tab */}
-                {state.restorationActive && (function() {
-                  var day = Math.min(state.restorationDay || 1, 7);
-                  var completed = state.restorationDaysCompleted || 0;
-                  return (
-                    <div style={{
-                      ...glassStyle(th), padding: "10px 20px", margin: "0 20px 14px",
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      border: "1px solid " + th.gold + "25",
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: th.gold, letterSpacing: "0.08em", fontFamily: FONT }}>REBUILD THE WALLS</span>
-                        <span style={{ fontSize: 9, color: th.dim, fontFamily: FONT }}>Day {day}/7</span>
-                      </div>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {Array.from({ length: 7 }, function(_, i) {
-                          return (
-                            <div key={i} style={{
-                              width: 10, height: 10, borderRadius: 2,
-                              background: i < completed ? th.gold : "transparent",
-                              border: "1px solid " + (i < completed ? th.gold : th.ghost),
-                            }} />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
+                {/* TEMPLE RESTORATION — now integrated into temple card below */}
 
                 {/* LOGIN BONUS CARD removed — now a popup */}
 
@@ -8227,40 +8328,48 @@ function PPPPApp() {
                   };
 
                   if (groups.length === 0 || allItems.length === 0) {
-                    var emptyPillarSuggestions = [
-                      { emoji: "\uD83C\uDF05", label: "Morning devotion", pillar: "Person", color: "#EF4444" },
-                      { emoji: "\uD83C\uDFCB", label: "Exercise or walk", pillar: "Person", color: "#EF4444" },
-                      { emoji: "\uD83D\uDCBC", label: "Deep work block", pillar: "Process", color: "#3B82F6" },
-                      { emoji: "\uD83C\uDF7D", label: "Family dinner", pillar: "People", color: "#F59E0B" },
-                      { emoji: "\uD83D\uDCD6", label: "Bible reading", pillar: "Person", color: "#EF4444" },
-                      { emoji: "\uD83C\uDF19", label: "Evening reflection", pillar: "Product", color: "#8B5CF6" },
+                    var ghostPeriods = [
+                      { period: "MORNING", accent: "#E8725A", placeholders: ["Morning devotion", "Exercise or walk", "Breakfast"] },
+                      { period: "AFTERNOON", accent: "#5B9A6F", placeholders: ["Deep work block", "Lunch break"] },
+                      { period: "EVENING", accent: "#4338CA", placeholders: ["Bible reading", "Evening reflection"] },
                     ];
                     return (
-                      <div style={{ ...glassStyle(th), padding: "28px 24px", textAlign: "center", marginTop: 14 }}>
-                        <div style={{ fontSize: 36, marginBottom: 12, opacity: 0.8 }}>{"\uD83C\uDF31"}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 6, fontFamily: FONT }}>Your routine is a blank canvas</div>
-                        <div style={{ fontSize: 11, color: th.mid, lineHeight: 1.7, marginBottom: 20, fontFamily: FONT }}>
-                          Build your daily rhythm by answering the routine questions, or add tasks one by one. Here are some ideas to get you started:
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ textAlign: "center", marginBottom: 16 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: th.text, fontFamily: FONT }}>No tasks yet</div>
+                          <div style={{ fontSize: 10, color: th.dim, marginTop: 4, fontFamily: FONT }}>Tap + to add a task, or go to My Routine to import your schedule</div>
                         </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-                          {emptyPillarSuggestions.map(function(s) {
-                            return (
-                              <div key={s.label} style={{
-                                padding: "8px 14px", borderRadius: 12,
-                                border: "1px solid " + s.color + "25",
-                                background: s.color + "08",
-                                display: "flex", alignItems: "center", gap: 6,
+                        {ghostPeriods.map(function(gp) {
+                          return (
+                            <div key={gp.period} style={{
+                              marginBottom: 12, borderRadius: 16, overflow: "hidden",
+                              border: "1.5px dashed " + gp.accent + "20",
+                              opacity: 0.45,
+                            }}>
+                              <div style={{
+                                padding: "14px 20px",
+                                background: "linear-gradient(135deg, " + gp.accent + "08 0%, " + th.glass + " 100%)",
+                                borderBottom: "1px solid " + gp.accent + "12",
                               }}>
-                                <span style={{ fontSize: 14 }}>{s.emoji}</span>
-                                <span style={{ fontSize: 10, fontWeight: 600, color: th.text, fontFamily: FONT }}>{s.label}</span>
-                                <span style={{ fontSize: 8, fontWeight: 700, color: s.color, fontFamily: FONT, opacity: 0.7 }}>{s.pillar.toUpperCase()}</span>
+                                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: gp.accent, fontFamily: FONT }}>{gp.period}</span>
                               </div>
-                            );
-                          })}
-                        </div>
-                        <div style={{ marginTop: 16, fontSize: 10, color: th.dim, fontStyle: "italic", fontFamily: FONT }}>
-                          Tap the {"\u002B"} button below to add your first task, or go to Settings {"\u2192"} My Routine to build a full schedule.
-                        </div>
+                              <div style={{ background: th.glass }}>
+                                {gp.placeholders.map(function(ph, pi) {
+                                  return (
+                                    <div key={pi} style={{
+                                      padding: "14px 16px", minHeight: 42,
+                                      borderBottom: pi < gp.placeholders.length - 1 ? "1px solid " + th.glassBorder : "none",
+                                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                                    }}>
+                                      <span style={{ fontSize: 11, color: th.ghost, fontFamily: FONT }}>{ph}</span>
+                                      <div style={{ width: 22, height: 22, borderRadius: 6, border: "1.5px dashed " + th.ghost }} />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   }
@@ -8313,29 +8422,35 @@ function PPPPApp() {
                           if (!newLabel) return;
                           var newCat = et.newCatKey || et.catKey;
                           setState(function(p) {
-                            var ct = p.customTasks ? JSON.parse(JSON.stringify(p.customTasks)) : null;
-                            if (!ct) return p;
+                            var ct = p.customTasks ? JSON.parse(JSON.stringify(p.customTasks)) : JSON.parse(JSON.stringify(DEFAULT_TASKS));
                             if (newCat !== et.catKey) {
                               /* Move task to new pillar: remove from old, add to new */
                               var oldSec = ct[et.catKey] && ct[et.catKey].sections && ct[et.catKey].sections[et.secIdx];
                               if (oldSec) {
+                                /* Find the task to preserve its properties */
+                                var movedTask = oldSec.tasks.find(function(tk) { return tk.id === et.id; });
                                 oldSec.tasks = oldSec.tasks.filter(function(tk) { return tk.id !== et.id; });
+                                /* Clean up empty sections */
+                                if (oldSec.tasks.length === 0) {
+                                  ct[et.catKey].sections = ct[et.catKey].sections.filter(function(s, i) { return i !== et.secIdx; });
+                                }
                               }
                               /* Find or create a section in the new pillar with matching time */
                               var newSections = ct[newCat] && ct[newCat].sections;
-                              if (newSections) {
-                                var targetSec = null;
-                                for (var si = 0; si < newSections.length; si++) {
-                                  if (newSections[si].time === (et.time || "")) { targetSec = newSections[si]; break; }
-                                }
-                                if (!targetSec) {
-                                  targetSec = { time: et.time || "", tasks: [] };
-                                  newSections.push(targetSec);
-                                }
-                                targetSec.tasks.push({ id: et.id, label: newLabel, xp: 15, type: "check", hasNotes: true, notesPlaceholder: "Notes..." });
+                              if (!newSections) { ct[newCat] = { name: newCat, sections: [] }; newSections = ct[newCat].sections; }
+                              var targetSec = null;
+                              for (var si = 0; si < newSections.length; si++) {
+                                if (newSections[si].time === (et.time || "")) { targetSec = newSections[si]; break; }
                               }
+                              if (!targetSec) {
+                                targetSec = { time: et.time || "", tasks: [] };
+                                newSections.push(targetSec);
+                              }
+                              /* Preserve original task props, update label */
+                              var taskObj = movedTask ? Object.assign({}, movedTask, { label: newLabel }) : { id: et.id, label: newLabel, xp: 15, type: "check", hasNotes: true, notesPlaceholder: "Notes..." };
+                              targetSec.tasks.push(taskObj);
                             } else {
-                              /* Same pillar: just update label and time */
+                              /* Same pillar: update label and time */
                               var sec = ct[et.catKey] && ct[et.catKey].sections && ct[et.catKey].sections[et.secIdx];
                               if (sec) {
                                 var task = sec.tasks.find(function(tk) { return tk.id === et.id; });
@@ -8350,7 +8465,12 @@ function PPPPApp() {
                           setEditingHomeTask(null);
                         };
                         var handleDelete = function() {
+                          if (!confirmDeleteTask) {
+                            setConfirmDeleteTask(true);
+                            return;
+                          }
                           onDeleteTask(et.catKey, et.secIdx, et.id);
+                          setConfirmDeleteTask(false);
                           setEditingHomeTask(null);
                         };
                         return (
@@ -8375,12 +8495,34 @@ function PPPPApp() {
                                 }} />
                               </div>
                               <div style={{ marginBottom: 14 }}>
-                                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.10em", marginBottom: 6, fontFamily: FONT }}>TIME</div>
-                                <input type="text" value={et.time} placeholder="e.g. 07:30" onChange={function(e) { setEditingHomeTask(Object.assign({}, et, { time: e.target.value })); }} style={{
-                                  width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid " + th.glassBorder,
-                                  background: th.surface, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none",
-                                  boxSizing: "border-box",
-                                }} />
+                                <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.10em", marginBottom: 8, fontFamily: FONT }}>TIME</div>
+                                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                                  <div onClick={function() { setEditingHomeTask(Object.assign({}, et, { flexible: false })); }} style={{
+                                    flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", cursor: "pointer",
+                                    border: !et.flexible ? "2px solid " + th.blue : "1.5px solid " + th.glassBorder,
+                                    background: !et.flexible ? th.blue + "15" : th.surface,
+                                    opacity: !et.flexible ? 1 : 0.5,
+                                    transition: "all 0.2s ease",
+                                  }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: !et.flexible ? th.blue : th.ghost, fontFamily: FONT }}>SET TIME</span>
+                                  </div>
+                                  <div onClick={function() { setEditingHomeTask(Object.assign({}, et, { flexible: true, time: "Flexible" })); }} style={{
+                                    flex: 1, padding: "9px 0", borderRadius: 10, textAlign: "center", cursor: "pointer",
+                                    border: et.flexible ? "2px solid #F59E0B" : "1.5px solid " + th.glassBorder,
+                                    background: et.flexible ? "#F59E0B15" : th.surface,
+                                    opacity: et.flexible ? 1 : 0.5,
+                                    transition: "all 0.2s ease",
+                                  }}>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: et.flexible ? "#F59E0B" : th.ghost, fontFamily: FONT }}>FLEXIBLE</span>
+                                  </div>
+                                </div>
+                                {!et.flexible && (
+                                  <input type="text" value={et.time === "Flexible" ? "" : et.time} placeholder="e.g. 07:30" onChange={function(e) { setEditingHomeTask(Object.assign({}, et, { time: e.target.value })); }} style={{
+                                    width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid " + th.glassBorder,
+                                    background: th.surface, color: th.text, fontSize: 12, fontFamily: FONT, outline: "none",
+                                    boxSizing: "border-box",
+                                  }} />
+                                )}
                               </div>
                               <div style={{ marginBottom: 22 }}>
                                 <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.10em", marginBottom: 10, fontFamily: FONT }}>PILLAR</div>
@@ -8393,27 +8535,29 @@ function PPPPApp() {
                                         padding: "12px 14px", borderRadius: 12, cursor: "pointer",
                                         transition: "all 0.2s ease",
                                         border: isSelected ? "2px solid " + p.accent : "1.5px solid " + th.glassBorder,
-                                        background: isSelected ? p.accent + "12" : th.surface,
+                                        background: isSelected ? p.accent + "18" : th.surface,
+                                        boxShadow: isSelected ? "0 0 12px " + p.accent + "25" : "none",
+                                        opacity: isSelected ? 1 : 0.4,
                                       }}>
                                         <div style={{
-                                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                                          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
                                           display: "flex", alignItems: "center", justifyContent: "center",
-                                          background: isSelected ? p.accent : p.accent + "20",
+                                          background: isSelected ? p.accent : th.ghost + "40",
                                           transition: "all 0.2s ease",
                                         }}>
-                                          <span style={{ fontSize: 13, fontWeight: 900, color: isSelected ? "#fff" : p.accent, fontFamily: FONT }}>{p.key === "person" ? "P1" : p.key === "people" ? "P2" : p.key === "process" ? "P3" : "P4"}</span>
+                                          <span style={{ fontSize: 14, fontWeight: 900, color: isSelected ? "#fff" : th.dim, fontFamily: FONT }}>{p.key === "person" ? "P1" : p.key === "people" ? "P2" : p.key === "process" ? "P3" : "P4"}</span>
                                         </div>
                                         <div style={{ flex: 1 }}>
-                                          <div style={{ fontSize: 12, fontWeight: 700, color: isSelected ? p.accent : th.text, fontFamily: FONT, textTransform: "capitalize" }}>{p.key}</div>
+                                          <div style={{ fontSize: 13, fontWeight: isSelected ? 800 : 600, color: isSelected ? "#000" : th.ghost, fontFamily: FONT, textTransform: "capitalize" }}>{p.key}</div>
                                         </div>
                                         <div style={{
-                                          width: 20, height: 20, borderRadius: 10, flexShrink: 0,
-                                          border: isSelected ? "2px solid " + p.accent : "2px solid " + th.ghost,
+                                          width: 22, height: 22, borderRadius: 11, flexShrink: 0,
+                                          border: isSelected ? "none" : "2px solid " + th.ghost,
                                           background: isSelected ? p.accent : "transparent",
                                           display: "flex", alignItems: "center", justifyContent: "center",
                                           transition: "all 0.2s ease",
                                         }}>
-                                          {isSelected && <span style={{ color: "#fff", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
+                                          {isSelected && <span style={{ color: "#fff", fontSize: 13, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
                                         </div>
                                       </div>
                                     );
@@ -8423,23 +8567,41 @@ function PPPPApp() {
                               {/* Save button — full width, prominent */}
                               <button onClick={handleSave} style={{
                                 width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
-                                background: "linear-gradient(135deg, " + accentColor + ", " + accentColor + "CC)",
+                                background: "linear-gradient(135deg, #3B82F6, #2563EB)",
                                 color: "#fff", fontSize: 13, fontWeight: 800, letterSpacing: "0.10em",
                                 cursor: "pointer", fontFamily: FONT, marginBottom: 10,
-                                boxShadow: "0 4px 14px " + accentColor + "40",
+                                boxShadow: "0 4px 14px rgba(59,130,246,0.4)",
                               }}>SAVE CHANGES</button>
-                              <div style={{ display: "flex", gap: 8 }}>
-                                <button onClick={handleDelete} style={{
-                                  flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + th.red + "30",
-                                  background: th.red + "10", color: th.red, fontSize: 10, fontWeight: 700,
-                                  cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
-                                }}>DELETE</button>
-                                <button onClick={function() { setEditingHomeTask(null); }} style={{
-                                  flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + th.glassBorder,
-                                  background: th.glass, color: th.text, fontSize: 10, fontWeight: 700,
-                                  cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
-                                }}>CANCEL</button>
-                              </div>
+                              {confirmDeleteTask ? (
+                                <div style={{ padding: "14px", borderRadius: 12, border: "1px solid " + th.red + "30", background: th.red + "08" }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: th.red, fontFamily: FONT, textAlign: "center", marginBottom: 12 }}>Are you sure you want to delete this task?</div>
+                                  <div style={{ display: "flex", gap: 8 }}>
+                                    <button onClick={function() { setConfirmDeleteTask(false); }} style={{
+                                      flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + th.glassBorder,
+                                      background: th.glass, color: th.text, fontSize: 10, fontWeight: 700,
+                                      cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
+                                    }}>NO, KEEP IT</button>
+                                    <button onClick={handleDelete} style={{
+                                      flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+                                      background: th.red, color: "#fff", fontSize: 10, fontWeight: 700,
+                                      cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
+                                    }}>YES, DELETE</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <button onClick={handleDelete} style={{
+                                    flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + th.red + "30",
+                                    background: th.red + "10", color: th.red, fontSize: 10, fontWeight: 700,
+                                    cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
+                                  }}>DELETE</button>
+                                  <button onClick={function() { setConfirmDeleteTask(false); setEditingHomeTask(null); }} style={{
+                                    flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid " + th.glassBorder,
+                                    background: th.glass, color: th.text, fontSize: 10, fontWeight: 700,
+                                    cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
+                                  }}>CANCEL</button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -8447,7 +8609,7 @@ function PPPPApp() {
 
                       {groups.map(function(group, gi) {
                         var doneCount = group.items.filter(function(i) { return state.completed && state.completed[i.id]; }).length;
-                        var periodAccent = group.period === "MORNING" ? "#DC2626" : group.period === "AFTERNOON" ? "#16A34A" : group.period === "EVENING" ? "#1E3A8A" : th.blue;
+                        var periodAccent = group.period === "MORNING" ? "#E8725A" : group.period === "AFTERNOON" ? "#5B9A6F" : group.period === "EVENING" ? "#4338CA" : th.blue;
                         /* Sort: pending first, completed last */
                         var sorted = group.items.slice().sort(function(a, b) {
                           var aDone = state.completed && state.completed[a.id] ? 1 : 0;
@@ -8475,7 +8637,7 @@ function PPPPApp() {
                             </div>
 
                             {/* Task rows — joined but visually separated */}
-                            <div style={{ background: th.glass }}>
+                            <div className="pva-task-stagger" style={{ background: th.glass }}>
                               {sorted.map(function(item, idx) {
                                 var done = state.completed && state.completed[item.id];
                                 var isLast = idx === sorted.length - 1;
@@ -8490,18 +8652,18 @@ function PPPPApp() {
                                   if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
                                 };
                                 return (
-                                  <div key={item.id}
+                                  <div key={item.id} className={"pva-task-tap" + (chainHighlightId === item.id ? " pva-chain-highlight" : "")}
                                     onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}
                                     onMouseDown={onTouchStart} onMouseUp={onTouchEnd} onMouseLeave={onTouchEnd}
                                     style={{
                                       display: "flex", alignItems: "center", gap: 10,
-                                      padding: "11px 14px",
+                                      padding: "14px 16px", minHeight: 48,
                                       borderBottom: isLast ? "none" : "1px solid " + th.glassBorder,
                                       background: done ? item.accent + "06" : "transparent",
                                       transition: "all 0.25s cubic-bezier(0.16,1,0.3,1)",
                                     }}>
                                     {/* Time + Label — tap to edit */}
-                                    <div onClick={function(e) { e.stopPropagation(); setEditingHomeTask({ id: item.id, label: item.label, time: item.time || "", catKey: item.catKey, secIdx: item.secIdx, accent: item.accent }); }} style={{
+                                    <div onClick={function(e) { e.stopPropagation(); setEditingHomeTask({ id: item.id, label: item.label, time: item.time || "", catKey: item.catKey, secIdx: item.secIdx, accent: item.accent, flexible: (item.time || "").toLowerCase() === "flexible" || !item.time }); }} style={{
                                       display: "flex", flexDirection: "column", flex: 1, cursor: "pointer", minWidth: 0,
                                     }}>
                                       <div style={{
@@ -8525,17 +8687,26 @@ function PPPPApp() {
                                         }}>{pillarTag[item.catKey] || "PD"}</span>
                                       </div>
                                     </div>
-                                    {/* Checkbox — right side, glassy */}
+                                    {/* Checkbox — right side, 44px tap target */}
                                     <div onClick={function(e) { e.stopPropagation(); toggleHomeTask(item.id, e); }} style={{
-                                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                                      width: 44, height: 44, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", marginRight: -8, position: "relative",
+                                    }}>
+                                    <div style={{
+                                      width: 28, height: 28, borderRadius: 8,
                                       border: done ? "2.5px solid " + item.accent : "2px solid " + item.accent + "50",
                                       background: done ? "linear-gradient(135deg, " + item.accent + ", " + item.accent + "DD)" : "linear-gradient(135deg, " + th.glass + ", transparent)",
                                       display: "flex", alignItems: "center", justifyContent: "center",
                                       transition: "all 0.3s cubic-bezier(0.34,1.56,0.64,1)",
                                       boxShadow: done ? "0 0 14px " + item.accent + "35, 0 2px 6px " + item.accent + "25" : "inset 0 1px 4px rgba(0,0,0,0.06), 0 1px 2px rgba(255,255,255,0.1)",
-                                      cursor: "pointer",
                                     }}>
                                       {done && <span className="pva-check-bounce" style={{ color: th.check || "#fff", fontSize: 14, fontWeight: 800, lineHeight: 1 }}>{"\u2713"}</span>}
+                                    </div>
+                                    {done && [1,2,3,4].map(function(n) {
+                                      return <div key={n} className={"pva-confetti-" + n} style={{
+                                        position: "absolute", width: 5, height: 5, borderRadius: "50%",
+                                        background: item.accent, top: "50%", left: "50%",
+                                      }} />;
+                                    })}
                                     </div>
                                   </div>
                                 );
@@ -8569,7 +8740,7 @@ function PPPPApp() {
               {(() => {
                 const verse = getDailyVerse(TODAY);
                 return (
-                  <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 14 }}>
+                  <div style={{ ...glassStyle(th), padding: "18px 20px", marginBottom: 20 }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: th.dim, letterSpacing: "0.16em", marginBottom: 10 }}>VERSE OF THE DAY</div>
                     <div style={{ fontSize: 12, color: th.scripture || th.text, lineHeight: 1.7, fontFamily: FONT, fontWeight: 400, fontStyle: "normal" }}>
                       {"\u201C"}{verse.text}{"\u201D"}
@@ -8581,7 +8752,7 @@ function PPPPApp() {
 
               {/* 2. Evening Reflection */}
               <div onClick={function() { setShowEveningReflection(true); }} style={{
-                ...glassStyle(th), padding: "16px 18px", marginBottom: 14, cursor: "pointer",
+                ...glassStyle(th), padding: "16px 18px", marginBottom: 20, cursor: "pointer",
                 border: "1px solid " + (state.dayRating ? "#22C55E25" : th.blue + "20"),
                 background: state.dayRating ? "rgba(34,197,94,0.04)" : "linear-gradient(135deg, " + th.blue + "08 0%, transparent 100%)",
                 transition: "all 0.2s ease",
@@ -8601,8 +8772,8 @@ function PPPPApp() {
               </div>
 
               {/* 4. My Testimonies */}
-              <div onClick={function() { setView("testimony_wall"); }} style={{
-                ...glassStyle(th), padding: "14px 16px", marginBottom: 14, cursor: "pointer",
+              <div onClick={function() { navigateTo("testimony_wall", "forward"); }} style={{
+                ...glassStyle(th), padding: "14px 16px", marginBottom: 20, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "space-between",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -8615,7 +8786,7 @@ function PPPPApp() {
               </div>
 
               {/* 5. Grace Day */}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 20 }}>
                 <GraceDayCard state={state} setState={setState} th={th} />
               </div>
 
@@ -8652,8 +8823,31 @@ function PPPPApp() {
             </div>
 
             {/* Temple */}
-            <div style={{ ...glassStyle(th), padding: "16px 12px 8px", margin: "0 20px 20px" }}>
+            <div style={{ ...glassStyle(th), padding: "16px 12px 8px", margin: "0 20px 20px", border: state.restorationActive ? "1px solid " + th.gold + "25" : "1px solid " + th.glassBorder }}>
               <TempleVisual stage={levelIdx} th={th} />
+              {state.restorationActive && (function() {
+                var day = Math.min(state.restorationDay || 1, 7);
+                var completed = state.restorationDaysCompleted || 0;
+                return (
+                  <div style={{ padding: "8px 8px 4px", borderTop: "1px solid " + th.gold + "15", marginTop: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: th.gold, letterSpacing: "0.08em", fontFamily: FONT }}>REBUILD THE WALLS</span>
+                      <span style={{ fontSize: 9, color: th.dim, fontFamily: FONT }}>Day {day}/7</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {Array.from({ length: 7 }, function(_, i) {
+                        return (
+                          <div key={i} style={{
+                            flex: 1, height: 4, borderRadius: 2,
+                            background: i < completed ? th.gold : th.ghost,
+                            transition: "background 0.3s ease",
+                          }} />
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
               </>
