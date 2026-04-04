@@ -3944,8 +3944,18 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
     <div style={{
       minHeight: "100vh", fontFamily: FONT, color: th.text, background: th.grad,
       display: "flex", alignItems: "center", justifyContent: "center",
+      position: "relative",
     }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');`}</style>
+      {/* Refresh button - top left */}
+      <button onClick={function() { window.location.reload(); }} style={{
+        position: "absolute", top: 16, left: 16,
+        width: 34, height: 34, borderRadius: 17, border: "1px solid " + th.glassBorder,
+        background: th.glass, color: th.mid, fontSize: 16, cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+        zIndex: 10,
+      }} title="Refresh app">{"\u21BB"}</button>
       <div style={{ maxWidth: 420, width: "90%", textAlign: "center", padding: "40px 0" }}>
         {/* ─── STEP 0: GET STARTED ─── */}
         {step === 0 && (
