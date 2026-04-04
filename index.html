@@ -114,6 +114,7 @@ const STREAK_MULT = { 0:1, 3:1.2, 7:1.5, 14:1.8, 30:2, 60:2.5 };
 const getMult = (s) => { let m=1; for(const[t,v] of Object.entries(STREAK_MULT)) if(s>=+t) m=v; return m; };
 const getLevel = (xp) => { let c=LEVELS[0],n=LEVELS[1]; for(let i=0;i<LEVELS.length;i++) if(xp>=LEVELS[i].xp){c=LEVELS[i];n=LEVELS[i+1]||null;} return{cur:c,nxt:n,idx:LEVELS.indexOf(c)}; };
 const FONT = "'JetBrains Mono', 'Fira Code', monospace";
+const APP_VERSION = "1.0.0";
 
 const TODAY = new Date().toISOString().slice(0,10);
 const HP_MAX = 100;
@@ -8033,13 +8034,22 @@ function PPPPApp() {
         <div style={{ padding: "16px 20px 0" }}>
           {/* Row 1: Title + icons */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{
-              padding: "7px 18px", borderRadius: 22,
-              background: th.glass, border: `1px solid ${th.glassBorder}`,
-              backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-            }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: th.text, letterSpacing: "-0.01em", fontFamily: FONT }}>{userName}{"\u2019"}s PVA Model</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={function() { window.location.reload(); }} style={{
+                width: 34, height: 34, borderRadius: 17, border: "1px solid " + th.glassBorder,
+                background: th.glass, color: th.mid, fontSize: 16, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+                transition: "all 0.2s ease",
+              }} title="Refresh app">{"\u21BB"}</button>
+              <div style={{
+                padding: "7px 18px", borderRadius: 22,
+                background: th.glass, border: `1px solid ${th.glassBorder}`,
+                backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: th.text, letterSpacing: "-0.01em", fontFamily: FONT }}>{userName}{"\u2019"}s PVA Model</span>
+              </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {firebaseUser && (
@@ -9075,6 +9085,12 @@ function PPPPApp() {
           </div>
         )}
       </div>
+      {/* Version label */}
+      <div style={{
+        position: "fixed", bottom: 8, right: 12, zIndex: 9999,
+        fontSize: 8, fontFamily: FONT, color: th.dim, opacity: 0.4,
+        letterSpacing: "0.02em", pointerEvents: "none",
+      }}>v{APP_VERSION}</div>
     </div>
   );
 }
