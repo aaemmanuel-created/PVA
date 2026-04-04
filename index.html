@@ -3892,7 +3892,7 @@ function OpeningSplash({ name, onFinish, th }) {
 // ─── ONBOARDING SCREEN ───
 function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, firebaseUser }) {
   const [name, setName] = useState("");
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(firebaseUser ? 2 : 0);
   const [routineMode, setRoutineMode] = useState(null);
   const [showSplash, setShowSplash] = useState(false);
   const [pendingProfile, setPendingProfile] = useState(null);
@@ -3904,6 +3904,13 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
   const [authLoading, setAuthLoading] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const th = getAutoTheme() === "dark" ? dark : light;
+
+  // Auto-advance past sign-in step when user becomes authenticated
+  useEffect(function() {
+    if (firebaseUser && step <= 1) {
+      setStep(2);
+    }
+  }, [firebaseUser]);
 
   const doCompleteName = () => {
     if (name.trim()) setStep(3);
@@ -4283,6 +4290,12 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
           </>
         )}
       </div>
+      {/* Version label */}
+      <div style={{
+        position: "fixed", bottom: 8, right: 12, zIndex: 9999,
+        fontSize: 8, fontFamily: FONT, color: th.dim, opacity: 0.4,
+        letterSpacing: "0.02em", pointerEvents: "none",
+      }}>v{APP_VERSION}</div>
     </div>
   );
 }
