@@ -1,10 +1,10 @@
-const CACHE_NAME = 'pva-cache-v1';
+const CACHE_NAME = 'pva-cache-v2';
 const ASSETS = [
   '/PVA/',
   '/PVA/index.html',
   '/PVA/manifest.json',
-  '/PVA/icons/icon-192.png',
-  '/PVA/icons/icon-512.png'
+  '/PVA/icon-192.png',
+  '/PVA/icon-512.png'
 ];
 
 // Install — cache core assets
@@ -30,7 +30,6 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Cache successful responses
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
