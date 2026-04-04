@@ -3891,8 +3891,18 @@ function OpeningSplash({ name, onFinish, th }) {
 
 // ─── ONBOARDING SCREEN ───
 function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, firebaseUser }) {
+  // Check Firebase auth synchronously for initial step
+  // Also check localStorage flag set before signInWithRedirect (page reloads, auth is async)
+  var initialStep = 0;
+  if (firebaseUser) {
+    initialStep = 2;
+  } else if (firebaseAuth && firebaseAuth.currentUser) {
+    initialStep = 2;
+  } else {
+    try { if (localStorage.getItem("pva_signing_in") === "1") initialStep = 1; } catch(ex) {}
+  }
   const [name, setName] = useState("");
-  const [step, setStep] = useState(firebaseUser ? 2 : 0);
+  const [step, setStep] = useState(initialStep);
   const [routineMode, setRoutineMode] = useState(null);
   const [showSplash, setShowSplash] = useState(false);
   const [pendingProfile, setPendingProfile] = useState(null);
@@ -3907,8 +3917,10 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
 
   // Auto-advance past sign-in step when user becomes authenticated
   useEffect(function() {
-    if (firebaseUser && step <= 1) {
-      setStep(2);
+    if (firebaseUser) {
+      // Clear the redirect flag now that auth resolved
+      try { localStorage.removeItem("pva_signing_in"); } catch(ex) {}
+      setStep(function(prev) { return prev <= 1 ? 2 : prev; });
     }
   }, [firebaseUser]);
 
@@ -7312,6 +7324,7 @@ function PPPPApp() {
       var isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
       var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       if (isStandalone || isMobile) {
+        try { localStorage.setItem("pva_signing_in", "1"); } catch(ex) {}
         await firebaseAuth.signInWithRedirect(provider);
       } else {
         await firebaseAuth.signInWithPopup(provider);

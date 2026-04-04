@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pva-cache-v2';
+const CACHE_NAME = 'pva-cache-v3';
 const ASSETS = [
   '/PVA/',
   '/PVA/index.html',
