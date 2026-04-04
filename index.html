@@ -28,6 +28,7 @@ try {
   if (typeof firebase !== "undefined") {
     firebaseApp = firebase.initializeApp(firebaseConfig);
     firebaseAuth = firebase.auth();
+    firebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     firebaseDb = firebase.firestore();
   }
 } catch (e) { console.warn("[PVA] Firebase init failed:", e); }
@@ -7190,6 +7191,14 @@ function PPPPApp() {
   const [cloudStatus, setCloudStatus] = useState(""); // "synced" | "syncing" | "error" | ""
   const syncTimerRef = useRef(null);
 
+  // Handle redirect result (for mobile/PWA sign-in)
+  useEffect(() => {
+    if (!firebaseAuth) return;
+    firebaseAuth.getRedirectResult().catch(function(e) {
+      console.warn("[PVA Auth] Redirect result error:", e);
+    });
+  }, []);
+
   // Listen for auth state changes
   useEffect(() => {
     if (!firebaseAuth) return;
@@ -7258,7 +7267,14 @@ function PPPPApp() {
     if (!firebaseAuth) return;
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
-      await firebaseAuth.signInWithPopup(provider);
+      // Use redirect on mobile/PWA (popup is unreliable), popup on desktop
+      var isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+      var isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isStandalone || isMobile) {
+        await firebaseAuth.signInWithRedirect(provider);
+      } else {
+        await firebaseAuth.signInWithPopup(provider);
+      }
     } catch (e) {
       console.warn("[PVA Auth] Sign-in error:", e);
     }
