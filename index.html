@@ -3906,7 +3906,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
   const th = getAutoTheme() === "dark" ? dark : light;
 
   const doCompleteName = () => {
-    if (name.trim()) setStep(2);
+    if (name.trim()) setStep(3);
   };
 
   const doFinish = (customTasks) => {
@@ -3947,6 +3947,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
     }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');`}</style>
       <div style={{ maxWidth: 420, width: "90%", textAlign: "center", padding: "40px 0" }}>
+        {/* ─── STEP 0: GET STARTED ─── */}
         {step === 0 && (
           <>
             <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 8 }}>PVA</h1>
@@ -3955,7 +3956,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
             </p>
             <div style={{
               padding: "24px 28px", borderRadius: 16, marginBottom: 24,
-              background: "rgba(255,255,255,0.12)", border: `1px solid rgba(255,255,255,0.25)`,
+              background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)",
               backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
               boxShadow: "0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.3)",
               textAlign: "left",
@@ -3976,23 +3977,23 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
                 <span style={{ color: th.text, fontWeight: 700 }}>PRODUCT</span> {"\u2014"} this is the output and creation.
               </div>
             </div>
-            <button onClick={() => setStep(1)} style={{
+            <button onClick={function() { setStep(1); }} style={{
               width: "100%", padding: "14px", borderRadius: 12,
-              border: `1px solid ${th.blue}40`, background: th.blueDim,
+              border: "1px solid " + th.blue + "40", background: th.blueDim,
               color: th.blue, fontSize: 13, fontWeight: 700, cursor: "pointer",
               fontFamily: FONT, letterSpacing: "0.04em",
-              marginBottom: 16,
             }}>GET STARTED</button>
+          </>
+        )}
 
-            {/* Sign-In Options */}
+        {/* ─── STEP 1: SIGN IN ─── */}
+        {step === 1 && (
+          <>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>Sign In</h2>
+            <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>Sign in to sync your progress across devices</p>
+
             {!firebaseUser && (
-              <div style={{ marginTop: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}, transparent)` }} />
-                  <span style={{ fontSize: 9, fontWeight: 600, color: th.dim, letterSpacing: "0.10em" }}>SIGN IN</span>
-                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${th.ghost}, transparent)` }} />
-                </div>
-
+              <div>
                 {/* Google Sign-In */}
                 {onSignIn && (
                   <button onClick={onSignIn} style={{
@@ -4049,6 +4050,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
                               onEmailAuth(authEmail, authPassword, authMode === "signup").then(function(res) {
                                 setAuthLoading(false);
                                 if (res.error) setAuthError(res.error);
+                                else setStep(2);
                               });
                             }
                           }}
@@ -4067,6 +4069,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
                             onEmailAuth(authEmail, authPassword, authMode === "signup").then(function(res) {
                               setAuthLoading(false);
                               if (res.error) setAuthError(res.error);
+                              else setStep(2);
                             });
                           }}
                           style={{
@@ -4094,34 +4097,48 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
                   </div>
                 )}
 
-                <div style={{ fontSize: 9, color: th.dim, marginTop: 12, fontFamily: FONT }}>Sign in to sync progress across devices</div>
+                <button onClick={function() { setStep(2); }} style={{
+                  width: "100%", padding: "12px", borderRadius: 12, marginTop: 16,
+                  border: "1px solid " + th.glassBorder, background: "transparent",
+                  color: th.dim, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  fontFamily: FONT, letterSpacing: "0.04em",
+                }}>SKIP FOR NOW</button>
               </div>
             )}
             {firebaseUser && (
-              <div style={{ marginTop: 8, fontSize: 10, color: "#22C55E", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <span>{"\u2713"}</span> Signed in as {firebaseUser.displayName || firebaseUser.email}
+              <div>
+                <div style={{ marginBottom: 24, fontSize: 12, color: "#22C55E", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <span>{"\u2713"}</span> Signed in as {firebaseUser.displayName || firebaseUser.email}
+                </div>
+                <button onClick={function() { setStep(2); }} style={{
+                  width: "100%", padding: "14px", borderRadius: 12,
+                  border: "1px solid " + th.blue + "40", background: th.blueDim,
+                  color: th.blue, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  fontFamily: FONT, letterSpacing: "0.04em",
+                }}>CONTINUE</button>
               </div>
             )}
           </>
         )}
 
-        {step === 1 && (
+        {/* ─── STEP 2: NAME ─── */}
+        {step === 2 && (
           <>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>What{"\u2019"}s your name?</h2>
             <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>This will personalise your PVA model</p>
-            <input value={name} onChange={e => setName(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") doCompleteName(); }}
+            <input value={name} onChange={function(e) { setName(e.target.value); }}
+              onKeyDown={function(e) { if (e.key === "Enter") doCompleteName(); }}
               autoFocus placeholder="Your first name..."
               style={{
                 width: "100%", padding: "14px 18px", borderRadius: 12, marginBottom: 16,
-                border: `1px solid ${th.blue}30`, background: th.glass,
+                border: "1px solid " + th.blue + "30", background: th.glass,
                 color: th.text, fontSize: 16, fontWeight: 600, fontFamily: FONT,
                 outline: "none", textAlign: "center",
                 backdropFilter: "blur(20px)",
               }} />
             <button onClick={doCompleteName} disabled={!name.trim()} style={{
               width: "100%", padding: "14px", borderRadius: 12,
-              border: `1px solid ${name.trim() ? th.blue + "40" : th.ghost}`,
+              border: "1px solid " + (name.trim() ? th.blue + "40" : th.ghost),
               background: name.trim() ? th.blueDim : th.glass,
               color: name.trim() ? th.blue : th.ghost,
               fontSize: 13, fontWeight: 700, cursor: name.trim() ? "pointer" : "default",
@@ -4131,7 +4148,8 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
           </>
         )}
 
-        {step === 2 && !routineMode && (
+        {/* ─── STEP 3: BUILD ROUTINE ─── */}
+        {step === 3 && !routineMode && (
           <>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>Build Your Routine</h2>
             <p style={{ fontSize: 12, color: th.dim, marginBottom: 16 }}>Here{"\u2019"}s what your daily dashboard will look like:</p>
@@ -4241,14 +4259,14 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
           </>
         )}
 
-        {step === 2 && routineMode === "guided" && (
+        {step === 3 && routineMode === "guided" && (
           <>
             <button onClick={() => setRoutineMode(null)} style={{ position: "absolute", top: 20, left: 20, background: "none", border: "none", color: th.dim, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>{"\u2190"} Back</button>
             <GuidedRoutineBuilder onFinish={doFinish} th={th} />
           </>
         )}
 
-        {step === 2 && routineMode === "text" && (
+        {step === 3 && routineMode === "text" && (
           <>
             <button onClick={() => setRoutineMode(null)} style={{ position: "absolute", top: 20, left: 20, background: "none", border: "none", color: th.dim, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>{"\u2190"} Back</button>
             <FreeTextRoutineBuilder onFinish={doFinish} th={th} />
