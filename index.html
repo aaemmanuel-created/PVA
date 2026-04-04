@@ -3899,7 +3899,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
   } else if (firebaseAuth && firebaseAuth.currentUser) {
     initialStep = 2;
   } else {
-    try { if (localStorage.getItem("pva_signing_in") === "1") initialStep = 1; } catch(ex) {}
+    try { if (localStorage.getItem("pva_signing_in") === "1") initialStep = 2; } catch(ex) {}
   }
   const [name, setName] = useState("");
   const [step, setStep] = useState(initialStep);
@@ -7247,8 +7247,14 @@ function PPPPApp() {
   // Handle redirect result (for mobile/PWA sign-in)
   useEffect(() => {
     if (!firebaseAuth) return;
-    firebaseAuth.getRedirectResult().catch(function(e) {
+    firebaseAuth.getRedirectResult().then(function(result) {
+      if (result && result.user) {
+        setFirebaseUser(result.user);
+        try { localStorage.removeItem("pva_signing_in"); } catch(ex) {}
+      }
+    }).catch(function(e) {
       console.warn("[PVA Auth] Redirect result error:", e);
+      try { localStorage.removeItem("pva_signing_in"); } catch(ex) {}
     });
   }, []);
 
