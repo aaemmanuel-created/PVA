@@ -3836,9 +3836,9 @@ function FreeTextRoutineBuilder({ onFinish, th }) {
 function OpeningSplash({ name, onFinish, th }) {
   const [phase, setPhase] = useState(0); // 0=fade-in words, 1=hold, 2=fade-out
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 400);
-    const t2 = setTimeout(() => setPhase(2), 1800);
-    const t3 = setTimeout(() => onFinish(), 2000);
+    const t1 = setTimeout(() => setPhase(1), 500);
+    const t2 = setTimeout(() => setPhase(2), 2800);
+    const t3 = setTimeout(() => onFinish(), 3600);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
   const words1 = "Time is a currency,".split(" ");
@@ -3947,16 +3947,16 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
     }
   };
 
-  const handleSplashDone = () => {
-    if (pendingProfile) {
+  useEffect(function() {
+    if (showSplash && pendingProfile) {
       saveProfile(pendingProfile);
       if (pendingTasks) onCustomTasks(pendingTasks);
-      onComplete(pendingProfile);
+      onComplete(pendingProfile, name.trim());
     }
-  };
+  }, [showSplash]);
 
   if (showSplash) {
-    return <OpeningSplash name={name.trim()} onFinish={handleSplashDone} th={th} />;
+    return null;
   }
 
   return (
@@ -7237,6 +7237,7 @@ function PPPPApp() {
   const [view, setView] = useState(function() { return (loadRoutine() || loadProfile()) ? "home" : "routine_onboarding"; });
   const [hasRoutine, setHasRoutine] = useState(function() { return !!loadRoutine(); });
   const [testimonyMilestone, setTestimonyMilestone] = useState(null);
+  const [splashOverlay, setSplashOverlay] = useState(null); // { name, th } while splash is visible
 
   // ─── FIREBASE AUTH STATE ───
   const [firebaseUser, setFirebaseUser] = useState(null);
@@ -7475,7 +7476,13 @@ function PPPPApp() {
 
   // If no profile, show onboarding (with sign-in)
   if (!profile) {
-    return <OnboardingScreen onComplete={(p) => setProfile(p)} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} onSignIn={handleSignIn} onEmailAuth={handleEmailAuth} firebaseUser={firebaseUser} />;
+    return <OnboardingScreen onComplete={function(p, showSplashName) {
+      setProfile(p);
+      if (showSplashName) {
+        var splashTh = themeMode === "dark" ? dark : light;
+        setSplashOverlay({ name: showSplashName, th: splashTh });
+      }
+    }} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} onSignIn={handleSignIn} onEmailAuth={handleEmailAuth} firebaseUser={firebaseUser} />;
   }
 
   const userName = profile.name;
@@ -9167,6 +9174,7 @@ function PPPPApp() {
         fontSize: 8, fontFamily: FONT, color: th.dim, opacity: 0.4,
         letterSpacing: "0.02em", pointerEvents: "none",
       }}>v{APP_VERSION}</div>
+      {splashOverlay && <OpeningSplash name={splashOverlay.name} onFinish={function() { setSplashOverlay(null); }} th={splashOverlay.th} />}
     </div>
   );
 }
