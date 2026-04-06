@@ -3836,9 +3836,9 @@ function FreeTextRoutineBuilder({ onFinish, th }) {
 function OpeningSplash({ name, onFinish, th }) {
   const [phase, setPhase] = useState(0); // 0=fade-in words, 1=hold, 2=fade-out
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 600);
-    const t2 = setTimeout(() => setPhase(2), 3800);
-    const t3 = setTimeout(() => onFinish(), 4800);
+    const t1 = setTimeout(() => setPhase(1), 400);
+    const t2 = setTimeout(() => setPhase(2), 1800);
+    const t3 = setTimeout(() => onFinish(), 2000);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
   const words1 = "Time is a currency,".split(" ");
