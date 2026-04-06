@@ -3904,9 +3904,6 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
   const [name, setName] = useState("");
   const [step, setStep] = useState(initialStep);
   const [routineMode, setRoutineMode] = useState(null);
-  const [showSplash, setShowSplash] = useState(false);
-  const [pendingProfile, setPendingProfile] = useState(null);
-  const [pendingTasks, setPendingTasks] = useState(null);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState("");
@@ -3931,33 +3928,20 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
   const doFinish = (customTasks) => {
     if (name.trim()) {
       const profile = { name: name.trim(), createdAt: TODAY };
-      setPendingProfile(profile);
-      setPendingTasks(customTasks);
-      setShowSplash(true);
+      saveProfile(profile);
+      if (customTasks) onCustomTasks(customTasks);
+      onComplete(profile, name.trim());
     }
   };
 
   const doSkip = () => {
     if (name.trim()) {
       const profile = { name: name.trim(), createdAt: TODAY };
-      // Save a "skipped" routine marker so the home page doesn't ask again
       saveRoutineData({ skipped: true, createdAt: new Date().toISOString() });
-      setPendingProfile(profile);
-      setShowSplash(true);
+      saveProfile(profile);
+      onComplete(profile, name.trim());
     }
   };
-
-  useEffect(function() {
-    if (showSplash && pendingProfile) {
-      saveProfile(pendingProfile);
-      if (pendingTasks) onCustomTasks(pendingTasks);
-      onComplete(pendingProfile, name.trim());
-    }
-  }, [showSplash]);
-
-  if (showSplash) {
-    return null;
-  }
 
   return (
     <div style={{
