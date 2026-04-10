@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<meta name="theme-color" content="#0A0E1A"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><meta name="apple-mobile-web-app-title" content="PILLAR"/><meta name="description" content="Gamified Christian daily discipline app"/><link rel="manifest" href="manifest.json"/><link rel="apple-touch-icon" href="icon-192.png"/><title>PILLAR</title>
+<meta name="theme-color" content="#0A0E1A"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="PILLAR"/>
+<meta name="description" content="Gamified Christian daily discipline app"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<title>PILLAR</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{width:100%;min-height:100vh;-webkit-font-smoothing:antialiased}body{overscroll-behavior:none}</style>
 </head><body><div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -806,7 +813,7 @@ function loadState() {
         const decayRate = 0.05 * (1 - prevPct / 50);
         xpDecay = Math.round(prevTotalXp * decayRate);
       }
-      const newTotalXp = Math.max(0, prevTotalXp - xpDecay);
+      let newTotalXp = Math.max(0, prevTotalXp - xpDecay);
       // Check for temple restoration trigger
       const prevLevel = getLevel(prevTotalXp);
       const newLevel = getLevel(newTotalXp);
@@ -828,7 +835,7 @@ function loadState() {
         if (restorationDay > 7) {
           if (restorationDaysCompleted >= 7) {
             const bonusXp = 200;
-            newTotalXp + bonusXp;
+            newTotalXp += bonusXp; // was a no-op expression; actually award the bonus
             restorationBadge = true;
           }
           restorationActive = false;
@@ -7566,7 +7573,12 @@ function PPPPApp() {
   });
   const [autoTheme, setAutoTheme] = useState(true);
   const [state, setState] = useState(loadState);
-  const [view, setView] = useState(function() { return (loadRoutine() || loadProfile()) ? "home" : "routine_onboarding"; });
+  // NOTE: default to "home" — the early-return at `if (!profile)` handles the fresh-user
+  // onboarding flow. If we initialised view to "routine_onboarding" here, fresh users
+  // who skip onboarding with "USE DEFAULT ROUTINE" could end up stuck on the chat-based
+  // RoutineOnboardingView on the first render after setProfile() because setView("home")
+  // batching across the early-return boundary was unreliable.
+  const [view, setView] = useState("home");
   const [hasRoutine, setHasRoutine] = useState(function() { return !!loadRoutine(); });
   const [testimonyMilestone, setTestimonyMilestone] = useState(null);
   const [launchFlow, setLaunchFlow] = useState(function() {
@@ -7645,6 +7657,23 @@ function PPPPApp() {
     });
     return () => unsub();
   }, []);
+
+  // ─── PROFILE TRANSITION FAILSAFE ───
+  // When profile transitions from null → truthy (e.g., after onboarding),
+  // ensure view is "home" and hasRoutine reflects localStorage. This is a
+  // belt-and-braces guard for the default-routine flow, which previously
+  // required a manual page refresh before rendering correctly.
+  useEffect(function() {
+    if (profile) {
+      if (view !== "home" && view !== "category" && view !== "routine" && view !== "settings") {
+        // Snap to home if we're on any sub-view that doesn't make sense right after signup
+        if (view === "routine_onboarding") setView("home");
+      }
+      var routineNow = !!loadRoutine();
+      if (hasRoutine !== routineNow) setHasRoutine(routineNow);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
 
   // Auto-sync to cloud on state changes (debounced)
   useEffect(() => {
@@ -7814,13 +7843,16 @@ function PPPPApp() {
   // If no profile, show onboarding (with sign-in)
   if (!profile) {
     return <OnboardingScreen onComplete={function(p, showSplashName) {
-      setProfile(p);
-      // Force view to home (view state was initialized to "routine_onboarding" at mount since profile didn't exist yet)
+      // Order matters: set view/hasRoutine/launchFlow BEFORE profile so that
+      // when React commits the batch and re-renders past the early-return,
+      // the view state is already correct. setProfile last guarantees the
+      // re-render sees view="home" and launchFlow populated.
       setView("home");
       setHasRoutine(!!loadRoutine());
       if (showSplashName) {
         setLaunchFlow({ phase: "splash", name: showSplashName });
       }
+      setProfile(p);
     }} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} onSignIn={handleSignIn} onEmailAuth={handleEmailAuth} firebaseUser={firebaseUser} />;
   }
 
@@ -9367,7 +9399,9 @@ function PPPPApp() {
         )}
 
         {/* ─── ROUTINE ONBOARDING VIEW ─── */}
-        {view === "routine_onboarding" && (
+        {/* Only show if there's genuinely no routine yet — prevents fresh users
+            from getting stuck on the chat builder after picking "default routine". */}
+        {view === "routine_onboarding" && !hasRoutine && !loadRoutine() && (
           <RoutineOnboardingView th={th} onComplete={handleRoutineComplete} existingRoutine={null} />
         )}
 
