@@ -3834,21 +3834,18 @@ function FreeTextRoutineBuilder({ onFinish, th }) {
 
 // ─── VIEW PICKER (after splash) ───
 function ViewPicker({ onSelect, th }) {
-  const [fadeIn, setFadeIn] = useState(false);
-  useEffect(function() {
-    var t = setTimeout(function() { setFadeIn(true); }, 50);
-    return function() { clearTimeout(t); };
-  }, []);
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9998,
       background: th === dark ? "#060810" : "#F4F3F0",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: FONT,
-      opacity: fadeIn ? 1 : 0, transition: "opacity 0.5s ease",
     }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');`}</style>
-      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", padding: "0 32px" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
+        @keyframes pickerContentIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", padding: "0 32px", animation: "pickerContentIn 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
         <div style={{
           fontSize: 10, fontWeight: 700, letterSpacing: "0.32em",
           color: th.dim, textTransform: "uppercase", marginBottom: 36,
@@ -9465,7 +9462,14 @@ function PPPPApp() {
           onToggleTask={toggleHomeTask}
         />
       )}
-      {/* Launch flow: splash → view picker */}
+      {/* Launch flow: solid background blocker + splash → view picker */}
+      {launchFlow && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 8500,
+          background: th === dark ? "#060810" : "#F4F3F0",
+          pointerEvents: "none",
+        }} />
+      )}
       {launchFlow && launchFlow.phase === "splash" && (
         <OpeningSplash
           name={launchFlow.name}
