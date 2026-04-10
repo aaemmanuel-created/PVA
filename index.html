@@ -3834,42 +3834,52 @@ function FreeTextRoutineBuilder({ onFinish, th }) {
 
 // ─── VIEW PICKER (after splash) ───
 function ViewPicker({ onSelect, th }) {
+  const [leaving, setLeaving] = useState(false);
+  const [chosen, setChosen] = useState(null);
+  const handlePick = function(mode) {
+    if (leaving) return;
+    setChosen(mode);
+    setLeaving(true);
+    setTimeout(function() { onSelect(mode); }, 520);
+  };
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9998,
       background: th === dark ? "#060810" : "#F4F3F0",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: FONT,
+      opacity: leaving ? 0 : 1,
+      transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
-        @keyframes pickerContentIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pickerContentIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
-      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", padding: "0 32px", animation: "pickerContentIn 0.5s cubic-bezier(0.16,1,0.3,1) both" }}>
+      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", padding: "0 32px", animation: "pickerContentIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
         <div style={{
           fontSize: 10, fontWeight: 700, letterSpacing: "0.32em",
           color: th.dim, textTransform: "uppercase", marginBottom: 36,
         }}>Choose your view</div>
-        <button onClick={function() { onSelect("normal"); }} style={{
+        <button onClick={function() { handlePick("normal"); }} style={{
           display: "block", width: "100%", padding: "22px 24px", marginBottom: 14,
           borderRadius: 18, border: "1px solid " + th.glassBorder,
           background: th.glass, color: th.text, fontFamily: FONT,
           cursor: "pointer", textAlign: "left",
           backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-          transition: "all 0.25s ease",
+          transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
           boxShadow: "0 10px 30px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)",
         }}>
           <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>Classic</div>
           <div style={{ fontSize: 10, color: th.dim, letterSpacing: "0.03em" }}>Full dashboard, stats, pillars, rewards</div>
         </button>
-        <button onClick={function() { onSelect("focus"); }} style={{
+        <button onClick={function() { handlePick("focus"); }} style={{
           display: "block", width: "100%", padding: "22px 24px",
           borderRadius: 18, border: "1px solid " + th.blue + "60",
           background: "linear-gradient(135deg, " + th.blueDim + ", " + th.glass + ")",
           color: th.blue, fontFamily: FONT,
           cursor: "pointer", textAlign: "left",
           backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-          transition: "all 0.25s ease",
+          transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
           boxShadow: "0 10px 40px " + th.blue + "30, inset 0 1px 0 rgba(255,255,255,0.12)",
         }}>
           <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>Focus</div>
@@ -3896,7 +3906,8 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
     return function() { clearTimeout(t); };
   }, []);
 
-  // Flatten tasks across all pillars
+  // Flatten tasks across all pillars — only include INCOMPLETE tasks,
+  // so the counter shrinks as tasks are completed.
   const flatTasks = useMemo(function() {
     var result = [];
     ["person", "people", "process", "product"].forEach(function(catKey) {
@@ -3904,26 +3915,57 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
       if (!cat || !cat.sections) return;
       cat.sections.forEach(function(sec) {
         sec.tasks.forEach(function(task) {
+          if (state.completed[task.id]) return; // exclude already-completed tasks
           result.push(Object.assign({}, task, { pillar: catKey, sectionName: sec.name, time: sec.time }));
         });
       });
     });
     return result;
-  }, [tasks]);
+  }, [tasks, state.completed]);
 
-  // Start at first uncompleted task on mount
+  // Clamp taskIdx when list shrinks (e.g., after completing a task)
   useEffect(function() {
-    var firstIncomplete = -1;
-    for (var i = 0; i < flatTasks.length; i++) {
-      if (!state.completed[flatTasks[i].id]) { firstIncomplete = i; break; }
+    if (taskIdx > flatTasks.length - 1 && flatTasks.length > 0) {
+      setTaskIdx(flatTasks.length - 1);
     }
-    if (firstIncomplete >= 0) setTaskIdx(firstIncomplete);
-  }, []); // only on mount
+  }, [flatTasks.length]);
 
-  if (!flatTasks.length) return null;
+  if (!flatTasks.length) {
+    return (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9000,
+        fontFamily: FONT,
+        background: th === dark
+          ? "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(124,58,237,0.14), transparent 55%), #050810"
+          : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(59,130,246,0.14), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(139,92,246,0.09), transparent 55%), #F0EFEC",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "56px 24px 32px",
+        opacity: entered ? 1 : 0,
+        transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
+      }}>
+        <button onClick={onExit} style={{
+          position: "absolute", top: 20, left: 20, zIndex: 20,
+          width: 38, height: 38, borderRadius: 19,
+          border: "1px solid " + th.glassBorder,
+          background: th.glass, color: th.mid,
+          fontSize: 18, cursor: "pointer", fontFamily: FONT,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
+        }} title="Exit focus mode">{"\u2715"}</button>
+        <div style={{ textAlign: "center", maxWidth: 340 }}>
+          <div style={{ fontSize: 48, marginBottom: 18 }}>{"\u2728"}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: th.text, marginBottom: 8, letterSpacing: "-0.01em" }}>All done for today</div>
+          <div style={{ fontSize: 11, color: th.dim, letterSpacing: "0.1em", lineHeight: 1.6 }}>
+            You've completed every task. Rest well.
+          </div>
+        </div>
+      </div>
+    );
+  }
   var current = flatTasks[Math.min(taskIdx, flatTasks.length - 1)];
   if (!current) return null;
-  var isCompleted = !!state.completed[current.id];
+  var isCompleted = false; // by construction, flatTasks only contains incomplete tasks
 
   var timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
   var dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -3952,7 +3994,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
       padding: "56px 24px 32px",
       overflow: "hidden",
       opacity: entered ? 1 : 0,
-      transition: "opacity 0.45s ease",
+      transition: "opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1)",
     }}>
       <style>{`
         @keyframes focusBgDrift { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,-10px) scale(1.05); } 100% { transform: translate(0,0) scale(1); } }
@@ -4121,12 +4163,15 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
 
 // ─── OPENING SPLASH (after onboarding) ───
 function OpeningSplash({ name, onFinish, th }) {
-  const [phase, setPhase] = useState(0); // 0=fade-in words, 1=hold, 2=fade-out
+  const [phase, setPhase] = useState(0); // 0=fade-in words, 1=hold, 2=fade-out, 3=fully gone
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    // Force a frame so the opacity transition from 0 -> 1 actually animates
+    const tm = setTimeout(() => setMounted(true), 20);
     const t1 = setTimeout(() => setPhase(1), 500);
     const t2 = setTimeout(() => setPhase(2), 2800);
-    const t3 = setTimeout(() => onFinish(), 3600);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    const t3 = setTimeout(() => onFinish(), 3900);
+    return () => { clearTimeout(tm); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
   const words1 = "Time is a currency,".split(" ");
   const words2 = "let's spend it wisely.".split(" ");
@@ -4134,7 +4179,9 @@ function OpeningSplash({ name, onFinish, th }) {
     <div style={{
       position: "fixed", inset: 0, zIndex: 9999, background: th === dark ? "#060810" : "#F4F3F0",
       display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
-      fontFamily: FONT, transition: "opacity 0.9s ease", opacity: phase === 2 ? 0 : 1,
+      fontFamily: FONT,
+      transition: "opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1)",
+      opacity: !mounted ? 0 : (phase === 2 ? 0 : 1),
     }}>
       <style>{`
         @keyframes splashWordIn { from { opacity:0; transform:translateY(18px) scale(0.97); filter:blur(6px); } to { opacity:1; transform:translateY(0) scale(1); filter:blur(0); } }
@@ -6237,12 +6284,12 @@ function WeeklyStatePopup({ state, th, onContinue }) {
     if (avg >= 30) return "Room to grow \u2014 focus on small wins today.";
     return "Fresh start \u2014 \u201CHe who began a good work in you will carry it on to completion.\u201D (Phil 1:6)";
   };
-  const handleContinue = () => { setVisible(false); setTimeout(onContinue, 400); };
+  const handleContinue = () => { setVisible(false); setTimeout(onContinue, 500); };
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center",
       background: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
-      opacity: visible ? 1 : 0, transition: "opacity 0.4s ease",
+      opacity: visible ? 1 : 0, transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
     }}>
       <div style={{
         maxWidth: 380, width: "90%", borderRadius: 22, overflow: "hidden",
@@ -6250,7 +6297,7 @@ function WeeklyStatePopup({ state, th, onContinue }) {
         border: `1px solid ${th.glassBorder}`,
         boxShadow: "0 24px 80px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.15)",
         transform: visible ? "scale(1) translateY(0)" : "scale(0.95) translateY(20px)",
-        transition: "transform 0.5s cubic-bezier(0.16,1,0.3,1), opacity 0.4s ease",
+        transition: "transform 0.65s cubic-bezier(0.16,1,0.3,1), opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
         opacity: visible ? 1 : 0,
       }}>
         {/* Header */}
@@ -6411,7 +6458,7 @@ function MilestoneCelebration({ milestone, streak, th, onClaim }) {
           marginTop: -140, marginLeft: -80,
           border: `2px dashed ${milestone.color}30`, borderRadius: "50%",
           animation: phase >= 1 ? "pvaMilestoneSpin 20s linear infinite" : "none",
-          opacity: phase >= 1 ? 1 : 0, transition: "opacity 0.6s ease",
+          opacity: phase >= 1 ? 1 : 0, transition: "opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1)",
         }} />
 
         {/* Particles */}
@@ -6429,7 +6476,7 @@ function MilestoneCelebration({ milestone, streak, th, onClaim }) {
           fontSize: 9, fontWeight: 700, letterSpacing: "0.3em", color: milestone.color,
           marginBottom: 20, fontFamily: FONT,
           opacity: phase >= 1 ? 1 : 0, transform: phase >= 1 ? "translateY(0)" : "translateY(10px)",
-          transition: "all 0.5s ease 0.2s",
+          transition: "all 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.2s",
         }}>STREAK MILESTONE</div>
 
         {/* Badge circle */}
@@ -6450,14 +6497,14 @@ function MilestoneCelebration({ milestone, streak, th, onClaim }) {
           fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: "-0.03em",
           fontFamily: FONT, marginBottom: 6,
           opacity: phase >= 2 ? 1 : 0, transform: phase >= 2 ? "translateY(0)" : "translateY(12px)",
-          transition: "all 0.5s ease 0.1s",
+          transition: "all 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.1s",
         }}>{milestone.title}</div>
 
         {/* Subtitle */}
         <div style={{
           fontSize: 12, fontWeight: 600, color: milestone.color, letterSpacing: "0.04em",
           fontFamily: FONT, marginBottom: 16,
-          opacity: phase >= 2 ? 1 : 0, transition: "opacity 0.5s ease 0.3s",
+          opacity: phase >= 2 ? 1 : 0, transition: "opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.3s",
         }}>{milestone.subtitle}</div>
 
         {/* Message */}
@@ -6465,7 +6512,7 @@ function MilestoneCelebration({ milestone, streak, th, onClaim }) {
           fontSize: 13, fontWeight: 500, color: th.mid, lineHeight: 1.7, fontFamily: FONT,
           padding: "0 8px", marginBottom: 20,
           opacity: phase >= 3 ? 1 : 0, transform: phase >= 3 ? "translateY(0)" : "translateY(8px)",
-          transition: "all 0.5s ease",
+          transition: "all 0.65s cubic-bezier(0.22, 1, 0.36, 1)",
         }}>{milestone.message}</div>
 
         {/* XP Bonus badge */}
@@ -6473,7 +6520,7 @@ function MilestoneCelebration({ milestone, streak, th, onClaim }) {
           display: "inline-block", padding: "8px 20px", borderRadius: 20,
           background: `${milestone.color}15`, border: `1px solid ${milestone.color}30`,
           marginBottom: 20,
-          opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.4s ease 0.2s",
+          opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s",
         }}>
           <span style={{ fontSize: 14, fontWeight: 800, color: milestone.color, fontFamily: FONT }}>+{milestone.xpBonus} XP</span>
         </div>
@@ -6482,7 +6529,7 @@ function MilestoneCelebration({ milestone, streak, th, onClaim }) {
         {next && (
           <div style={{
             fontSize: 10, color: th.dim, marginBottom: 16, fontFamily: FONT,
-            opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.4s ease 0.4s",
+            opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.4s",
           }}>Next milestone: {next.title} at {next.days} days</div>
         )}
 
@@ -6492,7 +6539,7 @@ function MilestoneCelebration({ milestone, streak, th, onClaim }) {
           border: `1px solid ${milestone.color}50`, background: `linear-gradient(135deg, ${milestone.color}20, ${milestone.color}35)`,
           color: milestone.color, fontSize: 13, fontWeight: 700, cursor: "pointer",
           fontFamily: FONT, letterSpacing: "0.08em",
-          opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.4s ease 0.5s",
+          opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.5s",
         }}>CLAIM REWARD {"\u2192"}</button>
       </div>
     </div>
@@ -6578,13 +6625,13 @@ function WeeklyReportCard({ state, userName, th, onClose }) {
     } catch { shareCopy(); }
   };
 
-  const handleClose = () => { setVisible(false); setTimeout(onClose, 400); };
+  const handleClose = () => { setVisible(false); setTimeout(onClose, 500); };
 
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center",
       background: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
-      opacity: visible ? 1 : 0, transition: "opacity 0.4s ease",
+      opacity: visible ? 1 : 0, transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
     }} onClick={handleClose}>
       <div onClick={e => e.stopPropagation()} style={{
         maxWidth: 380, width: "90%", borderRadius: 22, overflow: "hidden",
@@ -6592,7 +6639,7 @@ function WeeklyReportCard({ state, userName, th, onClose }) {
         border: `1px solid ${weekColor}30`,
         boxShadow: `0 24px 80px rgba(0,0,0,0.35), 0 0 40px ${weekColor}10`,
         transform: visible ? "scale(1) translateY(0)" : "scale(0.95) translateY(20px)",
-        transition: "transform 0.5s cubic-bezier(0.16,1,0.3,1), opacity 0.4s ease",
+        transition: "transform 0.65s cubic-bezier(0.16,1,0.3,1), opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
         opacity: visible ? 1 : 0,
       }}>
         {/* Header */}
@@ -9491,4 +9538,6 @@ function PPPPApp() {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<PPPPApp />);
-</script><script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}</script></body></html>
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}</script>
+</body></html>
