@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<meta name="theme-color" content="#0A0E1A"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><meta name="apple-mobile-web-app-title" content="PVA"/><meta name="description" content="Gamified Christian daily discipline app"/><link rel="manifest" href="manifest.json"/><link rel="apple-touch-icon" href="icon-192.png"/><title>PVA</title>
+<meta name="theme-color" content="#0A0E1A"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/><meta name="apple-mobile-web-app-title" content="PILLAR"/><meta name="description" content="Gamified Christian daily discipline app"/><link rel="manifest" href="manifest.json"/><link rel="apple-touch-icon" href="icon-192.png"/><title>PILLAR</title>
 <style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{width:100%;min-height:100vh;-webkit-font-smoothing:antialiased}body{overscroll-behavior:none}</style>
 </head><body><div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
@@ -314,8 +314,8 @@ const DEFAULT_TASKS = {
     ]},
   ]},
   product: { label: "Product", subtitle: "Output & Creation", sections: [
-    { name: "PVA COURSES", time: "12:15\u201313:00", tasks: [
-      { id: "pva_courses", label: "PVA Courses", xp: 20, type: "check" },
+    { name: "PILLAR COURSES", time: "12:15\u201313:00", tasks: [
+      { id: "pva_courses", label: "Pillar Courses", xp: 20, type: "check" },
     ]},
   ]},
 };
@@ -1762,7 +1762,7 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
           padding: "24px 24px 16px", textAlign: "center",
           background: th === dark ? "linear-gradient(180deg, #1E293B 0%, #0F172A 100%)" : "linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 100%)",
         }}>
-          <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.24em", marginBottom: 8 }}>PVA DAILY REPORT</div>
+          <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.24em", marginBottom: 8 }}>PILLAR DAILY REPORT</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", fontFamily: FONT }}>{TODAY}</div>
         </div>
 
@@ -1797,7 +1797,7 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
           {/* Share buttons */}
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              const report = `Pillar Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
               window.open(`https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.green}30`,
@@ -1805,15 +1805,15 @@ function ShareableSummary({ state, dayPct, dayXp, level, levelIdx, th, onClose }
               fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
             }}>WHATSAPP</button>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
-              window.open(`mailto:?subject=PVA Daily Report - ${TODAY}&body=${encodeURIComponent(report)}`, "_blank");
+              const report = `Pillar Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              window.open(`mailto:?subject=Pillar Daily Report - ${TODAY}&body=${encodeURIComponent(report)}`, "_blank");
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.blue}30`,
               background: th.blueDim, color: th.blue,
               fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.06em",
             }}>EMAIL</button>
             <button onClick={() => {
-              const report = `PVA Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
+              const report = `Pillar Daily Report - ${TODAY}\n\nCompletion: ${dayPct}% | XP: ${dayXp} | Streak: ${state.streak} days\nLevel: Lv.${levelIdx + 1} - ${level.name} | Strength: ${state.hp}/${HP_MAX} | Multiplier: x${totalMult.toFixed(2)}\n\nPERSON \u00B7 VEHICLE \u00B7 ASSIGNMENT`;
               navigator.clipboard.writeText(report);
             }} style={{
               flex: 1, padding: "12px", borderRadius: 10, border: `1px solid ${th.glassBorder}`,
@@ -1857,7 +1857,7 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
   const generateReport = () => {
     const date = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const templeStatus = (state.totalXp || 0) > 0 ? `Temple: ${state.totalXp} XP` : "Temple: Foundation laid \u2014 your journey begins";
-    return `PVA Covenant Report - ${date}\n\n` +
+    return `Pillar Covenant Report - ${date}\n\n` +
       `Progress: ${Math.round(dayPct)}% | ${templeStatus} | Stage: ${level.name}\n` +
       `Streak: ${state.streak || 0} days | Tasks: ${completed.length}/${allTasks.length}\n\n` +
       `Completed:\n${completed.map(t => `  \u2713 ${t.label}`).join("\n") || "  (none yet)"}\n\n` +
@@ -1871,7 +1871,7 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
       const phone = partner.contact && /^[\d+]/.test(partner.contact.trim()) ? partner.contact.trim().replace(/[\s\-()]/g, "") : "";
       window.open(phone ? `https://wa.me/${phone}?text=${encodeURIComponent(report)}` : `https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
     } else if (partner.contact && partner.contact.includes("@")) {
-      window.open(`mailto:${partner.contact}?subject=PVA Accountability Report&body=${encodeURIComponent(report)}`);
+      window.open(`mailto:${partner.contact}?subject=Pillar Accountability Report&body=${encodeURIComponent(report)}`);
     } else {
       navigator.clipboard.writeText(report).then(() => {});
     }
@@ -1956,7 +1956,7 @@ function AccountabilityModal({ state, dayPct, dayXp, level, th, onClose }) {
           <button onClick={() => { window.open(`https://wa.me/?text=${encodeURIComponent(generateReport())}`, "_blank"); }} style={{ ...btnStyle, flex: 1, textAlign: "center", padding: "10px 14px", background: th.greenDim, color: th.green, border: `1px solid ${th.green}30` }}>
             WHATSAPP
           </button>
-          <button onClick={() => { window.open(`mailto:?subject=PVA Accountability Report&body=${encodeURIComponent(generateReport())}`, "_blank"); }} style={{ ...btnStyle, flex: 1, textAlign: "center", padding: "10px 14px", background: th.blueDim, color: th.blue, border: `1px solid ${th.blue}30` }}>
+          <button onClick={() => { window.open(`mailto:?subject=Pillar Accountability Report&body=${encodeURIComponent(generateReport())}`, "_blank"); }} style={{ ...btnStyle, flex: 1, textAlign: "center", padding: "10px 14px", background: th.blueDim, color: th.blue, border: `1px solid ${th.blue}30` }}>
             EMAIL
           </button>
           <button onClick={() => { navigator.clipboard.writeText(generateReport()); setSent("clipboard"); setTimeout(() => setSent(null), 2000); }} style={{ ...btnStyle, flex: 1, textAlign: "center", padding: "10px 14px" }}>
@@ -2923,7 +2923,7 @@ function PVAGlanceView({ state, dayPct, th, onBack }) {
           fontFamily: FONT, backdropFilter: "blur(20px)",
         }}>{"\u2190"}</button>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>PVA at a Glance</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text, letterSpacing: "-0.03em" }}>Pillar at a Glance</div>
           <div style={{ fontSize: 10, color: th.dim }}>Person {"\u00B7"} Vehicle {"\u00B7"} Assignment</div>
         </div>
       </div>
@@ -3832,6 +3832,296 @@ function FreeTextRoutineBuilder({ onFinish, th }) {
   );
 }
 
+// ─── VIEW PICKER (after splash) ───
+function ViewPicker({ onSelect, th }) {
+  const [fadeIn, setFadeIn] = useState(false);
+  useEffect(function() {
+    var t = setTimeout(function() { setFadeIn(true); }, 50);
+    return function() { clearTimeout(t); };
+  }, []);
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9998,
+      background: th === dark ? "#060810" : "#F4F3F0",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      fontFamily: FONT,
+      opacity: fadeIn ? 1 : 0, transition: "opacity 0.5s ease",
+    }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');`}</style>
+      <div style={{ textAlign: "center", maxWidth: 420, width: "100%", padding: "0 32px" }}>
+        <div style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: "0.32em",
+          color: th.dim, textTransform: "uppercase", marginBottom: 36,
+        }}>Choose your view</div>
+        <button onClick={function() { onSelect("normal"); }} style={{
+          display: "block", width: "100%", padding: "22px 24px", marginBottom: 14,
+          borderRadius: 18, border: "1px solid " + th.glassBorder,
+          background: th.glass, color: th.text, fontFamily: FONT,
+          cursor: "pointer", textAlign: "left",
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          transition: "all 0.25s ease",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)",
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>Classic</div>
+          <div style={{ fontSize: 10, color: th.dim, letterSpacing: "0.03em" }}>Full dashboard, stats, pillars, rewards</div>
+        </button>
+        <button onClick={function() { onSelect("focus"); }} style={{
+          display: "block", width: "100%", padding: "22px 24px",
+          borderRadius: 18, border: "1px solid " + th.blue + "60",
+          background: "linear-gradient(135deg, " + th.blueDim + ", " + th.glass + ")",
+          color: th.blue, fontFamily: FONT,
+          cursor: "pointer", textAlign: "left",
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          transition: "all 0.25s ease",
+          boxShadow: "0 10px 40px " + th.blue + "30, inset 0 1px 0 rgba(255,255,255,0.12)",
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.01em" }}>Focus</div>
+          <div style={{ fontSize: 10, opacity: 0.75, letterSpacing: "0.03em" }}>Minimal. One task at a time.</div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── FOCUS MODE VIEW ───
+function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
+  const [now, setNow] = useState(new Date());
+  const [taskIdx, setTaskIdx] = useState(0);
+  const [entered, setEntered] = useState(false);
+
+  useEffect(function() {
+    var id = setInterval(function() { setNow(new Date()); }, 1000);
+    return function() { clearInterval(id); };
+  }, []);
+
+  useEffect(function() {
+    var t = setTimeout(function() { setEntered(true); }, 30);
+    return function() { clearTimeout(t); };
+  }, []);
+
+  // Flatten tasks across all pillars
+  const flatTasks = useMemo(function() {
+    var result = [];
+    ["person", "people", "process", "product"].forEach(function(catKey) {
+      var cat = tasks[catKey];
+      if (!cat || !cat.sections) return;
+      cat.sections.forEach(function(sec) {
+        sec.tasks.forEach(function(task) {
+          result.push(Object.assign({}, task, { pillar: catKey, sectionName: sec.name, time: sec.time }));
+        });
+      });
+    });
+    return result;
+  }, [tasks]);
+
+  // Start at first uncompleted task on mount
+  useEffect(function() {
+    var firstIncomplete = -1;
+    for (var i = 0; i < flatTasks.length; i++) {
+      if (!state.completed[flatTasks[i].id]) { firstIncomplete = i; break; }
+    }
+    if (firstIncomplete >= 0) setTaskIdx(firstIncomplete);
+  }, []); // only on mount
+
+  if (!flatTasks.length) return null;
+  var current = flatTasks[Math.min(taskIdx, flatTasks.length - 1)];
+  if (!current) return null;
+  var isCompleted = !!state.completed[current.id];
+
+  var timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+  var dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
+  // Compute level from totalXp
+  var levelIdx = 0;
+  for (var li = 0; li < LEVELS.length; li++) {
+    if ((state.totalXp || 0) >= LEVELS[li].xp) levelIdx = li;
+  }
+  var level = LEVELS[levelIdx] || LEVELS[0];
+  var nextLevel = LEVELS[levelIdx + 1];
+  var levelXp = (state.totalXp || 0) - level.xp;
+  var levelXpMax = nextLevel ? (nextLevel.xp - level.xp) : Math.max(1, levelXp);
+  var levelProgress = Math.min(1, levelXp / levelXpMax);
+
+  var pillarEmoji = { person: "\uD83D\uDC4B", people: "\uD83D\uDC6B", process: "\u2699\uFE0F", product: "\uD83C\uDFF7" };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 9000,
+      fontFamily: FONT,
+      background: th === dark
+        ? "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(124,58,237,0.14), transparent 55%), #050810"
+        : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(59,130,246,0.14), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(139,92,246,0.09), transparent 55%), #F0EFEC",
+      display: "flex", flexDirection: "column",
+      padding: "56px 24px 32px",
+      overflow: "hidden",
+      opacity: entered ? 1 : 0,
+      transition: "opacity 0.45s ease",
+    }}>
+      <style>{`
+        @keyframes focusBgDrift { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,-10px) scale(1.05); } 100% { transform: translate(0,0) scale(1); } }
+        @keyframes focusPopIn { from { opacity: 0; transform: translateY(24px) scale(0.96); filter: blur(12px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
+      `}</style>
+      {/* Soft blurred ambient blobs */}
+      <div style={{
+        position: "absolute", inset: "-80px", pointerEvents: "none",
+        background: "radial-gradient(circle at 25% 30%, " + th.blue + "30, transparent 45%), radial-gradient(circle at 75% 70%, #9C6FFF28, transparent 45%)",
+        filter: "blur(80px)",
+        animation: "focusBgDrift 18s ease-in-out infinite",
+      }} />
+
+      {/* Exit button */}
+      <button onClick={onExit} style={{
+        position: "absolute", top: 20, left: 20, zIndex: 20,
+        width: 38, height: 38, borderRadius: 19,
+        border: "1px solid " + th.glassBorder,
+        background: th.glass, color: th.mid,
+        fontSize: 18, cursor: "pointer", fontFamily: FONT,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+        boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
+      }} title="Exit focus mode">{"\u2715"}</button>
+
+      {/* Content stack */}
+      <div style={{
+        position: "relative", zIndex: 1,
+        display: "flex", flexDirection: "column", gap: 20,
+        width: "100%", maxWidth: 440, margin: "0 auto",
+        flex: 1, justifyContent: "center",
+        animation: "focusPopIn 0.7s cubic-bezier(0.16,1,0.3,1) both",
+      }}>
+        {/* Time & Date card */}
+        <div style={{
+          textAlign: "center",
+          padding: "22px 28px",
+          borderRadius: 22,
+          background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
+          border: "1px solid " + th.glassBorder,
+          backdropFilter: "blur(30px) saturate(150%)",
+          WebkitBackdropFilter: "blur(30px) saturate(150%)",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.35), 0 10px 24px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.12)",
+        }}>
+          <div style={{ fontSize: 52, fontWeight: 200, color: th.text, letterSpacing: "-0.05em", lineHeight: 1 }}>
+            {timeStr}
+          </div>
+          <div style={{ fontSize: 10, color: th.dim, letterSpacing: "0.18em", textTransform: "uppercase", marginTop: 8, fontWeight: 600 }}>
+            {dateStr}
+          </div>
+        </div>
+
+        {/* Stats bar */}
+        <div style={{
+          width: "100%",
+          padding: "16px 20px",
+          borderRadius: 16,
+          background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
+          border: "1px solid " + th.glassBorder,
+          backdropFilter: "blur(30px) saturate(150%)",
+          WebkitBackdropFilter: "blur(30px) saturate(150%)",
+          boxShadow: "0 18px 50px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1)",
+          display: "flex", alignItems: "center", gap: 16,
+        }}>
+          <div style={{ textAlign: "center", minWidth: 36 }}>
+            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", marginBottom: 3, fontWeight: 700 }}>LVL</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: th.text }}>{levelIdx + 1}</div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.15em", marginBottom: 6, fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
+              <span>XP</span><span>{levelXp}/{levelXpMax}</span>
+            </div>
+            <div style={{ height: 5, borderRadius: 3, background: th.ghost, overflow: "hidden" }}>
+              <div style={{
+                height: "100%", width: (levelProgress * 100) + "%",
+                background: "linear-gradient(90deg, " + th.blue + ", #9C6FFF)",
+                borderRadius: 3,
+                boxShadow: "0 0 12px " + th.blue + "90",
+                transition: "width 0.4s ease",
+              }} />
+            </div>
+          </div>
+          <div style={{ textAlign: "center", minWidth: 36 }}>
+            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", marginBottom: 3, fontWeight: 700 }}>STRK</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: th.text }}>{state.streak || 0}</div>
+          </div>
+        </div>
+
+        {/* Current task — biggest 3D card */}
+        <div style={{
+          width: "100%",
+          padding: "26px 24px",
+          borderRadius: 24,
+          background: isCompleted
+            ? "linear-gradient(135deg, " + th.blue + "28, " + th.blueDim + ")"
+            : "linear-gradient(135deg, " + th.glass + ", " + th.glass + "55)",
+          border: "1px solid " + (isCompleted ? th.blue + "90" : th.glassBorder),
+          backdropFilter: "blur(40px) saturate(180%)",
+          WebkitBackdropFilter: "blur(40px) saturate(180%)",
+          boxShadow: isCompleted
+            ? "0 34px 80px " + th.blue + "50, 0 14px 32px " + th.blue + "30, inset 0 1px 0 rgba(255,255,255,0.18)"
+            : "0 34px 80px rgba(0,0,0,0.42), 0 14px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.14)",
+          textAlign: "center",
+        }}>
+          <div style={{ fontSize: 9, color: th.dim, letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: 10, fontWeight: 700 }}>
+            <span style={{ marginRight: 6 }}>{pillarEmoji[current.pillar]}</span>
+            {current.pillar}{current.time ? " \u00B7 " + current.time : ""}
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: th.text, lineHeight: 1.3, marginBottom: 14, letterSpacing: "-0.01em" }}>
+            {current.label}
+          </div>
+          <div style={{ fontSize: 10, color: th.blue, letterSpacing: "0.12em", marginBottom: 18, fontWeight: 700 }}>
+            +{current.xp} XP
+          </div>
+          <button onClick={function(e) { onToggleTask(current.id, e); }} style={{
+            width: "100%", padding: "14px",
+            borderRadius: 12, border: "1px solid " + th.blue + "80",
+            background: isCompleted ? th.blue + "50" : th.blue + "25",
+            color: th.blue, fontSize: 12, fontWeight: 800, letterSpacing: "0.1em",
+            cursor: "pointer", fontFamily: FONT,
+            boxShadow: "0 6px 18px " + th.blue + "40, inset 0 1px 0 rgba(255,255,255,0.15)",
+            transition: "all 0.2s ease",
+          }}>
+            {isCompleted ? "COMPLETED \u2713" : "MARK COMPLETE"}
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center", marginTop: 4 }}>
+          <button
+            onClick={function() { setTaskIdx(function(i) { return Math.max(0, i - 1); }); }}
+            disabled={taskIdx === 0}
+            style={{
+              width: 46, height: 46, borderRadius: 23,
+              border: "1px solid " + th.glassBorder,
+              background: th.glass, color: th.text,
+              fontSize: 20, cursor: taskIdx === 0 ? "default" : "pointer",
+              opacity: taskIdx === 0 ? 0.3 : 1,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+              boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
+              fontFamily: FONT,
+            }}>{"\u2039"}</button>
+          <div style={{ fontSize: 10, color: th.dim, minWidth: 70, textAlign: "center", letterSpacing: "0.15em", fontWeight: 700 }}>
+            {taskIdx + 1} / {flatTasks.length}
+          </div>
+          <button
+            onClick={function() { setTaskIdx(function(i) { return Math.min(flatTasks.length - 1, i + 1); }); }}
+            disabled={taskIdx === flatTasks.length - 1}
+            style={{
+              width: 46, height: 46, borderRadius: 23,
+              border: "1px solid " + th.glassBorder,
+              background: th.glass, color: th.text,
+              fontSize: 20, cursor: taskIdx === flatTasks.length - 1 ? "default" : "pointer",
+              opacity: taskIdx === flatTasks.length - 1 ? 0.3 : 1,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+              boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
+              fontFamily: FONT,
+            }}>{"\u203A"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── OPENING SPLASH (after onboarding) ───
 function OpeningSplash({ name, onFinish, th }) {
   const [phase, setPhase] = useState(0); // 0=fade-in words, 1=hold, 2=fade-out
@@ -3963,7 +4253,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         {/* ─── STEP 0: GET STARTED ─── */}
         {step === 0 && (
           <>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 8 }}>PVA</h1>
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 8 }}>PILLAR</h1>
             <p style={{ fontSize: 12, color: th.dim, letterSpacing: "0.12em", marginBottom: 40 }}>
               PERSON {"\u00B7"} VEHICLE {"\u00B7"} ASSIGNMENT
             </p>
@@ -4138,7 +4428,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         {step === 2 && (
           <>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>What{"\u2019"}s your name?</h2>
-            <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>This will personalise your PVA model</p>
+            <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>This will personalise your Pillar model</p>
             <input value={name} onChange={function(e) { setName(e.target.value); }}
               onKeyDown={function(e) { if (e.key === "Enter") doCompleteName(); }}
               autoFocus placeholder="Your first name..."
@@ -4174,7 +4464,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
             }}>
               {/* Mini header */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: th.text, fontFamily: FONT }}>{name.trim() || "Your"}{"\u2019"}s PVA Model</div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: th.text, fontFamily: FONT }}>{name.trim() || "Your"}{"\u2019"}s Pillar Model</div>
                 <div style={{ display: "flex", gap: 4 }}>
                   {["#EF4444","#F59E0B","#3B82F6","#8B5CF6"].map(function(c, i) {
                     return <div key={i} style={{ width: 8, height: 8, borderRadius: 4, background: c, opacity: 0.7 }} />;
@@ -4528,7 +4818,7 @@ function SettingsView({ profile, onSave, onBack, th, firebaseUser, cloudStatus, 
       <div style={{ ...glassStyle(th), padding: "20px" }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: th.dim, letterSpacing: "0.1em", marginBottom: 10 }}>ABOUT</div>
         <div style={{ fontSize: 12, color: th.mid, lineHeight: 1.6 }}>
-          PVA {"\u2014"} Person, Vehicle, Assignment
+          PILLAR {"\u2014"} Person, Vehicle, Assignment
         </div>
         <div style={{ fontSize: 11, color: th.dim, marginTop: 6 }}>
           A gamified daily discipline tracker.
@@ -6238,7 +6528,7 @@ function WeeklyReportCard({ state, userName, th, onClose }) {
 
   const generateWeeklyReport = () => {
     const lines = [
-      `PVA WEEKLY REPORT CARD`,
+      `PILLAR WEEKLY REPORT CARD`,
       `${userName} | ${dateRange}`,
       ``,
       `Weekly Average: ${weekAvg}%`,
@@ -6266,7 +6556,7 @@ function WeeklyReportCard({ state, userName, th, onClose }) {
     setShared("whatsapp"); setTimeout(() => setShared(null), 2000);
   };
   const shareEmail = () => {
-    window.open(`mailto:?subject=PVA Weekly Report - ${dateRange}&body=${encodeURIComponent(generateWeeklyReport())}`, "_blank");
+    window.open(`mailto:?subject=Pillar Weekly Report - ${dateRange}&body=${encodeURIComponent(generateWeeklyReport())}`, "_blank");
     setShared("email"); setTimeout(() => setShared(null), 2000);
   };
   const shareCopy = () => {
@@ -6283,7 +6573,7 @@ function WeeklyReportCard({ state, userName, th, onClose }) {
       const emailPartners = partners.filter(p => p.contact && p.contact.includes("@"));
       if (emailPartners.length > 0) {
         const emails = emailPartners.map(p => p.contact).join(",");
-        window.open(`mailto:${emails}?subject=PVA Weekly Report - ${dateRange}&body=${encodeURIComponent(report)}`, "_blank");
+        window.open(`mailto:${emails}?subject=Pillar Weekly Report - ${dateRange}&body=${encodeURIComponent(report)}`, "_blank");
       } else {
         window.open(`https://wa.me/?text=${encodeURIComponent(report)}`, "_blank");
       }
@@ -6532,7 +6822,7 @@ function RoutineOnboardingView({ th, onComplete, existingRoutine }) {
         {showPasteBox && (
           <div className="pva-fade-in" style={{ ...glassStyle(th), padding: 14, marginTop: 8, marginBottom: 8 }}>
             <div style={{ fontSize: 10, color: th.mid, fontFamily: FONT, marginBottom: 8 }}>
-              Paste your routine below. Use a simple format like "Wake up: 06:00" per line, or paste a PVA export:
+              Paste your routine below. Use a simple format like "Wake up: 06:00" per line, or paste a Pillar export:
             </div>
             <textarea value={pasteText} onChange={function(e) { setPasteText(e.target.value); setUploadError(""); }}
               placeholder={"5:30am Wake up\n6:00am Morning devotion\n6:45am Exercise\n9:00 Work / Deep focus\n12:30 Lunch\n6pm Family dinner\n9pm Bible reading\n10:30pm Bedtime"}
@@ -6905,7 +7195,7 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
   const handleImportSubmit = function() {
     var text = importText.trim();
     if (!text) { setImportError("Please paste your routine first."); return; }
-    // Try JSON first (PVA export format)
+    // Try JSON first (Pillar export format)
     try {
       var data = JSON.parse(text);
       var importedAnswers = data.answers || data;
@@ -6997,7 +7287,7 @@ function MyRoutineView({ th, onBack, onRoutineChanged }) {
       {showImportBox && (
         <div className="pva-fade-in" style={{ ...glassStyle(th), padding: 14, margin: "0 4px 12px" }}>
           <div style={{ fontSize: 10, color: th.mid, fontFamily: FONT, marginBottom: 8 }}>
-            Paste your routine below (plain text or PVA export):
+            Paste your routine below (plain text or Pillar export):
           </div>
           <textarea value={importText} onChange={function(e) { setImportText(e.target.value); setImportError(""); }}
             placeholder={"5:30am Wake up\n6:00am Morning devotion\n6:45am Exercise\n9:00 Work / Deep focus\n12:30 Lunch\n6pm Family dinner\n9pm Bible reading\n10:30pm Bedtime"}
@@ -7221,7 +7511,12 @@ function PPPPApp() {
   const [view, setView] = useState(function() { return (loadRoutine() || loadProfile()) ? "home" : "routine_onboarding"; });
   const [hasRoutine, setHasRoutine] = useState(function() { return !!loadRoutine(); });
   const [testimonyMilestone, setTestimonyMilestone] = useState(null);
-  const [splashOverlay, setSplashOverlay] = useState(null); // { name, th } while splash is visible
+  const [launchFlow, setLaunchFlow] = useState(function() {
+    // On initial app mount with existing profile, show splash + view picker
+    var p = loadProfile();
+    return p ? { phase: "splash", name: p.name } : null;
+  });
+  const [viewMode, setViewMode] = useState("normal"); // "normal" | "focus"
 
   // ─── FIREBASE AUTH STATE ───
   const [firebaseUser, setFirebaseUser] = useState(null);
@@ -7463,8 +7758,7 @@ function PPPPApp() {
     return <OnboardingScreen onComplete={function(p, showSplashName) {
       setProfile(p);
       if (showSplashName) {
-        var splashTh = themeMode === "dark" ? dark : light;
-        setSplashOverlay({ name: showSplashName, th: splashTh });
+        setLaunchFlow({ phase: "splash", name: showSplashName });
       }
     }} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} onSignIn={handleSignIn} onEmailAuth={handleEmailAuth} firebaseUser={firebaseUser} />;
   }
@@ -8115,7 +8409,7 @@ function PPPPApp() {
                 backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
                 boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
               }}>
-                <span style={{ fontSize: 12, fontWeight: 800, color: th.text, letterSpacing: "-0.01em", fontFamily: FONT }}>{userName}{"\u2019"}s PVA Model</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: th.text, letterSpacing: "-0.01em", fontFamily: FONT }}>{userName}{"\u2019"}s Pillar Model</span>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -8206,7 +8500,7 @@ function PPPPApp() {
                 <div className="pva-stagger" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: "0 20px", marginBottom: 22 }}>
                   {[
                     { view: "routine", label: "MY ROUTINE", sub: "Daily Schedule", color: "#EC4899" },
-                    { view: "pva_glance", label: "MY FOCUS", sub: "PVA Overview", color: th.blue },
+                    { view: "pva_glance", label: "MY FOCUS", sub: "Pillar Overview", color: th.blue },
                     { view: "season", label: "SEASON", sub: "Current Focus", color: th.green || "#16A34A" },
                   ].map(function(n) { return (
                     <div key={n.view} onClick={function() { navigateTo(n.view, "forward"); }} className="pva-card-hover" style={{
@@ -8932,7 +9226,7 @@ function PPPPApp() {
 
             {/* Footer */}
             <div style={{ textAlign: "center", padding: "20px 0 32px" }}>
-              <div style={{ fontSize: 9, color: th.ghost, letterSpacing: "0.24em" }}>PVA {"\u00B7"} {TODAY}</div>
+              <div style={{ fontSize: 9, color: th.ghost, letterSpacing: "0.24em" }}>PILLAR {"\u00B7"} {TODAY}</div>
             </div>
           </div>
         )}
@@ -9158,7 +9452,33 @@ function PPPPApp() {
         fontSize: 8, fontFamily: FONT, color: th.dim, opacity: 0.4,
         letterSpacing: "0.02em", pointerEvents: "none",
       }}>v{APP_VERSION}</div>
-      {splashOverlay && <OpeningSplash name={splashOverlay.name} onFinish={function() { setSplashOverlay(null); }} th={splashOverlay.th} />}
+      {/* Focus Mode overlay */}
+      {viewMode === "focus" && (
+        <FocusModeView
+          state={state}
+          tasks={tasks}
+          th={th}
+          onExit={function() { setViewMode("normal"); }}
+          onToggleTask={toggleHomeTask}
+        />
+      )}
+      {/* Launch flow: splash → view picker */}
+      {launchFlow && launchFlow.phase === "splash" && (
+        <OpeningSplash
+          name={launchFlow.name}
+          onFinish={function() { setLaunchFlow({ phase: "picker", name: launchFlow.name }); }}
+          th={th}
+        />
+      )}
+      {launchFlow && launchFlow.phase === "picker" && (
+        <ViewPicker
+          onSelect={function(mode) {
+            setViewMode(mode);
+            setLaunchFlow(null);
+          }}
+          th={th}
+        />
+      )}
     </div>
   );
 }
