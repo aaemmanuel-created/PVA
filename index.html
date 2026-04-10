@@ -3834,13 +3834,19 @@ function FreeTextRoutineBuilder({ onFinish, th }) {
 
 // ─── VIEW PICKER (after splash) ───
 function ViewPicker({ onSelect, th }) {
+  const [mounted, setMounted] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [chosen, setChosen] = useState(null);
+  useEffect(function() {
+    // Force a frame so the 0 -> 1 opacity transition actually animates
+    var t = setTimeout(function() { setMounted(true); }, 20);
+    return function() { clearTimeout(t); };
+  }, []);
   const handlePick = function(mode) {
     if (leaving) return;
     setChosen(mode);
     setLeaving(true);
-    setTimeout(function() { onSelect(mode); }, 520);
+    setTimeout(function() { onSelect(mode); }, 620);
   };
   return (
     <div style={{
@@ -3848,8 +3854,8 @@ function ViewPicker({ onSelect, th }) {
       background: th === dark ? "#060810" : "#F4F3F0",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: FONT,
-      opacity: leaving ? 0 : 1,
-      transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
+      opacity: !mounted ? 0 : (leaving ? 0 : 1),
+      transition: "opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
@@ -3945,14 +3951,18 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
       }}>
         <button onClick={onExit} style={{
           position: "absolute", top: 20, left: 20, zIndex: 20,
-          width: 38, height: 38, borderRadius: 19,
+          padding: "9px 14px", borderRadius: 20,
           border: "1px solid " + th.glassBorder,
-          background: th.glass, color: th.mid,
-          fontSize: 18, cursor: "pointer", fontFamily: FONT,
-          display: "flex", alignItems: "center", justifyContent: "center",
+          background: th.glass, color: th.text,
+          fontSize: 9, fontWeight: 800, letterSpacing: "0.16em",
+          cursor: "pointer", fontFamily: FONT,
+          display: "flex", alignItems: "center", gap: 6,
           backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-          boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
-        }} title="Exit focus mode">{"\u2715"}</button>
+          boxShadow: "0 8px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+          transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
+        }} title="Switch to Classic view">
+          <span style={{ fontSize: 11 }}>{"\u2039"}</span>CLASSIC
+        </button>
         <div style={{ textAlign: "center", maxWidth: 340 }}>
           <div style={{ fontSize: 48, marginBottom: 18 }}>{"\u2728"}</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: th.text, marginBottom: 8, letterSpacing: "-0.01em" }}>All done for today</div>
@@ -4008,17 +4018,21 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
         animation: "focusBgDrift 18s ease-in-out infinite",
       }} />
 
-      {/* Exit button */}
+      {/* Switch to Classic view button */}
       <button onClick={onExit} style={{
         position: "absolute", top: 20, left: 20, zIndex: 20,
-        width: 38, height: 38, borderRadius: 19,
+        padding: "9px 14px", borderRadius: 20,
         border: "1px solid " + th.glassBorder,
-        background: th.glass, color: th.mid,
-        fontSize: 18, cursor: "pointer", fontFamily: FONT,
-        display: "flex", alignItems: "center", justifyContent: "center",
+        background: th.glass, color: th.text,
+        fontSize: 9, fontWeight: 800, letterSpacing: "0.16em",
+        cursor: "pointer", fontFamily: FONT,
+        display: "flex", alignItems: "center", gap: 6,
         backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-        boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
-      }} title="Exit focus mode">{"\u2715"}</button>
+        boxShadow: "0 8px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+        transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
+      }} title="Switch to Classic view">
+        <span style={{ fontSize: 11 }}>{"\u2039"}</span>CLASSIC
+      </button>
 
       {/* Content stack */}
       <div style={{
@@ -9499,6 +9513,23 @@ function PPPPApp() {
         fontSize: 8, fontFamily: FONT, color: th.dim, opacity: 0.4,
         letterSpacing: "0.02em", pointerEvents: "none",
       }}>v{APP_VERSION}</div>
+      {/* Floating Focus toggle — visible in Classic view only */}
+      {viewMode === "normal" && !launchFlow && (
+        <button onClick={function() { setViewMode("focus"); }} style={{
+          position: "fixed", top: 16, right: 16, zIndex: 150,
+          padding: "9px 14px", borderRadius: 20,
+          border: "1px solid " + th.blue + "60",
+          background: "linear-gradient(135deg, " + th.blue + "30, " + th.glass + ")",
+          color: th.blue, fontFamily: FONT, fontSize: 9, fontWeight: 800,
+          letterSpacing: "0.16em", cursor: "pointer",
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          boxShadow: "0 8px 22px " + th.blue + "35, inset 0 1px 0 rgba(255,255,255,0.12)",
+          transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
+          display: "flex", alignItems: "center", gap: 6,
+        }} title="Switch to Focus view">
+          <span style={{ fontSize: 11 }}>{"\u25CE"}</span>FOCUS
+        </button>
+      )}
       {/* Focus Mode overlay */}
       {viewMode === "focus" && (
         <FocusModeView
