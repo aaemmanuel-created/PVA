@@ -7757,6 +7757,9 @@ function PPPPApp() {
   if (!profile) {
     return <OnboardingScreen onComplete={function(p, showSplashName) {
       setProfile(p);
+      // Force view to home (view state was initialized to "routine_onboarding" at mount since profile didn't exist yet)
+      setView("home");
+      setHasRoutine(!!loadRoutine());
       if (showSplashName) {
         setLaunchFlow({ phase: "splash", name: showSplashName });
       }
