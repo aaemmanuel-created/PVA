@@ -3905,9 +3905,22 @@ function ViewPicker({ onSelect, th }) {
 
 // ─── FOCUS MODE VIEW ───
 function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
+  const PILLAR_ACCENT = { person: "#DC2626", people: "#7C3AED", process: "#16A34A", product: th.blue };
+  const PILLAR_EMOJI  = { person: "\uD83D\uDC4B", people: "\uD83D\uDC6B", process: "\u2699\uFE0F", product: "\uD83C\uDFF7" };
+  const PILLAR_LABEL  = { person: "PERSON", people: "PEOPLE", process: "PROCESS", product: "PRODUCT" };
+
   const [now, setNow] = useState(new Date());
   const [taskIdx, setTaskIdx] = useState(0);
   const [entered, setEntered] = useState(false);
+  // Slide transition between tasks: null | "left" | "right" (direction the card leaves toward)
+  const [slide, setSlide] = useState(null);
+  // Pointer drag state
+  const [dragDx, setDragDx] = useState(0);
+  const dragRef = useRef({ active: false, startX: 0, startY: 0, locked: false });
+  // Celebration pulse (radial burst) counter — new ref per completion
+  const [burstKey, setBurstKey] = useState(0);
+  // Final all-done celebration
+  const [finalCelebrate, setFinalCelebrate] = useState(false);
 
   useEffect(function() {
     var id = setInterval(function() { setNow(new Date()); }, 1000);
@@ -3919,22 +3932,30 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
     return function() { clearTimeout(t); };
   }, []);
 
-  // Flatten tasks across all pillars — only include INCOMPLETE tasks,
-  // so the counter shrinks as tasks are completed.
-  const flatTasks = useMemo(function() {
+  // Snapshot of *all* tasks (completed + not) — needed for total/completed counts
+  // so the progress bar reflects Classic-view completions too.
+  const allTasks = useMemo(function() {
     var result = [];
     ["person", "people", "process", "product"].forEach(function(catKey) {
       var cat = tasks[catKey];
       if (!cat || !cat.sections) return;
       cat.sections.forEach(function(sec) {
         sec.tasks.forEach(function(task) {
-          if (state.completed[task.id]) return; // exclude already-completed tasks
           result.push(Object.assign({}, task, { pillar: catKey, sectionName: sec.name, time: sec.time }));
         });
       });
     });
     return result;
-  }, [tasks, state.completed]);
+  }, [tasks]);
+
+  // Incomplete-only list — what we navigate through
+  const flatTasks = useMemo(function() {
+    return allTasks.filter(function(t) { return !state.completed[t.id]; });
+  }, [allTasks, state.completed]);
+
+  const totalToday = allTasks.length;
+  const completedToday = totalToday - flatTasks.length;
+  const progressPct = totalToday > 0 ? (completedToday / totalToday) : 0;
 
   // Clamp taskIdx when list shrinks (e.g., after completing a task)
   useEffect(function() {
@@ -3943,19 +3964,114 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
     }
   }, [flatTasks.length]);
 
+  // Detect transition from "some tasks left" -> "none left" for final celebration
+  const prevFlatLenRef = useRef(flatTasks.length);
+  useEffect(function() {
+    if (prevFlatLenRef.current > 0 && flatTasks.length === 0) {
+      setFinalCelebrate(true);
+      var t = setTimeout(function() { setFinalCelebrate(false); }, 2600);
+      return function() { clearTimeout(t); };
+    }
+    prevFlatLenRef.current = flatTasks.length;
+  }, [flatTasks.length]);
+
+  const goPrev = useCallback(function() {
+    if (slide) return;
+    if (taskIdx <= 0) return;
+    setSlide("right"); // current card leaves to the right
+    setTimeout(function() {
+      setTaskIdx(function(i) { return Math.max(0, i - 1); });
+      setSlide(null);
+    }, 280);
+  }, [taskIdx, slide]);
+
+  const goNext = useCallback(function() {
+    if (slide) return;
+    if (taskIdx >= flatTasks.length - 1) return;
+    setSlide("left"); // current card leaves to the left
+    setTimeout(function() {
+      setTaskIdx(function(i) { return Math.min(flatTasks.length - 1, i + 1); });
+      setSlide(null);
+    }, 280);
+  }, [taskIdx, flatTasks.length, slide]);
+
+  const completeCurrent = useCallback(function(e) {
+    if (slide || !flatTasks.length) return;
+    var current = flatTasks[Math.min(taskIdx, flatTasks.length - 1)];
+    if (!current) return;
+    setBurstKey(function(k) { return k + 1; });
+    // Let the celebration animate, then actually toggle. The flatTasks filter
+    // will then remove this task and the list shifts by itself.
+    setTimeout(function() { onToggleTask(current.id, e || null); }, 280);
+  }, [flatTasks, taskIdx, onToggleTask, slide]);
+
+  // Keyboard navigation
+  useEffect(function() {
+    function handler(ev) {
+      if (ev.key === "ArrowLeft") { ev.preventDefault(); goPrev(); }
+      else if (ev.key === "ArrowRight") { ev.preventDefault(); goNext(); }
+      else if (ev.key === " " || ev.code === "Space") { ev.preventDefault(); completeCurrent(null); }
+      else if (ev.key === "Escape") { ev.preventDefault(); onExit && onExit(); }
+    }
+    window.addEventListener("keydown", handler);
+    return function() { window.removeEventListener("keydown", handler); };
+  }, [goPrev, goNext, completeCurrent, onExit]);
+
+  // Pointer (touch/mouse) swipe handlers — attached on the swipe target below.
+  const onPointerDown = function(e) {
+    // Ignore pointer-down on buttons (let them handle their own click)
+    var tag = e.target && e.target.tagName;
+    if (tag === "BUTTON" || (e.target && e.target.closest && e.target.closest("button"))) return;
+    dragRef.current = { active: true, startX: e.clientX, startY: e.clientY, locked: false };
+  };
+  const onPointerMove = function(e) {
+    if (!dragRef.current.active) return;
+    var dx = e.clientX - dragRef.current.startX;
+    var dy = e.clientY - dragRef.current.startY;
+    // Only commit to horizontal swipe if clearly horizontal
+    if (!dragRef.current.locked) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        dragRef.current.active = false;
+        return;
+      }
+      dragRef.current.locked = true;
+    }
+    setDragDx(dx);
+  };
+  const onPointerUp = function() {
+    if (!dragRef.current.active) { setDragDx(0); return; }
+    var dx = dragDx;
+    dragRef.current.active = false;
+    dragRef.current.locked = false;
+    var threshold = Math.max(60, Math.min(160, window.innerWidth * 0.22));
+    if (dx <= -threshold) {
+      setDragDx(0);
+      goNext();
+    } else if (dx >= threshold) {
+      setDragDx(0);
+      goPrev();
+    } else {
+      setDragDx(0);
+    }
+  };
+
+  // ─── EMPTY / ALL-DONE STATE ───
   if (!flatTasks.length) {
+    var tone = "#22C55E";
     return (
       <div style={{
         position: "fixed", inset: 0, zIndex: 9000,
         fontFamily: FONT,
         background: th === dark
-          ? "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(124,58,237,0.14), transparent 55%), #050810"
-          : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(59,130,246,0.14), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(139,92,246,0.09), transparent 55%), #F0EFEC",
+          ? "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(34,197,94,0.18), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(124,58,237,0.14), transparent 55%), #050810"
+          : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(34,197,94,0.14), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(139,92,246,0.09), transparent 55%), #F0EFEC",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: "56px 24px 32px",
         opacity: entered ? 1 : 0,
         transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
       }}>
+        <style>{`@keyframes focusDonePop { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
         <button onClick={onExit} style={{
           position: "absolute", top: 20, left: 20, zIndex: 20,
           padding: "9px 14px", borderRadius: 20,
@@ -3970,19 +4086,69 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
         }} title="Switch to Classic view">
           <span style={{ fontSize: 11 }}>{"\u2039"}</span>CLASSIC
         </button>
-        <div style={{ textAlign: "center", maxWidth: 340 }}>
-          <div style={{ fontSize: 48, marginBottom: 18 }}>{"\u2728"}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: th.text, marginBottom: 8, letterSpacing: "-0.01em" }}>All done for today</div>
-          <div style={{ fontSize: 11, color: th.dim, letterSpacing: "0.1em", lineHeight: 1.6 }}>
-            You've completed every task. Rest well.
+
+        <div style={{
+          textAlign: "center", maxWidth: 360, width: "100%",
+          padding: "34px 28px",
+          borderRadius: 26,
+          background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
+          border: "1px solid " + tone + "50",
+          backdropFilter: "blur(40px) saturate(180%)",
+          WebkitBackdropFilter: "blur(40px) saturate(180%)",
+          boxShadow: "0 34px 80px " + tone + "30, 0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.14)",
+          animation: "focusDonePop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
+        }}>
+          <div style={{ fontSize: 52, marginBottom: 14 }}>{"\u2728"}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: th.text, marginBottom: 6, letterSpacing: "-0.01em" }}>
+            Temple restored
           </div>
+          <div style={{ fontSize: 11, color: th.dim, letterSpacing: "0.1em", lineHeight: 1.6, marginBottom: 22 }}>
+            All pillars tended. Rest well.
+          </div>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 22 }}>
+            <div style={{
+              flex: 1, padding: "12px 8px", borderRadius: 14,
+              background: th.glass, border: "1px solid " + th.glassBorder,
+            }}>
+              <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginBottom: 4 }}>DONE</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: tone }}>{completedToday}</div>
+            </div>
+            <div style={{
+              flex: 1, padding: "12px 8px", borderRadius: 14,
+              background: th.glass, border: "1px solid " + th.glassBorder,
+            }}>
+              <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginBottom: 4 }}>XP</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{state.totalXp || 0}</div>
+            </div>
+            <div style={{
+              flex: 1, padding: "12px 8px", borderRadius: 14,
+              background: th.glass, border: "1px solid " + th.glassBorder,
+            }}>
+              <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginBottom: 4 }}>STRK</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{state.streak || 0}</div>
+            </div>
+          </div>
+
+          <button onClick={onExit} style={{
+            width: "100%", padding: "14px",
+            borderRadius: 14, border: "1px solid " + th.glassBorder,
+            background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
+            color: th.text, fontSize: 11, fontWeight: 800, letterSpacing: "0.16em",
+            cursor: "pointer", fontFamily: FONT,
+            boxShadow: "0 8px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.1)",
+            transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
+          }}>
+            BACK TO CLASSIC
+          </button>
         </div>
       </div>
     );
   }
+
   var current = flatTasks[Math.min(taskIdx, flatTasks.length - 1)];
   if (!current) return null;
-  var isCompleted = false; // by construction, flatTasks only contains incomplete tasks
+  var nextTask = flatTasks[Math.min(taskIdx, flatTasks.length - 1) + 1] || null;
 
   var timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
   var dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -3998,32 +4164,72 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
   var levelXpMax = nextLevel ? (nextLevel.xp - level.xp) : Math.max(1, levelXp);
   var levelProgress = Math.min(1, levelXp / levelXpMax);
 
-  var pillarEmoji = { person: "\uD83D\uDC4B", people: "\uD83D\uDC6B", process: "\u2699\uFE0F", product: "\uD83C\uDFF7" };
+  var accent = PILLAR_ACCENT[current.pillar] || th.blue;
+
+  // Card transform — slide + drag preview
+  var cardX = 0;
+  var cardOpacity = 1;
+  if (slide === "left") { cardX = -window.innerWidth * 0.6; cardOpacity = 0; }
+  else if (slide === "right") { cardX = window.innerWidth * 0.6; cardOpacity = 0; }
+  else if (dragRef.current.locked || Math.abs(dragDx) > 0) {
+    cardX = dragDx;
+    cardOpacity = Math.max(0.35, 1 - Math.abs(dragDx) / 420);
+  }
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 9000,
-      fontFamily: FONT,
-      background: th === dark
-        ? "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(124,58,237,0.14), transparent 55%), #050810"
-        : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(59,130,246,0.14), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(139,92,246,0.09), transparent 55%), #F0EFEC",
-      display: "flex", flexDirection: "column",
-      padding: "56px 24px 32px",
-      overflow: "hidden",
-      opacity: entered ? 1 : 0,
-      transition: "opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1)",
-    }}>
+    <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9000,
+        fontFamily: FONT,
+        background: th === dark
+          ? "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(124,58,237,0.14), transparent 55%), #050810"
+          : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(59,130,246,0.14), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(139,92,246,0.09), transparent 55%), #F0EFEC",
+        display: "flex", flexDirection: "column",
+        padding: "56px 24px 32px",
+        overflow: "hidden",
+        opacity: entered ? 1 : 0,
+        transition: "opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1)",
+        touchAction: "pan-y",
+        userSelect: "none",
+      }}>
       <style>{`
         @keyframes focusBgDrift { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,-10px) scale(1.05); } 100% { transform: translate(0,0) scale(1); } }
         @keyframes focusPopIn { from { opacity: 0; transform: translateY(24px) scale(0.96); filter: blur(12px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
+        @keyframes focusBurst { 0% { opacity: 0.85; transform: scale(0.2); } 70% { opacity: 0.45; } 100% { opacity: 0; transform: scale(1.8); } }
+        @keyframes focusTitlePulse { 0% { transform: scale(1); } 40% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes focusFinal { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
       `}</style>
-      {/* Soft blurred ambient blobs */}
+
+      {/* Soft blurred ambient blobs — tinted by current pillar accent */}
       <div style={{
         position: "absolute", inset: "-80px", pointerEvents: "none",
-        background: "radial-gradient(circle at 25% 30%, " + th.blue + "30, transparent 45%), radial-gradient(circle at 75% 70%, #9C6FFF28, transparent 45%)",
+        background: "radial-gradient(circle at 25% 30%, " + accent + "30, transparent 45%), radial-gradient(circle at 75% 70%, #9C6FFF28, transparent 45%)",
         filter: "blur(80px)",
         animation: "focusBgDrift 18s ease-in-out infinite",
+        transition: "background 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
       }} />
+
+      {/* Ambient pillar tint overlay */}
+      <div style={{
+        position: "absolute", inset: 0, pointerEvents: "none",
+        background: accent,
+        opacity: 0.08,
+        transition: "background 0.8s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+      }} />
+
+      {/* Final celebration flash */}
+      {finalCelebrate && (
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          background: "radial-gradient(ellipse 60% 40% at 50% 50%, " + accent + "55, transparent 70%)",
+          animation: "focusFinal 2.4s cubic-bezier(0.22, 1, 0.36, 1) both",
+          zIndex: 15,
+        }} />
+      )}
 
       {/* Switch to Classic view button */}
       <button onClick={onExit} style={{
@@ -4037,14 +4243,41 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
         backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
         boxShadow: "0 8px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
         transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
-      }} title="Switch to Classic view">
+      }} title="Switch to Classic view (Esc)">
         <span style={{ fontSize: 11 }}>{"\u2039"}</span>CLASSIC
       </button>
+
+      {/* Progress bar + counter (top, under CLASSIC) */}
+      <div style={{
+        position: "absolute", top: 26, left: 0, right: 0, zIndex: 18,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+        pointerEvents: "none",
+      }}>
+        <div style={{
+          fontSize: 9, color: th.dim, letterSpacing: "0.22em", fontWeight: 800,
+          fontFamily: FONT,
+        }}>
+          {completedToday} / {totalToday}
+        </div>
+        <div style={{
+          width: "min(240px, 55%)", height: 3, borderRadius: 2,
+          background: th.ghost, overflow: "hidden",
+          boxShadow: "inset 0 1px 0 rgba(0,0,0,0.2)",
+        }}>
+          <div style={{
+            height: "100%",
+            width: (progressPct * 100) + "%",
+            background: "linear-gradient(90deg, " + accent + ", " + accent + "C0)",
+            boxShadow: "0 0 10px " + accent + "90",
+            transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1), background 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+          }} />
+        </div>
+      </div>
 
       {/* Content stack */}
       <div style={{
         position: "relative", zIndex: 1,
-        display: "flex", flexDirection: "column", gap: 20,
+        display: "flex", flexDirection: "column", gap: 18,
         width: "100%", maxWidth: 440, margin: "0 auto",
         flex: 1, justifyContent: "center",
         animation: "focusPopIn 0.7s cubic-bezier(0.16,1,0.3,1) both",
@@ -4052,7 +4285,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
         {/* Time & Date card */}
         <div style={{
           textAlign: "center",
-          padding: "22px 28px",
+          padding: "20px 28px",
           borderRadius: 22,
           background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
           border: "1px solid " + th.glassBorder,
@@ -4060,10 +4293,10 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
           WebkitBackdropFilter: "blur(30px) saturate(150%)",
           boxShadow: "0 24px 60px rgba(0,0,0,0.35), 0 10px 24px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.12)",
         }}>
-          <div style={{ fontSize: 52, fontWeight: 200, color: th.text, letterSpacing: "-0.05em", lineHeight: 1 }}>
+          <div style={{ fontSize: 48, fontWeight: 200, color: th.text, letterSpacing: "-0.05em", lineHeight: 1 }}>
             {timeStr}
           </div>
-          <div style={{ fontSize: 10, color: th.dim, letterSpacing: "0.18em", textTransform: "uppercase", marginTop: 8, fontWeight: 600 }}>
+          <div style={{ fontSize: 10, color: th.dim, letterSpacing: "0.18em", textTransform: "uppercase", marginTop: 6, fontWeight: 600 }}>
             {dateStr}
           </div>
         </div>
@@ -4071,7 +4304,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
         {/* Stats bar */}
         <div style={{
           width: "100%",
-          padding: "16px 20px",
+          padding: "14px 20px",
           borderRadius: 16,
           background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
           border: "1px solid " + th.glassBorder,
@@ -4094,7 +4327,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
                 background: "linear-gradient(90deg, " + th.blue + ", #9C6FFF)",
                 borderRadius: 3,
                 boxShadow: "0 0 12px " + th.blue + "90",
-                transition: "width 0.4s ease",
+                transition: "width 0.4s cubic-bezier(0.22, 1, 0.36, 1)",
               }} />
             </div>
           </div>
@@ -4104,78 +4337,164 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
           </div>
         </div>
 
-        {/* Current task — biggest 3D card */}
+        {/* Swipeable task card */}
         <div style={{
-          width: "100%",
-          padding: "26px 24px",
-          borderRadius: 24,
-          background: isCompleted
-            ? "linear-gradient(135deg, " + th.blue + "28, " + th.blueDim + ")"
-            : "linear-gradient(135deg, " + th.glass + ", " + th.glass + "55)",
-          border: "1px solid " + (isCompleted ? th.blue + "90" : th.glassBorder),
-          backdropFilter: "blur(40px) saturate(180%)",
-          WebkitBackdropFilter: "blur(40px) saturate(180%)",
-          boxShadow: isCompleted
-            ? "0 34px 80px " + th.blue + "50, 0 14px 32px " + th.blue + "30, inset 0 1px 0 rgba(255,255,255,0.18)"
-            : "0 34px 80px rgba(0,0,0,0.42), 0 14px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.14)",
-          textAlign: "center",
+          position: "relative",
+          transform: "translateX(" + cardX + "px)",
+          opacity: cardOpacity,
+          transition: (slide || dragRef.current.active)
+            ? (dragRef.current.active ? "none" : "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1)")
+            : "transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
         }}>
-          <div style={{ fontSize: 9, color: th.dim, letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: 10, fontWeight: 700 }}>
-            <span style={{ marginRight: 6 }}>{pillarEmoji[current.pillar]}</span>
-            {current.pillar}{current.time ? " \u00B7 " + current.time : ""}
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: th.text, lineHeight: 1.3, marginBottom: 14, letterSpacing: "-0.01em" }}>
-            {current.label}
-          </div>
-          <div style={{ fontSize: 10, color: th.blue, letterSpacing: "0.12em", marginBottom: 18, fontWeight: 700 }}>
-            +{current.xp} XP
-          </div>
-          <button onClick={function(e) { onToggleTask(current.id, e); }} style={{
-            width: "100%", padding: "14px",
-            borderRadius: 12, border: "1px solid " + th.blue + "80",
-            background: isCompleted ? th.blue + "50" : th.blue + "25",
-            color: th.blue, fontSize: 12, fontWeight: 800, letterSpacing: "0.1em",
-            cursor: "pointer", fontFamily: FONT,
-            boxShadow: "0 6px 18px " + th.blue + "40, inset 0 1px 0 rgba(255,255,255,0.15)",
-            transition: "all 0.2s ease",
+          <div style={{
+            width: "100%",
+            padding: "24px 22px",
+            borderRadius: 24,
+            background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "55)",
+            border: "1px solid " + accent + "55",
+            backdropFilter: "blur(40px) saturate(180%)",
+            WebkitBackdropFilter: "blur(40px) saturate(180%)",
+            boxShadow: "0 34px 80px " + accent + "30, 0 14px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.14)",
+            textAlign: "center",
+            position: "relative",
+            overflow: "hidden",
           }}>
-            {isCompleted ? "COMPLETED \u2713" : "MARK COMPLETE"}
-          </button>
+            {/* Pillar chip */}
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "6px 12px",
+              borderRadius: 14,
+              background: accent + "20",
+              border: "1px solid " + accent + "50",
+              marginBottom: 14,
+              fontSize: 9, color: accent,
+              letterSpacing: "0.2em", fontWeight: 800,
+            }}>
+              <span style={{ fontSize: 11 }}>{PILLAR_EMOJI[current.pillar]}</span>
+              <span>{PILLAR_LABEL[current.pillar]}</span>
+              {current.sectionName && (
+                <>
+                  <span style={{ opacity: 0.5 }}>{"\u00B7"}</span>
+                  <span>{current.sectionName}</span>
+                </>
+              )}
+              {current.time && (
+                <>
+                  <span style={{ opacity: 0.5 }}>{"\u00B7"}</span>
+                  <span>{current.time}</span>
+                </>
+              )}
+            </div>
+
+            <div
+              key={"title-" + current.id + "-" + burstKey}
+              style={{
+                fontSize: 22, fontWeight: 700, color: th.text, lineHeight: 1.3,
+                marginBottom: 10, letterSpacing: "-0.01em",
+                animation: burstKey > 0 ? "focusTitlePulse 0.45s cubic-bezier(0.22, 1, 0.36, 1)" : "none",
+              }}>
+              {current.label}
+            </div>
+            <div style={{ fontSize: 10, color: accent, letterSpacing: "0.12em", fontWeight: 700 }}>
+              +{current.xp} XP
+            </div>
+
+            {/* Radial burst on complete */}
+            {burstKey > 0 && (
+              <div
+                key={"burst-" + burstKey}
+                style={{
+                  position: "absolute", left: "50%", bottom: 26,
+                  width: 14, height: 14, marginLeft: -7,
+                  borderRadius: "50%",
+                  background: "radial-gradient(circle, " + accent + "FF, " + accent + "00 70%)",
+                  animation: "focusBurst 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
+          </div>
         </div>
 
-        {/* Navigation */}
-        <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center", marginTop: 4 }}>
+        {/* Next up preview */}
+        <div style={{
+          minHeight: 16, textAlign: "center",
+          fontSize: 9, color: th.dim, letterSpacing: "0.18em", fontWeight: 700,
+          fontFamily: FONT,
+          opacity: (nextTask && !slide) ? 0.7 : 0,
+          transition: "opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
+        }}>
+          {nextTask && (
+            <>NEXT {"\u00B7"} {nextTask.label.length > 34 ? nextTask.label.slice(0, 32) + "\u2026" : nextTask.label}</>
+          )}
+        </div>
+
+        {/* Action buttons: PREV · COMPLETE · SKIP */}
+        <div style={{ display: "flex", gap: 10, alignItems: "stretch", marginTop: 4 }}>
           <button
-            onClick={function() { setTaskIdx(function(i) { return Math.max(0, i - 1); }); }}
-            disabled={taskIdx === 0}
+            onClick={goPrev}
+            disabled={taskIdx === 0 || !!slide}
+            title="Previous (←)"
             style={{
-              width: 46, height: 46, borderRadius: 23,
+              flex: "0 0 auto", padding: "14px 16px",
+              borderRadius: 14,
               border: "1px solid " + th.glassBorder,
               background: th.glass, color: th.text,
-              fontSize: 20, cursor: taskIdx === 0 ? "default" : "pointer",
+              fontSize: 18, fontWeight: 800,
+              cursor: (taskIdx === 0 || slide) ? "default" : "pointer",
               opacity: taskIdx === 0 ? 0.3 : 1,
-              display: "flex", alignItems: "center", justifyContent: "center",
               backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
               boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
               fontFamily: FONT,
+              transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
             }}>{"\u2039"}</button>
-          <div style={{ fontSize: 10, color: th.dim, minWidth: 70, textAlign: "center", letterSpacing: "0.15em", fontWeight: 700 }}>
-            {taskIdx + 1} / {flatTasks.length}
-          </div>
+
           <button
-            onClick={function() { setTaskIdx(function(i) { return Math.min(flatTasks.length - 1, i + 1); }); }}
-            disabled={taskIdx === flatTasks.length - 1}
+            onClick={completeCurrent}
+            disabled={!!slide}
+            title="Mark complete (Space)"
             style={{
-              width: 46, height: 46, borderRadius: 23,
+              flex: 1, padding: "14px",
+              borderRadius: 14,
+              border: "1px solid " + accent + "80",
+              background: "linear-gradient(135deg, " + accent + "35, " + accent + "18)",
+              color: accent,
+              fontSize: 12, fontWeight: 800, letterSpacing: "0.12em",
+              cursor: slide ? "default" : "pointer",
+              fontFamily: FONT,
+              boxShadow: "0 10px 28px " + accent + "40, inset 0 1px 0 rgba(255,255,255,0.18)",
+              transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+            }}>
+            {"\u2713"} COMPLETE
+          </button>
+
+          <button
+            onClick={goNext}
+            disabled={taskIdx >= flatTasks.length - 1 || !!slide}
+            title="Next / Skip (→)"
+            style={{
+              flex: "0 0 auto", padding: "14px 16px",
+              borderRadius: 14,
               border: "1px solid " + th.glassBorder,
               background: th.glass, color: th.text,
-              fontSize: 20, cursor: taskIdx === flatTasks.length - 1 ? "default" : "pointer",
-              opacity: taskIdx === flatTasks.length - 1 ? 0.3 : 1,
-              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, fontWeight: 800,
+              cursor: (taskIdx >= flatTasks.length - 1 || slide) ? "default" : "pointer",
+              opacity: taskIdx >= flatTasks.length - 1 ? 0.3 : 1,
               backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
               boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
               fontFamily: FONT,
+              transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
             }}>{"\u203A"}</button>
+        </div>
+
+        {/* Tiny keyboard hints */}
+        <div style={{
+          textAlign: "center",
+          fontSize: 8, color: th.dim, letterSpacing: "0.2em", fontWeight: 700,
+          opacity: 0.55,
+          marginTop: -4,
+        }}>
+          {"\u2190 \u2192 NAV  \u00B7  SPACE COMPLETE  \u00B7  ESC CLASSIC"}
         </div>
       </div>
     </div>
