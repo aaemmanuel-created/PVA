@@ -2322,6 +2322,12 @@ function WeeklyView({ state, th, tasks, boss }) {
 
   return (
     <div style={{ marginBottom: 20 }}>
+      {/* Weekly State — moved from home-view section. Full weekly overview with
+          7-day chart and stats, sitting at the top of the WEEKLY tab. */}
+      <div style={{ margin: "0 -20px 14px" }}>
+        <WeeklyStateSection state={state} th={th} />
+      </div>
+
       {/* Boss Battle */}
       <BossBattleCard boss={boss} completed={bossDefeated || state.bossCompleted} th={th} />
 
@@ -4637,7 +4643,32 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         {/* ─── STEP 0: GET STARTED ─── */}
         {step === 0 && (
           <>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 8 }}>PILLAR</h1>
+            {/* PILLAR logo — 4 arcs forming a circle with small gaps */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+              <svg
+                width="64" height="64" viewBox="0 0 100 100"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-label="PILLAR logo"
+              >
+                {/* Arc 1: 5° → 85° (right to bottom, through 4:30) */}
+                <path d="M 89.85 53.49 A 40 40 0 0 1 53.49 89.85"
+                      stroke={th.text} strokeWidth="6" strokeLinecap="round" />
+                {/* Arc 2: 95° → 175° (bottom to left, through 7:30) */}
+                <path d="M 46.51 89.85 A 40 40 0 0 1 10.15 53.49"
+                      stroke={th.text} strokeWidth="6" strokeLinecap="round" />
+                {/* Arc 3: 185° → 265° (left to top, through 10:30) */}
+                <path d="M 10.15 46.51 A 40 40 0 0 1 46.51 10.15"
+                      stroke={th.text} strokeWidth="6" strokeLinecap="round" />
+                {/* Arc 4: 275° → 355° (top to right, through 1:30) */}
+                <path d="M 53.49 10.15 A 40 40 0 0 1 89.85 46.51"
+                      stroke={th.text} strokeWidth="6" strokeLinecap="round" />
+              </svg>
+            </div>
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 4 }}>PILLAR</h1>
+            <p style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700, marginBottom: 10 }}>
+              by PVA
+            </p>
             <p style={{ fontSize: 12, color: th.dim, letterSpacing: "0.12em", marginBottom: 40 }}>
               PERSON {"\u00B7"} VEHICLE {"\u00B7"} ASSIGNMENT
             </p>
@@ -6606,7 +6637,99 @@ function HabitStackCard({ state, tasks, th }) {
   );
 }
 
-// ─── WEEKLY STATE POPUP ───
+// ─── WEEKLY STATE SECTION (embedded, non-modal) ───
+// Shows the same weekly overview that used to live in a popup, but inline as
+// a section on the home view.
+function WeeklyStateSection({ state, th }) {
+  const hist = (state.history || []).slice(-7);
+  const weekAvg = hist.length > 0 ? Math.round(hist.reduce(function(s, d) { return s + ((d && d.pct) || 0); }, 0) / hist.length) : 0;
+  const bestDay = hist.reduce(function(best, d) { return ((d && d.pct) || 0) > ((best && best.pct) || 0) ? d : best; }, hist[0]);
+  const daysAbove50 = hist.filter(function(d) { return ((d && d.pct) || 0) >= 50; }).length;
+  const weekColor = weekAvg >= 80 ? "#22C55E" : weekAvg >= 60 ? th.blue : weekAvg >= 40 ? th.gold : th.red;
+  const days = ["S","M","T","W","T","F","S"];
+  const getMessage = function(avg) {
+    if (avg >= 85) return "Exceptional week \u2014 you\u2019re building something great.";
+    if (avg >= 70) return "Strong momentum \u2014 keep pressing forward.";
+    if (avg >= 50) return "Solid effort \u2014 consistency is key.";
+    if (avg >= 30) return "Room to grow \u2014 focus on small wins today.";
+    return "Fresh start \u2014 \u201CHe who began a good work in you will carry it on to completion.\u201D (Phil 1:6)";
+  };
+
+  return (
+    <div style={{ margin: "0 20px 18px" }}>
+      <div style={{
+        borderRadius: 20, overflow: "hidden",
+        background: "linear-gradient(170deg, " + th.glass + ", " + th.glass + "55)",
+        border: "1px solid " + th.glassBorder,
+        backdropFilter: "blur(30px) saturate(150%)",
+        WebkitBackdropFilter: "blur(30px) saturate(150%)",
+        boxShadow: "0 18px 50px rgba(0,0,0,0.25), 0 6px 16px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.1)",
+      }}>
+        {/* Header */}
+        <div style={{ padding: "18px 20px 12px", textAlign: "center" }}>
+          <div style={{ fontSize: 8, fontWeight: 700, color: th.dim, letterSpacing: "0.24em", marginBottom: 8 }}>WEEKLY STATE</div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: weekColor, fontFamily: FONT, letterSpacing: "-0.04em", lineHeight: 1 }}>
+            {weekAvg}<span style={{ fontSize: 14, color: th.dim, fontWeight: 600 }}>/100</span>
+          </div>
+          <div style={{ width: "100%", height: 5, borderRadius: 3, background: th.ghost, overflow: "hidden", margin: "12px 0" }}>
+            <div className="pva-bar-shimmer" style={{
+              height: "100%", borderRadius: 3, width: weekAvg + "%",
+              background: "linear-gradient(90deg, " + weekColor + ", " + weekColor + "CC, " + weekColor + ")",
+              backgroundSize: "200% 100%",
+              boxShadow: "0 0 16px " + weekColor + "40",
+              transition: "width 1s cubic-bezier(0.16,1,0.3,1)",
+            }} />
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: th.text, lineHeight: 1.5 }}>{getMessage(weekAvg)}</div>
+        </div>
+
+        {/* 7-day bar chart */}
+        <div style={{ padding: "0 20px 14px" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 72, justifyContent: "center" }}>
+            {hist.map(function(d, i) {
+              var pct = (d && d.pct) || 0;
+              var h = Math.max(4, (pct / 100) * 58);
+              var barColor = pct >= 80 ? "#22C55E" : pct >= 50 ? th.blue : pct >= 30 ? th.gold : th.red;
+              var dayDate = new Date((d && d.date) || TODAY);
+              return (
+                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
+                  <div style={{ fontSize: 8, fontWeight: 700, color: barColor, marginBottom: 4 }}>{pct}%</div>
+                  <div style={{
+                    width: "100%", maxWidth: 28, height: h, borderRadius: 6,
+                    background: "linear-gradient(180deg, " + barColor + ", " + barColor + "88)",
+                    boxShadow: "0 2px 8px " + barColor + "30",
+                    transition: "height 0.8s cubic-bezier(0.16,1,0.3,1)",
+                  }} />
+                  <div style={{ fontSize: 9, fontWeight: 600, color: th.dim, marginTop: 6 }}>{days[dayDate.getDay()]}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Stats grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, padding: "0 20px 18px" }}>
+          {[
+            { label: "STREAK", value: state.streak + "d", color: th.red },
+            { label: "BEST DAY", value: ((bestDay && bestDay.pct) || 0) + "%", color: "#22C55E" },
+            { label: "ACTIVE DAYS", value: daysAbove50 + "/7", color: th.blue },
+          ].map(function(s) { return (
+            <div key={s.label} style={{
+              padding: "10px 8px", borderRadius: 10, textAlign: "center",
+              background: th === dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+              border: "1px solid " + th.ghost,
+            }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: s.color, fontFamily: FONT }}>{s.value}</div>
+              <div style={{ fontSize: 7, fontWeight: 700, color: th.dim, letterSpacing: "0.12em", marginTop: 3 }}>{s.label}</div>
+            </div>
+          ); })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WEEKLY STATE POPUP (retained as a component but no longer rendered) ───
 function WeeklyStatePopup({ state, th, onContinue }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => { setTimeout(() => setVisible(true), 50); }, []);
@@ -8134,9 +8257,9 @@ function PPPPApp() {
     const m = String(mins).padStart(2, "0");
     return `${h}:${m}`;
   });
-  const [showWeeklyState, setShowWeeklyState] = useState(() => {
-    try { const last = localStorage.getItem("pva_weekly_shown"); return last !== TODAY; } catch { return true; }
-  });
+  // Weekly State popup removed — inline section handles this now. State kept as
+  // a no-op so any stale references compile, but it is never set to true.
+  const [showWeeklyState, setShowWeeklyState] = useState(false);
   const [showMilestone, setShowMilestone] = useState(() => {
     const m = getMilestone(loadState().streak);
     if (!m) return null;
@@ -8762,11 +8885,7 @@ function PPPPApp() {
         }} />
       )}
 
-      {/* Weekly State Popup */}
-      {showWeeklyState && profile && <WeeklyStatePopup state={state} th={th} onContinue={() => {
-        setShowWeeklyState(false);
-        try { localStorage.setItem("pva_weekly_shown", TODAY); } catch {}
-      }} />}
+      {/* Weekly State popup removed — now rendered inline via <WeeklyStateSection /> in the home view */}
 
       {/* Shareable Summary */}
       {showSummary && <ShareableSummary state={state} dayPct={dayPct} dayXp={dayXp} level={level}
@@ -8958,6 +9077,8 @@ function PPPPApp() {
               <>
                 <SectionDivider label="PROGRESS" th={th} />
 
+                {/* Weekly state lives inside the WEEKLY tab now — see WeeklyView */}
+
                 {/* TEMPLE RESTORATION — now integrated into temple card below */}
 
                 {/* LOGIN BONUS CARD removed — now a popup */}
@@ -8990,14 +9111,6 @@ function PPPPApp() {
                       display: "flex", alignItems: "center", gap: 4,
                       transition: "all 0.3s ease",
                     }}>{"\u002B"} ADD</button>
-                    <button onClick={function() { setFocusMode(!focusMode); }} style={{
-                      padding: "6px 14px", borderRadius: 10, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
-                      border: focusMode ? "1px solid #8B5CF640" : "1px solid transparent",
-                      background: focusMode ? "rgba(139,92,246,0.12)" : "rgba(139,92,246,0.06)",
-                      color: focusMode ? "#8B5CF6" : th.dim,
-                      display: "flex", alignItems: "center", gap: 4,
-                      transition: "all 0.3s ease",
-                    }}>{focusMode ? "\uD83D\uDC8B" : "\uD83D\uDC41"} FOCUS</button>
                     <button onClick={function() { setShowRoutineTimer(true); }} style={{
                       padding: "6px 14px", borderRadius: 10, fontSize: 9, fontWeight: 700, cursor: "pointer", fontFamily: FONT,
                       border: "1px solid #22C55E40", background: "rgba(34,197,94,0.08)", color: "#22C55E",
