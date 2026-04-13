@@ -3911,35 +3911,73 @@ function ViewPicker({ onSelect, th }) {
 
 // ─── FOCUS MODE VIEW ───
 function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
-  const PILLAR_ACCENT = { person: "#DC2626", people: "#7C3AED", process: "#16A34A", product: th.blue };
-  const PILLAR_EMOJI  = { person: "\uD83D\uDC4B", people: "\uD83D\uDC6B", process: "\u2699\uFE0F", product: "\uD83C\uDFF7" };
-  const PILLAR_LABEL  = { person: "PERSON", people: "PEOPLE", process: "PROCESS", product: "PRODUCT" };
+  var PILLAR_ACCENT = { person: "#DC2626", people: "#7C3AED", process: "#16A34A", product: th.blue };
+  var PILLAR_EMOJI  = { person: "\uD83D\uDC4B", people: "\uD83D\uDC6B", process: "\u2699\uFE0F", product: "\uD83C\uDFF7" };
+  var PILLAR_LABEL  = { person: "PERSON", people: "PEOPLE", process: "PROCESS", product: "PRODUCT" };
+  var EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 
+  // ─── STATE ───
+  const [phase, setPhase] = useState(0); // 0=entry, 1=active
   const [now, setNow] = useState(new Date());
   const [taskIdx, setTaskIdx] = useState(0);
-  const [entered, setEntered] = useState(false);
-  // Slide transition between tasks: null | "left" | "right" (direction the card leaves toward)
   const [slide, setSlide] = useState(null);
-  // Pointer drag state
   const [dragDx, setDragDx] = useState(0);
   const dragRef = useRef({ active: false, startX: 0, startY: 0, locked: false });
-  // Celebration pulse (radial burst) counter — new ref per completion
   const [burstKey, setBurstKey] = useState(0);
-  // Final all-done celebration
   const [finalCelebrate, setFinalCelebrate] = useState(false);
 
+  // Session tracking
+  const sessionStartRef = useRef(Date.now());
+  const [sessionElapsed, setSessionElapsed] = useState(0);
+  const sessionCompletedRef = useRef(0);
+  const sessionXpRef = useRef(0);
+
+  // Combo streak (consecutive completes without skip/prev)
+  const comboRef = useRef(0);
+  const [combo, setCombo] = useState(0);
+
+  // Milestone flash
+  const [milestone, setMilestone] = useState(null);
+  const prevPctRef = useRef(0);
+
+  // Wake lock ref
+  const wakeLockRef = useRef(null);
+
+  // ─── EFFECTS ───
+
+  // Clock + session timer
   useEffect(function() {
-    var id = setInterval(function() { setNow(new Date()); }, 1000);
+    var id = setInterval(function() {
+      setNow(new Date());
+      setSessionElapsed(Math.floor((Date.now() - sessionStartRef.current) / 1000));
+    }, 1000);
     return function() { clearInterval(id); };
   }, []);
 
+  // Entry transition: phase 0 -> 1 after 2.4s
   useEffect(function() {
-    var t = setTimeout(function() { setEntered(true); }, 30);
+    var t = setTimeout(function() { setPhase(1); }, 2400);
     return function() { clearTimeout(t); };
   }, []);
 
-  // Snapshot of *all* tasks (completed + not) — needed for total/completed counts
-  // so the progress bar reflects Classic-view completions too.
+  // Wake Lock API
+  useEffect(function() {
+    try {
+      if (navigator.wakeLock) {
+        navigator.wakeLock.request("screen").then(function(lock) {
+          wakeLockRef.current = lock;
+        }).catch(function() {});
+      }
+    } catch(e) {}
+    return function() {
+      if (wakeLockRef.current) {
+        try { wakeLockRef.current.release(); } catch(e) {}
+      }
+    };
+  }, []);
+
+  // ─── COMPUTED TASKS ───
+
   const allTasks = useMemo(function() {
     var result = [];
     ["person", "people", "process", "product"].forEach(function(catKey) {
@@ -3954,23 +3992,49 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
     return result;
   }, [tasks]);
 
-  // Incomplete-only list — what we navigate through
   const flatTasks = useMemo(function() {
     return allTasks.filter(function(t) { return !state.completed[t.id]; });
   }, [allTasks, state.completed]);
 
-  const totalToday = allTasks.length;
-  const completedToday = totalToday - flatTasks.length;
-  const progressPct = totalToday > 0 ? (completedToday / totalToday) : 0;
+  var totalToday = allTasks.length;
+  var completedToday = totalToday - flatTasks.length;
+  var progressPct = totalToday > 0 ? (completedToday / totalToday) : 0;
 
-  // Clamp taskIdx when list shrinks (e.g., after completing a task)
+  // Per-pillar progress
+  const pillarProgress = useMemo(function() {
+    var result = {};
+    ["person", "people", "process", "product"].forEach(function(p) {
+      var total = 0; var done = 0;
+      allTasks.forEach(function(t) {
+        if (t.pillar === p) { total++; if (state.completed[t.id]) done++; }
+      });
+      result[p] = { total: total, done: done, pct: total > 0 ? done / total : 0 };
+    });
+    return result;
+  }, [allTasks, state.completed]);
+
+  // Clamp taskIdx
   useEffect(function() {
     if (taskIdx > flatTasks.length - 1 && flatTasks.length > 0) {
       setTaskIdx(flatTasks.length - 1);
     }
   }, [flatTasks.length]);
 
-  // Detect transition from "some tasks left" -> "none left" for final celebration
+  // Milestone detection
+  useEffect(function() {
+    var thresholds = [0.25, 0.5, 0.75];
+    var labels = ["Quarter way!", "Halfway!", "Almost there!"];
+    for (var i = thresholds.length - 1; i >= 0; i--) {
+      if (prevPctRef.current < thresholds[i] && progressPct >= thresholds[i]) {
+        setMilestone(labels[i]);
+        var t = setTimeout(function() { setMilestone(null); }, 2200);
+        break;
+      }
+    }
+    prevPctRef.current = progressPct;
+  }, [progressPct]);
+
+  // All-done detection
   const prevFlatLenRef = useRef(flatTasks.length);
   useEffect(function() {
     if (prevFlatLenRef.current > 0 && flatTasks.length === 0) {
@@ -3981,10 +4045,13 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
     prevFlatLenRef.current = flatTasks.length;
   }, [flatTasks.length]);
 
+  // ─── CALLBACKS ───
+
   const goPrev = useCallback(function() {
     if (slide) return;
     if (taskIdx <= 0) return;
-    setSlide("right"); // current card leaves to the right
+    comboRef.current = 0; setCombo(0);
+    setSlide("right");
     setTimeout(function() {
       setTaskIdx(function(i) { return Math.max(0, i - 1); });
       setSlide(null);
@@ -3994,7 +4061,8 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
   const goNext = useCallback(function() {
     if (slide) return;
     if (taskIdx >= flatTasks.length - 1) return;
-    setSlide("left"); // current card leaves to the left
+    comboRef.current = 0; setCombo(0);
+    setSlide("left");
     setTimeout(function() {
       setTaskIdx(function(i) { return Math.min(flatTasks.length - 1, i + 1); });
       setSlide(null);
@@ -4005,79 +4073,185 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
     if (slide || !flatTasks.length) return;
     var current = flatTasks[Math.min(taskIdx, flatTasks.length - 1)];
     if (!current) return;
+
+    // Haptic
+    try { if (navigator.vibrate) navigator.vibrate(50); } catch(ex) {}
+
+    // Audio tick — soft sine blip via Web Audio API
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880; osc.type = "sine";
+      gain.gain.setValueAtTime(0.07, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
+    } catch(ex) {}
+
+    // Combo
+    comboRef.current += 1;
+    setCombo(comboRef.current);
+
+    // Session tracking
+    sessionCompletedRef.current += 1;
+    sessionXpRef.current += (current.xp || 0);
+
     setBurstKey(function(k) { return k + 1; });
-    // Let the celebration animate, then actually toggle. The flatTasks filter
-    // will then remove this task and the list shifts by itself.
     setTimeout(function() { onToggleTask(current.id, e || null); }, 280);
   }, [flatTasks, taskIdx, onToggleTask, slide]);
 
-  // Keyboard navigation
+  // Exit directly back to Classic
+  const handleExit = useCallback(function() {
+    onExit();
+  }, [onExit]);
+
+  // Keyboard
   useEffect(function() {
     function handler(ev) {
+      if (phase === 0) return;
       if (ev.key === "ArrowLeft") { ev.preventDefault(); goPrev(); }
       else if (ev.key === "ArrowRight") { ev.preventDefault(); goNext(); }
       else if (ev.key === " " || ev.code === "Space") { ev.preventDefault(); completeCurrent(null); }
-      else if (ev.key === "Escape") { ev.preventDefault(); onExit && onExit(); }
+      else if (ev.key === "Escape") { ev.preventDefault(); handleExit(); }
     }
     window.addEventListener("keydown", handler);
     return function() { window.removeEventListener("keydown", handler); };
-  }, [goPrev, goNext, completeCurrent, onExit]);
+  }, [phase, goPrev, goNext, completeCurrent, handleExit, onExit]);
 
-  // Pointer (touch/mouse) swipe handlers — attached on the swipe target below.
-  const onPointerDown = function(e) {
-    // Ignore pointer-down on buttons (let them handle their own click)
+  // Pointer (swipe) handlers
+  var onPointerDown = function(e) {
+    if (phase !== 1) return;
     var tag = e.target && e.target.tagName;
     if (tag === "BUTTON" || (e.target && e.target.closest && e.target.closest("button"))) return;
     dragRef.current = { active: true, startX: e.clientX, startY: e.clientY, locked: false };
   };
-  const onPointerMove = function(e) {
+  var onPointerMove = function(e) {
     if (!dragRef.current.active) return;
     var dx = e.clientX - dragRef.current.startX;
     var dy = e.clientY - dragRef.current.startY;
-    // Only commit to horizontal swipe if clearly horizontal
     if (!dragRef.current.locked) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      if (Math.abs(dy) > Math.abs(dx)) {
-        dragRef.current.active = false;
-        return;
-      }
+      if (Math.abs(dy) > Math.abs(dx)) { dragRef.current.active = false; return; }
       dragRef.current.locked = true;
     }
     setDragDx(dx);
   };
-  const onPointerUp = function() {
+  var onPointerUp = function() {
     if (!dragRef.current.active) { setDragDx(0); return; }
     var dx = dragDx;
     dragRef.current.active = false;
     dragRef.current.locked = false;
     var threshold = Math.max(60, Math.min(160, window.innerWidth * 0.22));
-    if (dx <= -threshold) {
-      setDragDx(0);
-      goNext();
-    } else if (dx >= threshold) {
-      setDragDx(0);
-      goPrev();
-    } else {
-      setDragDx(0);
-    }
+    if (dx <= -threshold) { setDragDx(0); goNext(); }
+    else if (dx >= threshold) { setDragDx(0); goPrev(); }
+    else { setDragDx(0); }
   };
 
-  // ─── EMPTY / ALL-DONE STATE ───
+  // ─── HELPERS ───
+
+  var sessionMin = Math.floor(sessionElapsed / 60);
+  var sessionSec = sessionElapsed % 60;
+  var sessionStr = (sessionMin < 10 ? "0" : "") + sessionMin + ":" + (sessionSec < 10 ? "0" : "") + sessionSec;
+  var timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+  // Level from totalXp
+  var levelIdx = 0;
+  for (var li = 0; li < LEVELS.length; li++) {
+    if ((state.totalXp || 0) >= LEVELS[li].xp) levelIdx = li;
+  }
+
+  // Base wrapper styles (shared across phases)
+  var wrapBase = {
+    position: "fixed", inset: 0, zIndex: 9000,
+    fontFamily: FONT,
+    display: "flex", flexDirection: "column",
+    overflow: "hidden",
+    touchAction: "pan-y",
+    userSelect: "none",
+  };
+
+  // Accent for current task (or default)
+  var current = flatTasks.length > 0 ? flatTasks[Math.min(taskIdx, flatTasks.length - 1)] : null;
+  var accent = current ? (PILLAR_ACCENT[current.pillar] || th.blue) : th.blue;
+
+  // Common keyframe styles used across phases
+  var keyframes = `
+    @keyframes focusBgDrift { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,-10px) scale(1.05); } 100% { transform: translate(0,0) scale(1); } }
+    @keyframes focusPopIn { from { opacity: 0; transform: translateY(24px) scale(0.96); filter: blur(12px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
+    @keyframes focusBurst { 0% { opacity: 0.85; transform: scale(0.2); } 70% { opacity: 0.45; } 100% { opacity: 0; transform: scale(1.8); } }
+    @keyframes focusTitlePulse { 0% { transform: scale(1); } 40% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    @keyframes focusFinal { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes focusEntryFade { 0% { opacity: 0; transform: translateY(20px); } 30% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-8px); } }
+    @keyframes focusMilestonePop { 0% { opacity: 0; transform: scale(0.8) translateY(10px); } 15% { opacity: 1; transform: scale(1.04) translateY(0); } 80% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.96) translateY(-6px); } }
+    @keyframes focusComboGlow { 0% { transform: scale(0.7); opacity: 0; } 30% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes focusSummaryIn { from { opacity: 0; transform: translateY(30px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes focusPillarRingSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes focusBreathPulse { 0% { transform: scale(1); opacity: 0.4; } 50% { transform: scale(1.12); opacity: 0.7; } 100% { transform: scale(1); opacity: 0.4; } }
+  `;
+
+  // ═══════════════════════════════════════════════════════
+  // PHASE 0 — ENTRY TRANSITION
+  // ═══════════════════════════════════════════════════════
+  if (phase === 0) {
+    return (
+      <div style={Object.assign({}, wrapBase, {
+        background: th === dark
+          ? "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(99,102,241,0.22), transparent 60%), #050810"
+          : "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(59,130,246,0.14), transparent 60%), #F0EFEC",
+        alignItems: "center", justifyContent: "center",
+      })}>
+        <style>{keyframes}</style>
+        {/* Breathing ring */}
+        <div style={{
+          width: 88, height: 88, borderRadius: "50%",
+          border: "2px solid " + th.text,
+          opacity: 0.3,
+          animation: "focusBreathPulse 3s ease-in-out infinite",
+          position: "absolute",
+        }} />
+        {/* Entry text */}
+        <div style={{
+          textAlign: "center",
+          animation: "focusEntryFade 2.4s " + EASE + " both",
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 800, letterSpacing: "0.28em",
+            color: th.dim, marginBottom: 14, textTransform: "uppercase",
+          }}>FOCUS MODE</div>
+          <div style={{
+            fontSize: 26, fontWeight: 300, color: th.text,
+            letterSpacing: "-0.02em", lineHeight: 1.4,
+          }}>Build your temple.</div>
+          <div style={{
+            fontSize: 10, color: th.dim, marginTop: 16,
+            letterSpacing: "0.2em", fontWeight: 700,
+          }}>{flatTasks.length} TASK{flatTasks.length !== 1 ? "S" : ""} AHEAD</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // PHASE 2 — EXIT SUMMARY
+  // ═══════════════════════════════════════════════════════
+  // ALL-DONE STATE
+  // ═══════════════════════════════════════════════════════
   if (!flatTasks.length) {
     var tone = "#22C55E";
+    var summaryMin2 = Math.floor(sessionElapsed / 60);
+    var summarySec2 = sessionElapsed % 60;
+    var summaryTime2 = (summaryMin2 > 0 ? summaryMin2 + "m " : "") + summarySec2 + "s";
     return (
-      <div style={{
-        position: "fixed", inset: 0, zIndex: 9000,
-        fontFamily: FONT,
+      <div style={Object.assign({}, wrapBase, {
         background: th === dark
           ? "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(34,197,94,0.18), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(124,58,237,0.14), transparent 55%), #050810"
-          : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(34,197,94,0.14), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(139,92,246,0.09), transparent 55%), #F0EFEC",
-        display: "flex", alignItems: "center", justifyContent: "center",
+          : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(34,197,94,0.14), transparent 55%), #F0EFEC",
+        alignItems: "center", justifyContent: "center",
         padding: "56px 24px 32px",
-        opacity: entered ? 1 : 0,
-        transition: "opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1)",
-      }}>
-        <style>{`@keyframes focusDonePop { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
+      })}>
+        <style>{keyframes}</style>
+
         <button onClick={onExit} style={{
           position: "absolute", top: 20, left: 20, zIndex: 20,
           padding: "9px 14px", borderRadius: 20,
@@ -4088,13 +4262,13 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
           display: "flex", alignItems: "center", gap: 6,
           backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
           boxShadow: "0 8px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
-          transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
+          transition: "all 0.35s " + EASE,
         }} title="Switch to Classic view">
           <span style={{ fontSize: 11 }}>{"\u2039"}</span>CLASSIC
         </button>
 
         <div style={{
-          textAlign: "center", maxWidth: 360, width: "100%",
+          textAlign: "center", maxWidth: 380, width: "100%",
           padding: "34px 28px",
           borderRadius: 26,
           background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
@@ -4102,7 +4276,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
           backdropFilter: "blur(40px) saturate(180%)",
           WebkitBackdropFilter: "blur(40px) saturate(180%)",
           boxShadow: "0 34px 80px " + tone + "30, 0 14px 32px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.14)",
-          animation: "focusDonePop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
+          animation: "focusSummaryIn 0.7s " + EASE + " both",
         }}>
           <div style={{ fontSize: 52, marginBottom: 14 }}>{"\u2728"}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: th.text, marginBottom: 6, letterSpacing: "-0.01em" }}>
@@ -4112,27 +4286,28 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
             All pillars tended. Rest well.
           </div>
 
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 22 }}>
-            <div style={{
-              flex: 1, padding: "12px 8px", borderRadius: 14,
-              background: th.glass, border: "1px solid " + th.glassBorder,
-            }}>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 14 }}>
+            <div style={{ flex: 1, padding: "12px 8px", borderRadius: 14, background: th.glass, border: "1px solid " + th.glassBorder }}>
               <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginBottom: 4 }}>DONE</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: tone }}>{completedToday}</div>
             </div>
-            <div style={{
-              flex: 1, padding: "12px 8px", borderRadius: 14,
-              background: th.glass, border: "1px solid " + th.glassBorder,
-            }}>
+            <div style={{ flex: 1, padding: "12px 8px", borderRadius: 14, background: th.glass, border: "1px solid " + th.glassBorder }}>
+              <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginBottom: 4 }}>TIME</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{summaryTime2}</div>
+            </div>
+            <div style={{ flex: 1, padding: "12px 8px", borderRadius: 14, background: th.glass, border: "1px solid " + th.glassBorder }}>
               <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginBottom: 4 }}>XP</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{state.totalXp || 0}</div>
             </div>
-            <div style={{
-              flex: 1, padding: "12px 8px", borderRadius: 14,
-              background: th.glass, border: "1px solid " + th.glassBorder,
-            }}>
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 22 }}>
+            <div style={{ flex: 1, padding: "12px 8px", borderRadius: 14, background: th.glass, border: "1px solid " + th.glassBorder }}>
               <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginBottom: 4 }}>STRK</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{state.streak || 0}</div>
+            </div>
+            <div style={{ flex: 1, padding: "12px 8px", borderRadius: 14, background: th.glass, border: "1px solid " + th.glassBorder }}>
+              <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginBottom: 4 }}>LVL</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{levelIdx + 1}</div>
             </div>
           </div>
 
@@ -4143,7 +4318,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
             color: th.text, fontSize: 11, fontWeight: 800, letterSpacing: "0.16em",
             cursor: "pointer", fontFamily: FONT,
             boxShadow: "0 8px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.1)",
-            transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
+            transition: "all 0.35s " + EASE,
           }}>
             BACK TO CLASSIC
           </button>
@@ -4152,27 +4327,15 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
     );
   }
 
-  var current = flatTasks[Math.min(taskIdx, flatTasks.length - 1)];
+  // ═══════════════════════════════════════════════════════
+  // PHASE 1 — ACTIVE FOCUS
+  // ═══════════════════════════════════════════════════════
+
   if (!current) return null;
   var nextTask = flatTasks[Math.min(taskIdx, flatTasks.length - 1) + 1] || null;
+  var nextTask2 = flatTasks[Math.min(taskIdx, flatTasks.length - 1) + 2] || null;
 
-  var timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-  var dateStr = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-
-  // Compute level from totalXp
-  var levelIdx = 0;
-  for (var li = 0; li < LEVELS.length; li++) {
-    if ((state.totalXp || 0) >= LEVELS[li].xp) levelIdx = li;
-  }
-  var level = LEVELS[levelIdx] || LEVELS[0];
-  var nextLevel = LEVELS[levelIdx + 1];
-  var levelXp = (state.totalXp || 0) - level.xp;
-  var levelXpMax = nextLevel ? (nextLevel.xp - level.xp) : Math.max(1, levelXp);
-  var levelProgress = Math.min(1, levelXp / levelXpMax);
-
-  var accent = PILLAR_ACCENT[current.pillar] || th.blue;
-
-  // Card transform — slide + drag preview
+  // Card transform for slide + drag
   var cardX = 0;
   var cardOpacity = 1;
   if (slide === "left") { cardX = -window.innerWidth * 0.6; cardOpacity = 0; }
@@ -4182,49 +4345,53 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
     cardOpacity = Math.max(0.35, 1 - Math.abs(dragDx) / 420);
   }
 
+  // Pillar ring helper (SVG arc for mini progress ring)
+  var PillarRing = function(props) {
+    var pct = props.pct || 0;
+    var color = props.color || th.blue;
+    var r = 8; var circ = 2 * Math.PI * r;
+    return (
+      <svg width="22" height="22" viewBox="0 0 22 22">
+        <circle cx="11" cy="11" r={r} fill="none" stroke={th.ghost} strokeWidth="2.2" />
+        <circle cx="11" cy="11" r={r} fill="none" stroke={color} strokeWidth="2.2"
+          strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)}
+          strokeLinecap="round"
+          style={{ transform: "rotate(-90deg)", transformOrigin: "50% 50%", transition: "stroke-dashoffset 0.6s " + EASE }} />
+        {pct >= 1 && (
+          <circle cx="11" cy="11" r="3" fill={color} opacity="0.8" />
+        )}
+      </svg>
+    );
+  };
+
   return (
     <div
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      style={{
-        position: "fixed", inset: 0, zIndex: 9000,
-        fontFamily: FONT,
+      style={Object.assign({}, wrapBase, {
         background: th === dark
           ? "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.18), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(124,58,237,0.14), transparent 55%), #050810"
           : "radial-gradient(ellipse 80% 60% at 20% 10%, rgba(59,130,246,0.14), transparent 55%), radial-gradient(ellipse 70% 55% at 80% 85%, rgba(139,92,246,0.09), transparent 55%), #F0EFEC",
-        display: "flex", flexDirection: "column",
-        padding: "56px 24px 32px",
-        overflow: "hidden",
-        opacity: entered ? 1 : 0,
-        transition: "opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1)",
-        touchAction: "pan-y",
-        userSelect: "none",
-      }}>
-      <style>{`
-        @keyframes focusBgDrift { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,-10px) scale(1.05); } 100% { transform: translate(0,0) scale(1); } }
-        @keyframes focusPopIn { from { opacity: 0; transform: translateY(24px) scale(0.96); filter: blur(12px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
-        @keyframes focusBurst { 0% { opacity: 0.85; transform: scale(0.2); } 70% { opacity: 0.45; } 100% { opacity: 0; transform: scale(1.8); } }
-        @keyframes focusTitlePulse { 0% { transform: scale(1); } 40% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        @keyframes focusFinal { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
-      `}</style>
+        padding: "0 24px 32px",
+      })}>
+      <style>{keyframes}</style>
 
-      {/* Soft blurred ambient blobs — tinted by current pillar accent */}
+      {/* Ambient blobs — tinted by pillar accent */}
       <div style={{
         position: "absolute", inset: "-80px", pointerEvents: "none",
         background: "radial-gradient(circle at 25% 30%, " + accent + "30, transparent 45%), radial-gradient(circle at 75% 70%, #9C6FFF28, transparent 45%)",
         filter: "blur(80px)",
         animation: "focusBgDrift 18s ease-in-out infinite",
-        transition: "background 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+        transition: "background 0.8s " + EASE,
       }} />
 
       {/* Ambient pillar tint overlay */}
       <div style={{
         position: "absolute", inset: 0, pointerEvents: "none",
-        background: accent,
-        opacity: 0.08,
-        transition: "background 0.8s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+        background: accent, opacity: 0.08,
+        transition: "background 0.8s " + EASE + ", opacity 0.8s " + EASE,
       }} />
 
       {/* Final celebration flash */}
@@ -4232,215 +4399,269 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
         <div style={{
           position: "absolute", inset: 0, pointerEvents: "none",
           background: "radial-gradient(ellipse 60% 40% at 50% 50%, " + accent + "55, transparent 70%)",
-          animation: "focusFinal 2.4s cubic-bezier(0.22, 1, 0.36, 1) both",
+          animation: "focusFinal 2.4s " + EASE + " both",
           zIndex: 15,
         }} />
       )}
 
-      {/* Switch to Classic view button */}
-      <button onClick={onExit} style={{
-        position: "absolute", top: 20, left: 20, zIndex: 20,
-        padding: "9px 14px", borderRadius: 20,
-        border: "1px solid " + th.glassBorder,
-        background: th.glass, color: th.text,
-        fontSize: 9, fontWeight: 800, letterSpacing: "0.16em",
-        cursor: "pointer", fontFamily: FONT,
-        display: "flex", alignItems: "center", gap: 6,
-        backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-        boxShadow: "0 8px 22px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
-        transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
-      }} title="Switch to Classic view (Esc)">
-        <span style={{ fontSize: 11 }}>{"\u2039"}</span>CLASSIC
-      </button>
+      {/* Milestone flash overlay */}
+      {milestone && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 25, pointerEvents: "none",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            padding: "16px 32px", borderRadius: 20,
+            background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "80)",
+            border: "1px solid " + accent + "60",
+            backdropFilter: "blur(30px)", WebkitBackdropFilter: "blur(30px)",
+            boxShadow: "0 20px 50px " + accent + "40, 0 8px 20px rgba(0,0,0,0.3)",
+            animation: "focusMilestonePop 2.2s " + EASE + " both",
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: th.text, letterSpacing: "-0.01em" }}>
+              {milestone}
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Progress bar + counter (top, under CLASSIC) */}
+      {/* ─── COMPACT HEADER BAR ─── */}
       <div style={{
-        position: "absolute", top: 26, left: 0, right: 0, zIndex: 18,
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-        pointerEvents: "none",
+        position: "relative", zIndex: 20,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "18px 0 14px",
+        width: "100%", maxWidth: 440, margin: "0 auto",
+      }}>
+        {/* Left: CLASSIC button */}
+        <button onClick={handleExit} style={{
+          padding: "8px 12px", borderRadius: 16,
+          border: "1px solid " + th.glassBorder,
+          background: th.glass, color: th.text,
+          fontSize: 8, fontWeight: 800, letterSpacing: "0.16em",
+          cursor: "pointer", fontFamily: FONT,
+          display: "flex", alignItems: "center", gap: 5,
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.2)",
+          transition: "all 0.35s " + EASE,
+        }} title="Exit focus mode (Esc)">
+          <span style={{ fontSize: 10 }}>{"\u2039"}</span>EXIT
+        </button>
+
+        {/* Center: clock · session · progress */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          fontSize: 9, fontWeight: 700, letterSpacing: "0.14em",
+          color: th.dim,
+        }}>
+          <span>{timeStr}</span>
+          <span style={{ opacity: 0.4 }}>{"\u00B7"}</span>
+          <span style={{ color: accent }}>{sessionStr}</span>
+          <span style={{ opacity: 0.4 }}>{"\u00B7"}</span>
+          <span>{completedToday}/{totalToday}</span>
+        </div>
+
+        {/* Right: pillar mini-rings */}
+        <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+          {["person", "people", "process", "product"].map(function(p) {
+            return (
+              <PillarRing key={p} pct={pillarProgress[p].pct} color={PILLAR_ACCENT[p]} />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─── PROGRESS BAR (below header) ─── */}
+      <div style={{
+        width: "100%", maxWidth: 440, margin: "0 auto 8px",
+        position: "relative", zIndex: 18,
       }}>
         <div style={{
-          fontSize: 9, color: th.dim, letterSpacing: "0.22em", fontWeight: 800,
-          fontFamily: FONT,
-        }}>
-          {completedToday} / {totalToday}
-        </div>
-        <div style={{
-          width: "min(240px, 55%)", height: 3, borderRadius: 2,
+          width: "100%", height: 4, borderRadius: 2,
           background: th.ghost, overflow: "hidden",
-          boxShadow: "inset 0 1px 0 rgba(0,0,0,0.2)",
+          boxShadow: "inset 0 1px 0 rgba(0,0,0,0.15)",
         }}>
           <div style={{
             height: "100%",
             width: (progressPct * 100) + "%",
             background: "linear-gradient(90deg, " + accent + ", " + accent + "C0)",
-            boxShadow: "0 0 10px " + accent + "90",
-            transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1), background 0.8s cubic-bezier(0.22, 1, 0.36, 1)",
+            boxShadow: "0 0 12px " + accent + "90",
+            borderRadius: 2,
+            transition: "width 0.6s " + EASE + ", background 0.8s " + EASE,
           }} />
         </div>
       </div>
 
-      {/* Content stack */}
+      {/* ─── CONTENT STACK ─── */}
       <div style={{
         position: "relative", zIndex: 1,
-        display: "flex", flexDirection: "column", gap: 18,
+        display: "flex", flexDirection: "column", gap: 16,
         width: "100%", maxWidth: 440, margin: "0 auto",
         flex: 1, justifyContent: "center",
-        animation: "focusPopIn 0.7s cubic-bezier(0.16,1,0.3,1) both",
+        animation: "focusPopIn 0.6s " + EASE + " both",
       }}>
-        {/* Time & Date card */}
-        <div style={{
-          textAlign: "center",
-          padding: "20px 28px",
-          borderRadius: 22,
-          background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
-          border: "1px solid " + th.glassBorder,
-          backdropFilter: "blur(30px) saturate(150%)",
-          WebkitBackdropFilter: "blur(30px) saturate(150%)",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.35), 0 10px 24px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.12)",
-        }}>
-          <div style={{ fontSize: 48, fontWeight: 200, color: th.text, letterSpacing: "-0.05em", lineHeight: 1 }}>
-            {timeStr}
-          </div>
-          <div style={{ fontSize: 10, color: th.dim, letterSpacing: "0.18em", textTransform: "uppercase", marginTop: 6, fontWeight: 600 }}>
-            {dateStr}
-          </div>
-        </div>
 
-        {/* Stats bar */}
-        <div style={{
-          width: "100%",
-          padding: "14px 20px",
-          borderRadius: 16,
-          background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "60)",
-          border: "1px solid " + th.glassBorder,
-          backdropFilter: "blur(30px) saturate(150%)",
-          WebkitBackdropFilter: "blur(30px) saturate(150%)",
-          boxShadow: "0 18px 50px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1)",
-          display: "flex", alignItems: "center", gap: 16,
-        }}>
-          <div style={{ textAlign: "center", minWidth: 36 }}>
-            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", marginBottom: 3, fontWeight: 700 }}>LVL</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: th.text }}>{levelIdx + 1}</div>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.15em", marginBottom: 6, fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
-              <span>XP</span><span>{levelXp}/{levelXpMax}</span>
-            </div>
-            <div style={{ height: 5, borderRadius: 3, background: th.ghost, overflow: "hidden" }}>
-              <div style={{
-                height: "100%", width: (levelProgress * 100) + "%",
-                background: "linear-gradient(90deg, " + th.blue + ", #9C6FFF)",
-                borderRadius: 3,
-                boxShadow: "0 0 12px " + th.blue + "90",
-                transition: "width 0.4s cubic-bezier(0.22, 1, 0.36, 1)",
-              }} />
-            </div>
-          </div>
-          <div style={{ textAlign: "center", minWidth: 36 }}>
-            <div style={{ fontSize: 8, color: th.dim, letterSpacing: "0.18em", marginBottom: 3, fontWeight: 700 }}>STRK</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: th.text }}>{state.streak || 0}</div>
-          </div>
-        </div>
-
-        {/* Swipeable task card */}
-        <div style={{
-          position: "relative",
-          transform: "translateX(" + cardX + "px)",
-          opacity: cardOpacity,
-          transition: (slide || dragRef.current.active)
-            ? (dragRef.current.active ? "none" : "transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1)")
-            : "transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1)",
-        }}>
-          <div style={{
-            width: "100%",
-            padding: "24px 22px",
-            borderRadius: 24,
-            background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "55)",
-            border: "1px solid " + accent + "55",
-            backdropFilter: "blur(40px) saturate(180%)",
-            WebkitBackdropFilter: "blur(40px) saturate(180%)",
-            boxShadow: "0 34px 80px " + accent + "30, 0 14px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.14)",
-            textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
+        {/* Combo badge (3+) */}
+        {combo >= 3 && (
+          <div key={"combo-" + combo} style={{
+            textAlign: "center", marginBottom: -8,
           }}>
-            {/* Pillar chip */}
-            <div style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "6px 12px",
-              borderRadius: 14,
-              background: accent + "20",
+            <span style={{
+              display: "inline-block",
+              padding: "6px 16px", borderRadius: 20,
+              background: "linear-gradient(135deg, " + accent + "30, " + accent + "15)",
               border: "1px solid " + accent + "50",
-              marginBottom: 14,
-              fontSize: 9, color: accent,
-              letterSpacing: "0.2em", fontWeight: 800,
+              fontSize: 11, fontWeight: 800, letterSpacing: "0.14em",
+              color: accent,
+              animation: "focusComboGlow 0.45s " + EASE + " both",
+              boxShadow: "0 4px 18px " + accent + "40",
             }}>
-              <span style={{ fontSize: 11 }}>{PILLAR_EMOJI[current.pillar]}</span>
-              <span>{PILLAR_LABEL[current.pillar]}</span>
-              {current.sectionName && (
-                <>
-                  <span style={{ opacity: 0.5 }}>{"\u00B7"}</span>
-                  <span>{current.sectionName}</span>
-                </>
-              )}
-              {current.time && (
-                <>
-                  <span style={{ opacity: 0.5 }}>{"\u00B7"}</span>
-                  <span>{current.time}</span>
-                </>
-              )}
-            </div>
+              {"\uD83D\uDD25"} x{combo} COMBO
+            </span>
+          </div>
+        )}
 
-            <div
-              key={"title-" + current.id + "-" + burstKey}
-              style={{
-                fontSize: 22, fontWeight: 700, color: th.text, lineHeight: 1.3,
-                marginBottom: 10, letterSpacing: "-0.01em",
-                animation: burstKey > 0 ? "focusTitlePulse 0.45s cubic-bezier(0.22, 1, 0.36, 1)" : "none",
+        {/* ─── CARD STACK AREA ─── */}
+        <div style={{ position: "relative", minHeight: 200 }}>
+
+          {/* Ghost card 2 (deepest) */}
+          {nextTask2 && !slide && (
+            <div style={{
+              position: "absolute", left: 0, right: 0, top: 16,
+              padding: "22px 20px",
+              borderRadius: 24,
+              background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "30)",
+              border: "1px solid " + th.glassBorder,
+              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+              transform: "scale(0.92)",
+              opacity: 0.25,
+              transition: "all 0.4s " + EASE,
+              pointerEvents: "none",
+            }}>
+              <div style={{ height: 70 }} />
+            </div>
+          )}
+
+          {/* Ghost card 1 (middle) */}
+          {nextTask && !slide && (
+            <div style={{
+              position: "absolute", left: 0, right: 0, top: 8,
+              padding: "22px 20px",
+              borderRadius: 24,
+              background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "40)",
+              border: "1px solid " + th.glassBorder,
+              backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+              transform: "scale(0.96)",
+              opacity: 0.4,
+              transition: "all 0.4s " + EASE,
+              pointerEvents: "none",
+            }}>
+              <div style={{ height: 70 }} />
+            </div>
+          )}
+
+          {/* Current task card (foreground) */}
+          <div style={{
+            position: "relative",
+            transform: "translateX(" + cardX + "px)",
+            opacity: cardOpacity,
+            transition: (slide || dragRef.current.active)
+              ? (dragRef.current.active ? "none" : "transform 0.32s " + EASE + ", opacity 0.32s " + EASE)
+              : "transform 0.45s " + EASE + ", opacity 0.45s " + EASE,
+          }}>
+            <div style={{
+              width: "100%",
+              padding: "26px 22px",
+              borderRadius: 24,
+              background: "linear-gradient(135deg, " + th.glass + ", " + th.glass + "55)",
+              border: "1px solid " + accent + "55",
+              backdropFilter: "blur(40px) saturate(180%)",
+              WebkitBackdropFilter: "blur(40px) saturate(180%)",
+              boxShadow: "0 34px 80px " + accent + "30, 0 14px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.14)",
+              textAlign: "center",
+              position: "relative",
+              overflow: "hidden",
+            }}>
+              {/* Pillar chip */}
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "6px 12px",
+                borderRadius: 14,
+                background: accent + "20",
+                border: "1px solid " + accent + "50",
+                marginBottom: 16,
+                fontSize: 9, color: accent,
+                letterSpacing: "0.2em", fontWeight: 800,
               }}>
-              {current.label}
-            </div>
-            <div style={{ fontSize: 10, color: accent, letterSpacing: "0.12em", fontWeight: 700 }}>
-              +{current.xp} XP
-            </div>
+                <span style={{ fontSize: 11 }}>{PILLAR_EMOJI[current.pillar]}</span>
+                <span>{PILLAR_LABEL[current.pillar]}</span>
+                {current.sectionName && (
+                  <>
+                    <span style={{ opacity: 0.5 }}>{"\u00B7"}</span>
+                    <span>{current.sectionName}</span>
+                  </>
+                )}
+                {current.time && (
+                  <>
+                    <span style={{ opacity: 0.5 }}>{"\u00B7"}</span>
+                    <span>{current.time}</span>
+                  </>
+                )}
+              </div>
 
-            {/* Radial burst on complete */}
-            {burstKey > 0 && (
+              {/* Task title */}
               <div
-                key={"burst-" + burstKey}
+                key={"title-" + current.id + "-" + burstKey}
                 style={{
-                  position: "absolute", left: "50%", bottom: 26,
-                  width: 14, height: 14, marginLeft: -7,
-                  borderRadius: "50%",
-                  background: "radial-gradient(circle, " + accent + "FF, " + accent + "00 70%)",
-                  animation: "focusBurst 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
-                  pointerEvents: "none",
-                }}
-              />
-            )}
+                  fontSize: 22, fontWeight: 700, color: th.text, lineHeight: 1.3,
+                  marginBottom: 12, letterSpacing: "-0.01em",
+                  animation: burstKey > 0 ? "focusTitlePulse 0.45s " + EASE : "none",
+                }}>
+                {current.label}
+              </div>
+
+              {/* XP badge */}
+              <div style={{ fontSize: 10, color: accent, letterSpacing: "0.12em", fontWeight: 700 }}>
+                +{current.xp} XP
+              </div>
+
+              {/* Radial burst on complete */}
+              {burstKey > 0 && (
+                <div
+                  key={"burst-" + burstKey}
+                  style={{
+                    position: "absolute", left: "50%", bottom: 26,
+                    width: 14, height: 14, marginLeft: -7,
+                    borderRadius: "50%",
+                    background: "radial-gradient(circle, " + accent + "FF, " + accent + "00 70%)",
+                    animation: "focusBurst 0.7s " + EASE,
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Next up preview */}
+        {/* Next up text preview */}
         <div style={{
-          minHeight: 16, textAlign: "center",
+          minHeight: 14, textAlign: "center",
           fontSize: 9, color: th.dim, letterSpacing: "0.18em", fontWeight: 700,
           fontFamily: FONT,
-          opacity: (nextTask && !slide) ? 0.7 : 0,
-          transition: "opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
+          opacity: (nextTask && !slide) ? 0.55 : 0,
+          transition: "opacity 0.5s " + EASE,
+          marginTop: -6,
         }}>
           {nextTask && (
             <>NEXT {"\u00B7"} {nextTask.label.length > 34 ? nextTask.label.slice(0, 32) + "\u2026" : nextTask.label}</>
           )}
         </div>
 
-        {/* Action buttons: PREV · COMPLETE · SKIP */}
-        <div style={{ display: "flex", gap: 10, alignItems: "stretch", marginTop: 4 }}>
+        {/* ─── ACTION BUTTONS ─── */}
+        <div style={{ display: "flex", gap: 10, alignItems: "stretch", marginTop: 2 }}>
           <button
             onClick={goPrev}
             disabled={taskIdx === 0 || !!slide}
-            title="Previous (←)"
+            title="Previous (\u2190)"
             style={{
               flex: "0 0 auto", padding: "14px 16px",
               borderRadius: 14,
@@ -4452,7 +4673,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
               backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
               boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
               fontFamily: FONT,
-              transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+              transition: "all 0.3s " + EASE,
             }}>{"\u2039"}</button>
 
           <button
@@ -4469,7 +4690,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
               cursor: slide ? "default" : "pointer",
               fontFamily: FONT,
               boxShadow: "0 10px 28px " + accent + "40, inset 0 1px 0 rgba(255,255,255,0.18)",
-              transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+              transition: "all 0.3s " + EASE,
             }}>
             {"\u2713"} COMPLETE
           </button>
@@ -4477,7 +4698,7 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
           <button
             onClick={goNext}
             disabled={taskIdx >= flatTasks.length - 1 || !!slide}
-            title="Next / Skip (→)"
+            title="Next / Skip (\u2192)"
             style={{
               flex: "0 0 auto", padding: "14px 16px",
               borderRadius: 14,
@@ -4489,18 +4710,18 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
               backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
               boxShadow: "0 8px 20px rgba(0,0,0,0.22)",
               fontFamily: FONT,
-              transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+              transition: "all 0.3s " + EASE,
             }}>{"\u203A"}</button>
         </div>
 
-        {/* Tiny keyboard hints */}
+        {/* Keyboard hints */}
         <div style={{
           textAlign: "center",
           fontSize: 8, color: th.dim, letterSpacing: "0.2em", fontWeight: 700,
-          opacity: 0.55,
+          opacity: 0.45,
           marginTop: -4,
         }}>
-          {"\u2190 \u2192 NAV  \u00B7  SPACE COMPLETE  \u00B7  ESC CLASSIC"}
+          {"\u2190 \u2192 NAV  \u00B7  SPACE COMPLETE  \u00B7  ESC EXIT"}
         </div>
       </div>
     </div>
@@ -4509,14 +4730,13 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
 
 // ─── OPENING SPLASH (after onboarding) ───
 function OpeningSplash({ name, onFinish, th }) {
-  const [phase, setPhase] = useState(0); // 0=fade-in words, 1=hold, 2=fade-out, 3=fully gone
+  const [phase, setPhase] = useState(0); // 0=fade-in words, 1=hold, 2=fade-out
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    // Force a frame so the opacity transition from 0 -> 1 actually animates
-    const tm = setTimeout(() => setMounted(true), 20);
-    const t1 = setTimeout(() => setPhase(1), 500);
-    const t2 = setTimeout(() => setPhase(2), 2800);
-    const t3 = setTimeout(() => onFinish(), 3900);
+    const tm = setTimeout(() => setMounted(true), 40);
+    const t1 = setTimeout(() => setPhase(1), 800);
+    const t2 = setTimeout(() => setPhase(2), 4200);
+    const t3 = setTimeout(() => onFinish(), 5600);
     return () => { clearTimeout(tm); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
   const words1 = "Time is a currency,".split(" ");
@@ -4526,11 +4746,11 @@ function OpeningSplash({ name, onFinish, th }) {
       position: "fixed", inset: 0, zIndex: 9999, background: th === dark ? "#060810" : "#F4F3F0",
       display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
       fontFamily: FONT,
-      transition: "opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1)",
+      transition: "opacity 1.4s cubic-bezier(0.22, 1, 0.36, 1)",
       opacity: !mounted ? 0 : (phase === 2 ? 0 : 1),
     }}>
       <style>{`
-        @keyframes splashWordIn { from { opacity:0; transform:translateY(18px) scale(0.97); filter:blur(6px); } to { opacity:1; transform:translateY(0) scale(1); filter:blur(0); } }
+        @keyframes splashWordIn { from { opacity:0; transform:translateY(22px) scale(0.96); filter:blur(8px); } to { opacity:1; transform:translateY(0) scale(1); filter:blur(0); } }
         @keyframes splashLineGrow { from { width:0; } to { width:60px; } }
         @keyframes splashNameIn { from { opacity:0; letter-spacing:0.5em; } to { opacity:0.4; letter-spacing:0.3em; } }
       `}</style>
@@ -4540,7 +4760,7 @@ function OpeningSplash({ name, onFinish, th }) {
             <span key={i} style={{
               display: "inline-block", fontSize: 32, fontWeight: 300, color: th === dark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.82)",
               letterSpacing: "-0.02em", lineHeight: 1.4, marginRight: 10,
-              animation: `splashWordIn 0.7s cubic-bezier(0.16,1,0.3,1) ${i * 0.12}s both`,
+              animation: `splashWordIn 1.0s cubic-bezier(0.16,1,0.3,1) ${i * 0.18}s both`,
             }}>{w}</span>
           ))}
         </div>
@@ -4549,20 +4769,20 @@ function OpeningSplash({ name, onFinish, th }) {
             <span key={i} style={{
               display: "inline-block", fontSize: 32, fontWeight: 600, color: th === dark ? "#94B8DB" : "#3B6B8A",
               letterSpacing: "-0.02em", lineHeight: 1.4, marginRight: 10,
-              animation: `splashWordIn 0.7s cubic-bezier(0.16,1,0.3,1) ${(words1.length + i) * 0.12 + 0.15}s both`,
+              animation: `splashWordIn 1.0s cubic-bezier(0.16,1,0.3,1) ${(words1.length + i) * 0.18 + 0.25}s both`,
             }}>{w}</span>
           ))}
         </div>
         <div style={{
           width: 60, height: 1, margin: "0 auto 28px",
           background: th === dark ? "rgba(148,184,219,0.4)" : "rgba(59,107,138,0.3)",
-          animation: "splashLineGrow 0.8s cubic-bezier(0.16,1,0.3,1) 1.2s both",
+          animation: "splashLineGrow 1.0s cubic-bezier(0.16,1,0.3,1) 2.0s both",
         }} />
         <div style={{
           fontSize: 10, fontWeight: 700, textTransform: "uppercase",
           color: th === dark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.35)",
           letterSpacing: "0.3em",
-          animation: "splashNameIn 1s cubic-bezier(0.16,1,0.3,1) 1.5s both",
+          animation: "splashNameIn 1.2s cubic-bezier(0.16,1,0.3,1) 2.4s both",
         }}>Welcome, {name}</div>
       </div>
     </div>
@@ -4643,70 +4863,82 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         {/* ─── STEP 0: GET STARTED ─── */}
         {step === 0 && (
           <>
-            {/* PILLAR logo — 4 arcs forming a circle with small gaps */}
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+            {/* PILLAR logo — fade in first */}
+            <div className="pva-home-fade-1" style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
               <svg
-                width="64" height="64" viewBox="0 0 100 100"
+                width="72" height="72" viewBox="0 0 100 100"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
                 aria-label="PILLAR logo"
               >
-                {/* Arc 1: 5° → 85° (right to bottom, through 4:30) */}
-                <path d="M 89.85 53.49 A 40 40 0 0 1 53.49 89.85"
-                      stroke={th.text} strokeWidth="6" strokeLinecap="round" />
-                {/* Arc 2: 95° → 175° (bottom to left, through 7:30) */}
-                <path d="M 46.51 89.85 A 40 40 0 0 1 10.15 53.49"
-                      stroke={th.text} strokeWidth="6" strokeLinecap="round" />
-                {/* Arc 3: 185° → 265° (left to top, through 10:30) */}
-                <path d="M 10.15 46.51 A 40 40 0 0 1 46.51 10.15"
-                      stroke={th.text} strokeWidth="6" strokeLinecap="round" />
-                {/* Arc 4: 275° → 355° (top to right, through 1:30) */}
-                <path d="M 53.49 10.15 A 40 40 0 0 1 89.85 46.51"
-                      stroke={th.text} strokeWidth="6" strokeLinecap="round" />
+                <defs>
+                  <linearGradient id="pillarArcGrad" x1="15" y1="15" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+                    <stop offset="0"  stopColor={th.text} stopOpacity="1" />
+                    <stop offset="1"  stopColor={th.text} stopOpacity="0.72" />
+                  </linearGradient>
+                </defs>
+                {/* Ghost ring at 60% radius (r = 24) */}
+                <circle cx="50" cy="50" r="24" fill="none"
+                        stroke={th.text} strokeOpacity="0.12" strokeWidth="1" />
+                {/* Arc 1: 9° → 81° (right to bottom) — 18° gaps at cardinals */}
+                <path d="M 89.51 56.26 A 40 40 0 0 1 56.26 89.51"
+                      stroke="url(#pillarArcGrad)" strokeWidth="6" strokeLinecap="round" />
+                {/* Arc 2: 99° → 171° (bottom to left) */}
+                <path d="M 43.74 89.51 A 40 40 0 0 1 10.49 56.26"
+                      stroke="url(#pillarArcGrad)" strokeWidth="6" strokeLinecap="round" />
+                {/* Arc 3: 189° → 261° (left to top) */}
+                <path d="M 10.49 43.74 A 40 40 0 0 1 43.74 10.49"
+                      stroke="url(#pillarArcGrad)" strokeWidth="6" strokeLinecap="round" />
+                {/* Arc 4: 279° → 351° (top to right) */}
+                <path d="M 56.26 10.49 A 40 40 0 0 1 89.51 43.74"
+                      stroke="url(#pillarArcGrad)" strokeWidth="6" strokeLinecap="round" />
               </svg>
             </div>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 4 }}>PILLAR</h1>
-            <p style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700, marginBottom: 10 }}>
-              by PVA
-            </p>
-            <p style={{ fontSize: 12, color: th.dim, letterSpacing: "0.12em", marginBottom: 40 }}>
-              PERSON {"\u00B7"} VEHICLE {"\u00B7"} ASSIGNMENT
-            </p>
-            <div style={{
-              padding: "24px 28px", borderRadius: 16, marginBottom: 24,
-              background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)",
-              backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.3)",
-              textAlign: "left",
-            }}>
-              <p style={{ fontSize: 13, color: th.mid, lineHeight: 1.7, marginBottom: 16 }}>
-                A daily discipline system that uses 4P prioritisation.
+            {/* Title + subtitle — fade in second */}
+            <div className="pva-home-fade-2">
+              <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 4 }}>PILLAR</h1>
+              <p style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700, marginBottom: 32 }}>
+                by PVA
               </p>
-              <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                <span style={{ color: th.text, fontWeight: 700 }}>PERSON</span> {"\u2014"} this is you.
-              </div>
-              <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                <span style={{ color: th.text, fontWeight: 700 }}>PEOPLE</span> {"\u2014"} this is your family and community.
-              </div>
-              <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                <span style={{ color: th.text, fontWeight: 700 }}>PROCESS</span> {"\u2014"} this is the system and workflow.
-              </div>
-              <div style={{ fontSize: 12, color: th.text, marginBottom: 0 }}>
-                <span style={{ color: th.text, fontWeight: 700 }}>PRODUCT</span> {"\u2014"} this is the output and creation.
-              </div>
             </div>
-            <button onClick={function() { setStep(1); }} style={{
-              width: "100%", padding: "14px", borderRadius: 12,
-              border: "1px solid " + th.blue + "40", background: th.blueDim,
-              color: th.blue, fontSize: 13, fontWeight: 700, cursor: "pointer",
-              fontFamily: FONT, letterSpacing: "0.04em",
-            }}>GET STARTED</button>
+            {/* Description box + Get Started — fade in third */}
+            <div className="pva-home-fade-3">
+              <div style={{
+                padding: "24px 28px", borderRadius: 16, marginBottom: 24,
+                background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)",
+                backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.3)",
+                textAlign: "left",
+              }}>
+                <p style={{ fontSize: 13, color: th.mid, lineHeight: 1.7, marginBottom: 16 }}>
+                  A daily discipline system that uses 4P prioritisation.
+                </p>
+                <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
+                  <span style={{ color: th.text, fontWeight: 700 }}>PERSON</span> {"\u2014"} this is you.
+                </div>
+                <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
+                  <span style={{ color: th.text, fontWeight: 700 }}>PEOPLE</span> {"\u2014"} this is your family and community.
+                </div>
+                <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
+                  <span style={{ color: th.text, fontWeight: 700 }}>PROCESS</span> {"\u2014"} this is the system and workflow.
+                </div>
+                <div style={{ fontSize: 12, color: th.text, marginBottom: 0 }}>
+                  <span style={{ color: th.text, fontWeight: 700 }}>PRODUCT</span> {"\u2014"} this is the output and creation.
+                </div>
+              </div>
+              <button onClick={function() { setStep(1); }} style={{
+                width: "100%", padding: "14px", borderRadius: 12,
+                border: "1px solid " + th.blue + "40", background: th.blueDim,
+                color: th.blue, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                fontFamily: FONT, letterSpacing: "0.04em",
+              }}>GET STARTED</button>
+            </div>
           </>
         )}
 
         {/* ─── STEP 1: SIGN IN ─── */}
         {step === 1 && (
-          <>
+          <div className="pva-fade-in">
             <h2 style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>Sign In</h2>
             <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>Sign in to sync your progress across devices</p>
 
@@ -4836,12 +5068,12 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
                 }}>CONTINUE</button>
               </div>
             )}
-          </>
+          </div>
         )}
 
         {/* ─── STEP 2: NAME ─── */}
         {step === 2 && (
-          <>
+          <div className="pva-fade-in">
             <h2 style={{ fontSize: 22, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>What{"\u2019"}s your name?</h2>
             <p style={{ fontSize: 12, color: th.dim, marginBottom: 28 }}>This will personalise your Pillar model</p>
             <input value={name} onChange={function(e) { setName(e.target.value); }}
@@ -4863,12 +5095,12 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
               fontFamily: FONT, letterSpacing: "0.04em",
               transition: "all 0.25s ease",
             }}>NEXT</button>
-          </>
+          </div>
         )}
 
         {/* ─── STEP 3: BUILD ROUTINE ─── */}
         {step === 3 && !routineMode && (
-          <>
+          <div className="pva-fade-in">
             <h2 style={{ fontSize: 20, fontWeight: 800, color: th.text, letterSpacing: "-0.03em", marginBottom: 8 }}>Build Your Routine</h2>
             <p style={{ fontSize: 12, color: th.dim, marginBottom: 16 }}>Here{"\u2019"}s what your daily dashboard will look like:</p>
 
@@ -4974,21 +5206,21 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
                 color: th.dim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT, letterSpacing: "0.04em",
               }}>SKIP — USE DEFAULT ROUTINE</button>
             </div>
-          </>
+          </div>
         )}
 
         {step === 3 && routineMode === "guided" && (
-          <>
+          <div className="pva-fade-in">
             <button onClick={() => setRoutineMode(null)} style={{ position: "absolute", top: 20, left: 20, background: "none", border: "none", color: th.dim, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>{"\u2190"} Back</button>
             <GuidedRoutineBuilder onFinish={doFinish} th={th} />
-          </>
+          </div>
         )}
 
         {step === 3 && routineMode === "text" && (
-          <>
+          <div className="pva-fade-in">
             <button onClick={() => setRoutineMode(null)} style={{ position: "absolute", top: 20, left: 20, background: "none", border: "none", color: th.dim, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>{"\u2190"} Back</button>
             <FreeTextRoutineBuilder onFinish={doFinish} th={th} />
-          </>
+          </div>
         )}
       </div>
       {/* Version label */}
@@ -8061,13 +8293,13 @@ function PPPPApp() {
         setCloudStatus("syncing");
         try {
           const cloudData = await loadFromCloud(user.uid);
-          if (cloudData && cloudData.pppp_state) {
+          if (cloudData && (cloudData.pppp_state || cloudData.pva_profile)) {
             // Cloud has data — check if it's newer
             const localState = localStorage.getItem("pppp_state");
             const localParsed = localState ? JSON.parse(localState) : null;
-            const cloudParsed = JSON.parse(cloudData.pppp_state);
+            const cloudParsed = cloudData.pppp_state ? JSON.parse(cloudData.pppp_state) : null;
             // Use cloud data if local has no totalXp or cloud has more
-            if (!localParsed || (cloudParsed.totalXp || 0) >= (localParsed.totalXp || 0)) {
+            if (!localParsed || !cloudParsed || (cloudParsed.totalXp || 0) >= (localParsed.totalXp || 0)) {
               restoreLocalData(cloudData);
               var restoredState = loadState();
               // If routine exists but no customTasks, rebuild tasks from routine
@@ -8077,8 +8309,14 @@ function PPPPApp() {
                 if (builtTasks) restoredState.customTasks = builtTasks;
               }
               setState(restoredState);
-              setProfile(loadProfile());
+              var restoredProfile = loadProfile();
               setHasRoutine(!!loadRoutine());
+              // If cloud had a saved profile, skip onboarding entirely
+              if (restoredProfile) {
+                setView("home");
+                setLaunchFlow({ phase: "splash", name: restoredProfile.name });
+              }
+              setProfile(restoredProfile);
             } else {
               // Local is ahead — push to cloud
               await saveToCloud(user.uid, gatherLocalData());
@@ -8547,6 +8785,30 @@ function PPPPApp() {
 
   const catKeys = ["person", "people", "process", "product"];
 
+  // If launch flow is active (splash or picker), render ONLY that — no home content underneath
+  if (launchFlow) {
+    return (
+      <div style={{ minHeight: "100vh", fontFamily: FONT, color: th.text, background: th === dark ? "#060810" : "#F4F3F0", position: "relative" }}>
+        {launchFlow.phase === "splash" && (
+          <OpeningSplash
+            name={launchFlow.name}
+            onFinish={function() { setLaunchFlow({ phase: "picker", name: launchFlow.name }); }}
+            th={th}
+          />
+        )}
+        {launchFlow.phase === "picker" && (
+          <ViewPicker
+            onSelect={function(mode) {
+              setViewMode(mode);
+              setLaunchFlow(null);
+            }}
+            th={th}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", fontFamily: FONT, color: th.text, background: th.grad, transition: "background 0.5s ease", position: "relative", overflow: "hidden" }}>
       <style>{`
@@ -8604,6 +8866,22 @@ function PPPPApp() {
         }
         @keyframes pvaFadeInUp {
           from { opacity: 0; transform: translateY(18px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .pva-home-fade-1 {
+          opacity: 0;
+          animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+        }
+        .pva-home-fade-2 {
+          opacity: 0;
+          animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.45s both;
+        }
+        .pva-home-fade-3 {
+          opacity: 0;
+          animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.85s both;
+        }
+        @keyframes pvaHomeFade {
+          from { opacity: 0; transform: translateY(16px) scale(0.97); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
@@ -9980,7 +10258,7 @@ function PPPPApp() {
         letterSpacing: "0.02em", pointerEvents: "none",
       }}>v{APP_VERSION}</div>
       {/* Floating Focus toggle — visible in Classic view only */}
-      {viewMode === "normal" && !launchFlow && (
+      {viewMode === "normal" && (
         <button onClick={function() { setViewMode("focus"); }} style={{
           position: "fixed", top: 16, right: 16, zIndex: 150,
           padding: "9px 14px", borderRadius: 20,
@@ -10006,30 +10284,7 @@ function PPPPApp() {
           onToggleTask={toggleHomeTask}
         />
       )}
-      {/* Launch flow: solid background blocker + splash → view picker */}
-      {launchFlow && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 8500,
-          background: th === dark ? "#060810" : "#F4F3F0",
-          pointerEvents: "none",
-        }} />
-      )}
-      {launchFlow && launchFlow.phase === "splash" && (
-        <OpeningSplash
-          name={launchFlow.name}
-          onFinish={function() { setLaunchFlow({ phase: "picker", name: launchFlow.name }); }}
-          th={th}
-        />
-      )}
-      {launchFlow && launchFlow.phase === "picker" && (
-        <ViewPicker
-          onSelect={function(mode) {
-            setViewMode(mode);
-            setLaunchFlow(null);
-          }}
-          th={th}
-        />
-      )}
+      {/* Launch flow now renders as a separate page (early return above) */}
     </div>
   );
 }
