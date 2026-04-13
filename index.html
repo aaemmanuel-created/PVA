@@ -4885,11 +4885,11 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         {/* ─── STEP 0: GET STARTED — phased animation ─── */}
         {step === 0 && (
           <>
-            {/* PILLAR logo — fades in centered, then slides up when phase >= 1 */}
+            {/* Logo — starts at vertical centre of viewport, then shifts up */}
             <div style={{
-              display: "flex", justifyContent: "center",
-              marginBottom: introPhase >= 1 ? 14 : 40,
-              transition: "margin-bottom 1.0s cubic-bezier(0.22,1,0.36,1)",
+              display: "flex", justifyContent: "center", marginBottom: 10,
+              transform: introPhase >= 1 ? "translateY(0)" : "translateY(calc(50vh - 200px))",
+              transition: "transform 1.2s cubic-bezier(0.22,1,0.36,1)",
               animation: "introLogoIn 1.2s cubic-bezier(0.22,1,0.36,1) 0.2s both",
             }}>
               <svg
@@ -4915,18 +4915,20 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
               </svg>
             </div>
 
-            {/* Title "PILLAR by PVA" — fades in when phase >= 1 */}
+            {/* Title — "PILLAR" centred under logo, "by PVA" offset right */}
             <div style={{
-              display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8, marginBottom: 32,
+              textAlign: "center", marginBottom: 32,
               opacity: introPhase >= 1 ? 1 : 0,
               transform: introPhase >= 1 ? "translateY(0)" : "translateY(14px)",
               transition: "opacity 1.2s cubic-bezier(0.22,1,0.36,1), transform 1.2s cubic-bezier(0.22,1,0.36,1)",
             }}>
-              <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", margin: 0 }}>PILLAR</h1>
-              <span style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700 }}>by PVA</span>
+              <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", margin: "0 0 2px 0" }}>PILLAR</h1>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <span style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700, marginLeft: 28 }}>by PVA</span>
+              </div>
             </div>
 
-            {/* Description box + Get Started — fades in with blue glow when phase >= 2 */}
+            {/* Description box — white bg, blue border with glow */}
             <div style={{
               opacity: introPhase >= 2 ? 1 : 0,
               transform: introPhase >= 2 ? "translateY(0) scale(1)" : "translateY(20px) scale(0.97)",
@@ -4934,25 +4936,26 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
             }}>
               <div style={{
                 padding: "24px 28px", borderRadius: 16, marginBottom: 24,
-                background: "rgba(59,130,246,0.06)", border: "1px solid " + th.blue + "35",
+                background: "rgba(255,255,255,0.92)",
+                border: "1px solid " + th.blue + "50",
                 backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
                 animation: introPhase >= 2 ? "introGlowPulse 3s ease-in-out infinite" : "none",
                 textAlign: "left",
               }}>
-                <p style={{ fontSize: 13, color: th.mid, lineHeight: 1.7, marginBottom: 16 }}>
+                <p style={{ fontSize: 13, color: "#4B5563", lineHeight: 1.7, marginBottom: 16 }}>
                   A daily discipline system that uses 4P prioritisation.
                 </p>
-                <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                  <span style={{ color: th.text, fontWeight: 700 }}>PERSON</span> {"\u2014"} this is you.
+                <div style={{ fontSize: 12, color: "#1F2937", marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700 }}>PERSON</span> {"\u2014"} this is you.
                 </div>
-                <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                  <span style={{ color: th.text, fontWeight: 700 }}>PEOPLE</span> {"\u2014"} this is your family and community.
+                <div style={{ fontSize: 12, color: "#1F2937", marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700 }}>PEOPLE</span> {"\u2014"} this is your family and community.
                 </div>
-                <div style={{ fontSize: 12, color: th.text, marginBottom: 8 }}>
-                  <span style={{ color: th.text, fontWeight: 700 }}>PROCESS</span> {"\u2014"} this is the system and workflow.
+                <div style={{ fontSize: 12, color: "#1F2937", marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700 }}>PROCESS</span> {"\u2014"} this is the system and workflow.
                 </div>
-                <div style={{ fontSize: 12, color: th.text, marginBottom: 0 }}>
-                  <span style={{ color: th.text, fontWeight: 700 }}>PRODUCT</span> {"\u2014"} this is the output and creation.
+                <div style={{ fontSize: 12, color: "#1F2937", marginBottom: 0 }}>
+                  <span style={{ fontWeight: 700 }}>PRODUCT</span> {"\u2014"} this is the output and creation.
                 </div>
               </div>
               <button onClick={function() { setStep(1); }} style={{
