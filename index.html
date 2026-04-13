@@ -4877,21 +4877,18 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
                     <stop offset="1"  stopColor={th.text} stopOpacity="0.72" />
                   </linearGradient>
                 </defs>
-                {/* Ghost ring at 60% radius (r = 24) */}
-                <circle cx="50" cy="50" r="24" fill="none"
-                        stroke={th.text} strokeOpacity="0.12" strokeWidth="1" />
                 {/* Arc 1: 9° → 81° (right to bottom) — 18° gaps at cardinals */}
                 <path d="M 89.51 56.26 A 40 40 0 0 1 56.26 89.51"
-                      stroke="url(#pillarArcGrad)" strokeWidth="6" strokeLinecap="round" />
+                      stroke="url(#pillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
                 {/* Arc 2: 99° → 171° (bottom to left) */}
                 <path d="M 43.74 89.51 A 40 40 0 0 1 10.49 56.26"
-                      stroke="url(#pillarArcGrad)" strokeWidth="6" strokeLinecap="round" />
+                      stroke="url(#pillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
                 {/* Arc 3: 189° → 261° (left to top) */}
                 <path d="M 10.49 43.74 A 40 40 0 0 1 43.74 10.49"
-                      stroke="url(#pillarArcGrad)" strokeWidth="6" strokeLinecap="round" />
+                      stroke="url(#pillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
                 {/* Arc 4: 279° → 351° (top to right) */}
                 <path d="M 56.26 10.49 A 40 40 0 0 1 89.51 43.74"
-                      stroke="url(#pillarArcGrad)" strokeWidth="6" strokeLinecap="round" />
+                      stroke="url(#pillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
               </svg>
             </div>
             {/* Title + subtitle — fade in second */}
