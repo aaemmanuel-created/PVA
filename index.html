@@ -4849,7 +4849,15 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
       display: "flex", alignItems: "center", justifyContent: "center",
       position: "relative",
     }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
+        .pva-home-fade-1 { opacity: 0; animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.1s both; }
+        .pva-home-fade-2 { opacity: 0; animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.45s both; }
+        .pva-home-fade-3 { opacity: 0; animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.85s both; }
+        @keyframes pvaHomeFade { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .pva-fade-in { animation: pvaFadeInUp 0.45s cubic-bezier(0.16,1,0.3,1) both; }
+        @keyframes pvaFadeInUp { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      `}</style>
       {/* Refresh button - top left */}
       <button onClick={function() { window.location.reload(); }} style={{
         position: "absolute", top: 16, left: 16,
