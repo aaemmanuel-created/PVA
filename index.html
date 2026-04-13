@@ -4900,11 +4900,9 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
               </svg>
             </div>
             {/* Title + subtitle — fade in second */}
-            <div className="pva-home-fade-2">
-              <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", marginBottom: 4 }}>PILLAR</h1>
-              <p style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700, marginBottom: 32 }}>
-                by PVA
-              </p>
+            <div className="pva-home-fade-2" style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8, marginBottom: 32 }}>
+              <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", margin: 0 }}>PILLAR</h1>
+              <span style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700 }}>by PVA</span>
             </div>
             {/* Description box + Get Started — fade in third */}
             <div className="pva-home-fade-3">
