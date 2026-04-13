@@ -4803,6 +4803,7 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
   }
   const [name, setName] = useState("");
   const [step, setStep] = useState(initialStep);
+  const [introPhase, setIntroPhase] = useState(0); // 0=logo fading in, 1=logo moves up + title, 2=box appears
   const [routineMode, setRoutineMode] = useState(null);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -4820,6 +4821,15 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
       setStep(function(prev) { return prev <= 1 ? 2 : prev; });
     }
   }, [firebaseUser]);
+
+  // Orchestrate intro animation phases on step 0
+  useEffect(function() {
+    if (step !== 0) return;
+    setIntroPhase(0);
+    var t1 = setTimeout(function() { setIntroPhase(1); }, 1200);  // logo moves up + title fades in
+    var t2 = setTimeout(function() { setIntroPhase(2); }, 2400);  // box fades in
+    return function() { clearTimeout(t1); clearTimeout(t2); };
+  }, [step]);
 
   const doCompleteName = () => {
     if (name.trim()) setStep(3);
@@ -4851,12 +4861,16 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
-        .pva-home-fade-1 { opacity: 0; animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.1s both; }
-        .pva-home-fade-2 { opacity: 0; animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.45s both; }
-        .pva-home-fade-3 { opacity: 0; animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.85s both; }
-        @keyframes pvaHomeFade { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
         .pva-fade-in { animation: pvaFadeInUp 0.45s cubic-bezier(0.16,1,0.3,1) both; }
         @keyframes pvaFadeInUp { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes introLogoIn { from { opacity: 0; transform: scale(0.90); } to { opacity: 1; transform: scale(1); } }
+        @keyframes introTitleIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes introBoxIn { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes introGlowPulse {
+          0% { box-shadow: 0 0 18px rgba(59,130,246,0.25), 0 0 40px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.08); }
+          50% { box-shadow: 0 0 28px rgba(59,130,246,0.4), 0 0 60px rgba(59,130,246,0.18), inset 0 1px 0 rgba(255,255,255,0.14); }
+          100% { box-shadow: 0 0 18px rgba(59,130,246,0.25), 0 0 40px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.08); }
+        }
       `}</style>
       {/* Refresh button - top left */}
       <button onClick={function() { window.location.reload(); }} style={{
@@ -4868,11 +4882,16 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         zIndex: 10,
       }} title="Refresh app">{"\u21BB"}</button>
       <div style={{ maxWidth: 420, width: "90%", textAlign: "center", padding: "40px 0" }}>
-        {/* ─── STEP 0: GET STARTED ─── */}
+        {/* ─── STEP 0: GET STARTED — phased animation ─── */}
         {step === 0 && (
           <>
-            {/* PILLAR logo — fade in first */}
-            <div className="pva-home-fade-1" style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+            {/* PILLAR logo — fades in centered, then slides up when phase >= 1 */}
+            <div style={{
+              display: "flex", justifyContent: "center",
+              marginBottom: introPhase >= 1 ? 14 : 40,
+              transition: "margin-bottom 1.0s cubic-bezier(0.22,1,0.36,1)",
+              animation: "introLogoIn 1.2s cubic-bezier(0.22,1,0.36,1) 0.2s both",
+            }}>
               <svg
                 width="72" height="72" viewBox="0 0 100 100"
                 fill="none"
@@ -4885,32 +4904,39 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
                     <stop offset="1"  stopColor={th.text} stopOpacity="0.72" />
                   </linearGradient>
                 </defs>
-                {/* Arc 1: 9° → 81° (right to bottom) — 18° gaps at cardinals */}
                 <path d="M 89.51 56.26 A 40 40 0 0 1 56.26 89.51"
                       stroke="url(#pillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
-                {/* Arc 2: 99° → 171° (bottom to left) */}
                 <path d="M 43.74 89.51 A 40 40 0 0 1 10.49 56.26"
                       stroke="url(#pillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
-                {/* Arc 3: 189° → 261° (left to top) */}
                 <path d="M 10.49 43.74 A 40 40 0 0 1 43.74 10.49"
                       stroke="url(#pillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
-                {/* Arc 4: 279° → 351° (top to right) */}
                 <path d="M 56.26 10.49 A 40 40 0 0 1 89.51 43.74"
                       stroke="url(#pillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
               </svg>
             </div>
-            {/* Title + subtitle — fade in second */}
-            <div className="pva-home-fade-2" style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8, marginBottom: 32 }}>
+
+            {/* Title "PILLAR by PVA" — fades in when phase >= 1 */}
+            <div style={{
+              display: "flex", alignItems: "baseline", justifyContent: "center", gap: 8, marginBottom: 32,
+              opacity: introPhase >= 1 ? 1 : 0,
+              transform: introPhase >= 1 ? "translateY(0)" : "translateY(14px)",
+              transition: "opacity 1.2s cubic-bezier(0.22,1,0.36,1), transform 1.2s cubic-bezier(0.22,1,0.36,1)",
+            }}>
               <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", margin: 0 }}>PILLAR</h1>
               <span style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700 }}>by PVA</span>
             </div>
-            {/* Description box + Get Started — fade in third */}
-            <div className="pva-home-fade-3">
+
+            {/* Description box + Get Started — fades in with blue glow when phase >= 2 */}
+            <div style={{
+              opacity: introPhase >= 2 ? 1 : 0,
+              transform: introPhase >= 2 ? "translateY(0) scale(1)" : "translateY(20px) scale(0.97)",
+              transition: "opacity 1.4s cubic-bezier(0.22,1,0.36,1), transform 1.4s cubic-bezier(0.22,1,0.36,1)",
+            }}>
               <div style={{
                 padding: "24px 28px", borderRadius: 16, marginBottom: 24,
-                background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)",
+                background: "rgba(59,130,246,0.06)", border: "1px solid " + th.blue + "35",
                 backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.3)",
+                animation: introPhase >= 2 ? "introGlowPulse 3s ease-in-out infinite" : "none",
                 textAlign: "left",
               }}>
                 <p style={{ fontSize: 13, color: th.mid, lineHeight: 1.7, marginBottom: 16 }}>
@@ -8874,18 +8900,18 @@ function PPPPApp() {
         }
         .pva-home-fade-1 {
           opacity: 0;
-          animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+          animation: pvaHomeFade 1.4s cubic-bezier(0.22,1,0.36,1) 0.3s both;
         }
         .pva-home-fade-2 {
           opacity: 0;
-          animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.45s both;
+          animation: pvaHomeFade 1.4s cubic-bezier(0.22,1,0.36,1) 0.9s both;
         }
         .pva-home-fade-3 {
           opacity: 0;
-          animation: pvaHomeFade 0.8s cubic-bezier(0.16,1,0.3,1) 0.85s both;
+          animation: pvaHomeFade 1.4s cubic-bezier(0.22,1,0.36,1) 1.5s both;
         }
         @keyframes pvaHomeFade {
-          from { opacity: 0; transform: translateY(16px) scale(0.97); }
+          from { opacity: 0; transform: translateY(20px) scale(0.97); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
