@@ -4202,31 +4202,34 @@ function FocusModeView({ state, tasks, th, onExit, onToggleTask }) {
         alignItems: "center", justifyContent: "center",
       })}>
         <style>{keyframes}</style>
-        {/* Breathing ring */}
+        {/* Entry content — stacked vertically */}
         <div style={{
-          width: 88, height: 88, borderRadius: "50%",
-          border: "2px solid " + th.text,
-          opacity: 0.3,
-          animation: "focusBreathPulse 3s ease-in-out infinite",
-          position: "absolute",
-        }} />
-        {/* Entry text */}
-        <div style={{
-          textAlign: "center",
+          display: "flex", flexDirection: "column", alignItems: "center",
           animation: "focusEntryFade 2.4s " + EASE + " both",
         }}>
+          {/* Breathing ring — above text */}
           <div style={{
-            fontSize: 11, fontWeight: 800, letterSpacing: "0.28em",
-            color: th.dim, marginBottom: 14, textTransform: "uppercase",
-          }}>FOCUS MODE</div>
-          <div style={{
-            fontSize: 26, fontWeight: 300, color: th.text,
-            letterSpacing: "-0.02em", lineHeight: 1.4,
-          }}>Build your temple.</div>
-          <div style={{
-            fontSize: 10, color: th.dim, marginTop: 16,
-            letterSpacing: "0.2em", fontWeight: 700,
-          }}>{flatTasks.length} TASK{flatTasks.length !== 1 ? "S" : ""} AHEAD</div>
+            width: 88, height: 88, borderRadius: "50%",
+            border: "2px solid " + th.text,
+            opacity: 0.3,
+            animation: "focusBreathPulse 3s ease-in-out infinite",
+            marginBottom: 32,
+          }} />
+          {/* Entry text */}
+          <div style={{ textAlign: "center" }}>
+            <div style={{
+              fontSize: 11, fontWeight: 800, letterSpacing: "0.28em",
+              color: th.dim, marginBottom: 14, textTransform: "uppercase",
+            }}>FOCUS MODE</div>
+            <div style={{
+              fontSize: 26, fontWeight: 300, color: th.text,
+              letterSpacing: "-0.02em", lineHeight: 1.4,
+            }}>Build your temple.</div>
+            <div style={{
+              fontSize: 10, color: th.dim, marginTop: 16,
+              letterSpacing: "0.2em", fontWeight: 700,
+            }}>{flatTasks.length} TASK{flatTasks.length !== 1 ? "S" : ""} AHEAD</div>
+          </div>
         </div>
       </div>
     );
@@ -4838,6 +4841,10 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
   const doFinish = (customTasks) => {
     if (name.trim()) {
       const profile = { name: name.trim(), createdAt: TODAY };
+      // Save routine data so loadRoutine() works in the main app
+      if (customTasks) {
+        saveRoutineData({ directTasks: customTasks, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      }
       saveProfile(profile);
       if (customTasks) onCustomTasks(customTasks);
       onComplete(profile, name.trim());
@@ -8550,23 +8557,11 @@ function PPPPApp() {
     } catch { return true; }
   });
 
-  // If no profile, show onboarding (with sign-in)
-  if (!profile) {
-    return <OnboardingScreen onComplete={function(p, showSplashName) {
-      // Order matters: set view/hasRoutine/launchFlow BEFORE profile so that
-      // when React commits the batch and re-renders past the early-return,
-      // the view state is already correct. setProfile last guarantees the
-      // re-render sees view="home" and launchFlow populated.
-      setView("home");
-      setHasRoutine(!!loadRoutine());
-      if (showSplashName) {
-        setLaunchFlow({ phase: "splash", name: showSplashName });
-      }
-      setProfile(p);
-    }} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} onSignIn={handleSignIn} onEmailAuth={handleEmailAuth} firebaseUser={firebaseUser} />;
-  }
+  // NOTE: The onboarding early-return has been moved BELOW all hook declarations
+  // to avoid a React hooks-ordering violation (hooks must run in the same order
+  // on every render, even when profile is null).
 
-  const userName = profile.name;
+  const userName = profile ? profile.name : "";
   const scrollRef = useRef(null);
 
   const th = themeMode === "dark" ? dark : light;
@@ -8814,6 +8809,18 @@ function PPPPApp() {
   const goHome = () => { navigateTo("home", "back"); setActiveCat(null); };
 
   const catKeys = ["person", "people", "process", "product"];
+
+  // ─── ONBOARDING (moved here so ALL hooks above run on every render) ───
+  if (!profile) {
+    return <OnboardingScreen onComplete={function(p, showSplashName) {
+      setView("home");
+      setHasRoutine(!!loadRoutine());
+      if (showSplashName) {
+        setLaunchFlow({ phase: "splash", name: showSplashName });
+      }
+      setProfile(p);
+    }} onCustomTasks={(ct) => setState(prev => ({ ...prev, customTasks: ct }))} onSignIn={handleSignIn} onEmailAuth={handleEmailAuth} firebaseUser={firebaseUser} />;
+  }
 
   // If launch flow is active (splash or picker), render ONLY that — no home content underneath
   if (launchFlow) {
