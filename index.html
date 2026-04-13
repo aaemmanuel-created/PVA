@@ -4867,9 +4867,9 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         @keyframes introTitleIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes introBoxIn { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes introGlowPulse {
-          0% { box-shadow: 0 0 18px rgba(59,130,246,0.25), 0 0 40px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.08); }
-          50% { box-shadow: 0 0 28px rgba(59,130,246,0.4), 0 0 60px rgba(59,130,246,0.18), inset 0 1px 0 rgba(255,255,255,0.14); }
-          100% { box-shadow: 0 0 18px rgba(59,130,246,0.25), 0 0 40px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.08); }
+          0% { box-shadow: 0 0 12px rgba(59,130,246,0.35), 0 0 30px rgba(59,130,246,0.2), 0 0 60px rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.4); }
+          50% { box-shadow: 0 0 20px rgba(59,130,246,0.6), 0 0 50px rgba(59,130,246,0.35), 0 0 90px rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.7); }
+          100% { box-shadow: 0 0 12px rgba(59,130,246,0.35), 0 0 30px rgba(59,130,246,0.2), 0 0 60px rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.4); }
         }
       `}</style>
       {/* Refresh button - top left */}
@@ -4885,10 +4885,10 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
         {/* ─── STEP 0: GET STARTED — phased animation ─── */}
         {step === 0 && (
           <>
-            {/* Logo — starts at vertical centre of viewport, then shifts up */}
+            {/* Logo — starts at horizontal centre, pushed down to vertical midline, then shifts up */}
             <div style={{
               display: "flex", justifyContent: "center", marginBottom: 10,
-              transform: introPhase >= 1 ? "translateY(0)" : "translateY(calc(50vh - 200px))",
+              transform: introPhase >= 1 ? "translateY(0)" : "translateY(120px)",
               transition: "transform 1.2s cubic-bezier(0.22,1,0.36,1)",
               animation: "introLogoIn 1.2s cubic-bezier(0.22,1,0.36,1) 0.2s both",
             }}>
@@ -4915,17 +4915,15 @@ function OnboardingScreen({ onComplete, onCustomTasks, onSignIn, onEmailAuth, fi
               </svg>
             </div>
 
-            {/* Title — "PILLAR" centred under logo, "by PVA" offset right */}
+            {/* Title — "PILLAR" centred under logo, "by PVA" to the right on same line */}
             <div style={{
-              textAlign: "center", marginBottom: 32,
+              display: "flex", alignItems: "baseline", justifyContent: "center", marginBottom: 32,
               opacity: introPhase >= 1 ? 1 : 0,
               transform: introPhase >= 1 ? "translateY(0)" : "translateY(14px)",
               transition: "opacity 1.2s cubic-bezier(0.22,1,0.36,1), transform 1.2s cubic-bezier(0.22,1,0.36,1)",
             }}>
-              <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", margin: "0 0 2px 0" }}>PILLAR</h1>
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <span style={{ fontSize: 10, color: th.dim, letterSpacing: "0.24em", fontWeight: 700, marginLeft: 28 }}>by PVA</span>
-              </div>
+              <h1 style={{ fontSize: 32, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", margin: 0 }}>PILLAR</h1>
+              <span style={{ fontSize: 10, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginLeft: 8 }}>by PVA</span>
             </div>
 
             {/* Description box — white bg, blue border with glow */}
