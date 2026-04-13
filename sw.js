@@ -1,10 +1,10 @@
-const CACHE_NAME = 'pva-cache-v23';
+const CACHE_NAME = 'pva-cache-v29';
 const ASSETS = [
-  '/PVA/',
-  '/PVA/index.html',
-  '/PVA/manifest.json',
-  '/PVA/icon-192.png',
-  '/PVA/icon-512.png'
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 // Install — cache core assets

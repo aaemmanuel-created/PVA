@@ -1,9 +1,9 @@
 {
-  "name": "PVA - Person, Vehicle, Assignment",
-  "short_name": "PVA",
+  "name": "PILLAR - Person, Vehicle, Assignment",
+  "short_name": "PILLAR",
   "description": "Gamified Christian daily discipline app. Build your temple, one task at a time.",
-  "start_url": "/PVA/",
-  "scope": "/PVA/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0A0E1A",
