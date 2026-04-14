@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="icon-192.png"/>
 <title>PILLAR</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}html,body,#root{width:100%;min-height:100vh;-webkit-font-smoothing:antialiased}body{overscroll-behavior:none}</style>
+<style>@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');*{margin:0;padding:0;box-sizing:border-box;font-family:'JetBrains Mono','Fira Code',monospace}html,body,#root{width:100%;min-height:100vh;-webkit-font-smoothing:antialiased}body{overscroll-behavior:none}input,textarea,button,select{font-family:inherit}</style>
 </head><body><div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
@@ -4736,10 +4736,10 @@ function OpeningSplash({ name, onFinish, th }) {
   const [phase, setPhase] = useState(0); // 0=fade-in words, 1=hold, 2=fade-out
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    const tm = setTimeout(() => setMounted(true), 40);
-    const t1 = setTimeout(() => setPhase(1), 800);
-    const t2 = setTimeout(() => setPhase(2), 4200);
-    const t3 = setTimeout(() => onFinish(), 5600);
+    const tm = setTimeout(() => setMounted(true), 60);
+    const t1 = setTimeout(() => setPhase(1), 1200);
+    const t2 = setTimeout(() => setPhase(2), 7000);
+    const t3 = setTimeout(() => onFinish(), 9200);
     return () => { clearTimeout(tm); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, []);
   const words1 = "Time is a currency,".split(" ");
@@ -4749,43 +4749,47 @@ function OpeningSplash({ name, onFinish, th }) {
       position: "fixed", inset: 0, zIndex: 9999, background: th === dark ? "#060810" : "#F4F3F0",
       display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
       fontFamily: FONT,
-      transition: "opacity 1.4s cubic-bezier(0.22, 1, 0.36, 1)",
+      transition: "opacity 2.2s cubic-bezier(0.22, 1, 0.36, 1)",
       opacity: !mounted ? 0 : (phase === 2 ? 0 : 1),
     }}>
       <style>{`
-        @keyframes splashWordIn { from { opacity:0; transform:translateY(22px) scale(0.96); filter:blur(8px); } to { opacity:1; transform:translateY(0) scale(1); filter:blur(0); } }
-        @keyframes splashLineGrow { from { width:0; } to { width:60px; } }
-        @keyframes splashNameIn { from { opacity:0; letter-spacing:0.5em; } to { opacity:0.4; letter-spacing:0.3em; } }
+        @keyframes splashWordIn {
+          0% { opacity:0; transform:translateY(30px) scale(0.94); filter:blur(12px); }
+          60% { opacity:0.7; transform:translateY(4px) scale(0.99); filter:blur(2px); }
+          100% { opacity:1; transform:translateY(0) scale(1); filter:blur(0); }
+        }
+        @keyframes splashLineGrow { from { width:0; opacity:0; } to { width:80px; opacity:1; } }
+        @keyframes splashNameIn { from { opacity:0; letter-spacing:0.6em; filter:blur(4px); } to { opacity:0.45; letter-spacing:0.3em; filter:blur(0); } }
       `}</style>
       <div style={{ textAlign: "center", maxWidth: 500, padding: "0 32px" }}>
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 32 }}>
           {words1.map((w, i) => (
             <span key={i} style={{
               display: "inline-block", fontSize: 32, fontWeight: 300, color: th === dark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.82)",
-              letterSpacing: "-0.02em", lineHeight: 1.4, marginRight: 10,
-              animation: `splashWordIn 1.0s cubic-bezier(0.16,1,0.3,1) ${i * 0.18}s both`,
+              letterSpacing: "-0.02em", lineHeight: 1.5, marginRight: 10,
+              animation: `splashWordIn 1.8s cubic-bezier(0.16,1,0.3,1) ${i * 0.3}s both`,
             }}>{w}</span>
           ))}
         </div>
-        <div style={{ marginBottom: 36 }}>
+        <div style={{ marginBottom: 40 }}>
           {words2.map((w, i) => (
             <span key={i} style={{
               display: "inline-block", fontSize: 32, fontWeight: 600, color: th === dark ? "#94B8DB" : "#3B6B8A",
-              letterSpacing: "-0.02em", lineHeight: 1.4, marginRight: 10,
-              animation: `splashWordIn 1.0s cubic-bezier(0.16,1,0.3,1) ${(words1.length + i) * 0.18 + 0.25}s both`,
+              letterSpacing: "-0.02em", lineHeight: 1.5, marginRight: 10,
+              animation: `splashWordIn 1.8s cubic-bezier(0.16,1,0.3,1) ${(words1.length + i) * 0.3 + 0.5}s both`,
             }}>{w}</span>
           ))}
         </div>
         <div style={{
-          width: 60, height: 1, margin: "0 auto 28px",
+          width: 80, height: 1, margin: "0 auto 32px",
           background: th === dark ? "rgba(148,184,219,0.4)" : "rgba(59,107,138,0.3)",
-          animation: "splashLineGrow 1.0s cubic-bezier(0.16,1,0.3,1) 2.0s both",
+          animation: "splashLineGrow 1.6s cubic-bezier(0.22,1,0.36,1) 3.6s both",
         }} />
         <div style={{
           fontSize: 10, fontWeight: 700, textTransform: "uppercase",
           color: th === dark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.35)",
           letterSpacing: "0.3em",
-          animation: "splashNameIn 1.2s cubic-bezier(0.16,1,0.3,1) 2.4s both",
+          animation: "splashNameIn 2.0s cubic-bezier(0.22,1,0.36,1) 4.2s both",
         }}>Welcome, {name}</div>
       </div>
     </div>
@@ -8293,9 +8297,11 @@ function PPPPApp() {
   const [hasRoutine, setHasRoutine] = useState(function() { return !!loadRoutine(); });
   const [testimonyMilestone, setTestimonyMilestone] = useState(null);
   const [launchFlow, setLaunchFlow] = useState(function() {
-    // On initial app mount with existing profile, show splash + view picker
+    // On initial app mount with existing profile, skip splash and go straight
+    // to the view picker. The splash only shows for brand-new users right after
+    // completing onboarding (handled elsewhere).
     var p = loadProfile();
-    return p ? { phase: "splash", name: p.name } : null;
+    return p ? { phase: "picker", name: p.name } : null;
   });
   const [viewMode, setViewMode] = useState("normal"); // "normal" | "focus"
 
@@ -8348,10 +8354,11 @@ function PPPPApp() {
               setState(restoredState);
               var restoredProfile = loadProfile();
               setHasRoutine(!!loadRoutine());
-              // If cloud had a saved profile, skip onboarding entirely
+              // If cloud had a saved profile, skip onboarding entirely and
+              // send the returning user straight to the view picker (not splash).
               if (restoredProfile) {
                 setView("home");
-                setLaunchFlow({ phase: "splash", name: restoredProfile.name });
+                setLaunchFlow({ phase: "picker", name: restoredProfile.name });
               }
               setProfile(restoredProfile);
             } else {
@@ -9193,13 +9200,7 @@ function PPPPApp() {
       {/* Prestige Screen */}
       {showPrestige && <PrestigeScreen state={state} setState={setState} th={th} />}
 
-      {/* Login Bonus Popup */}
-      {showLoginBonus && view === "home" && (
-        <LoginBonusPopup state={state} th={th} onDismiss={function() {
-          setShowLoginBonus(false);
-          try { localStorage.setItem("pva_login_bonus_shown", TODAY); } catch {}
-        }} />
-      )}
+      {/* Login Bonus Popup — removed per user request */}
 
       {/* Weekly State popup removed — now rendered inline via <WeeklyStateSection /> in the home view */}
 
@@ -10295,8 +10296,8 @@ function PPPPApp() {
         fontSize: 8, fontFamily: FONT, color: th.dim, opacity: 0.4,
         letterSpacing: "0.02em", pointerEvents: "none",
       }}>v{APP_VERSION}</div>
-      {/* Floating Focus toggle — visible in Classic view only */}
-      {viewMode === "normal" && (
+      {/* Floating Focus toggle — visible in Classic (home) view only */}
+      {viewMode === "normal" && view === "home" && (
         <button onClick={function() { setViewMode("focus"); }} style={{
           position: "fixed", top: 16, right: 16, zIndex: 150,
           padding: "9px 14px", borderRadius: 20,
