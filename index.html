@@ -3875,6 +3875,26 @@ function ViewPicker({ onSelect, th }) {
         @keyframes pickerContentIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
       <div style={{ textAlign: "center", maxWidth: 420, width: "100%", padding: "0 32px", animation: "pickerContentIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+        {/* PILLAR logo */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
+          <svg width="64" height="64" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="PILLAR logo">
+            <defs>
+              <linearGradient id="pickerPillarArcGrad" x1="15" y1="15" x2="85" y2="85" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stopColor={th.text} stopOpacity="1" />
+                <stop offset="1" stopColor={th.text} stopOpacity="0.72" />
+              </linearGradient>
+            </defs>
+            <path d="M 89.51 56.26 A 40 40 0 0 1 56.26 89.51" stroke="url(#pickerPillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
+            <path d="M 43.74 89.51 A 40 40 0 0 1 10.49 56.26" stroke="url(#pickerPillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
+            <path d="M 10.49 43.74 A 40 40 0 0 1 43.74 10.49" stroke="url(#pickerPillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
+            <path d="M 56.26 10.49 A 40 40 0 0 1 89.51 43.74" stroke="url(#pickerPillarArcGrad)" strokeWidth="4.5" strokeLinecap="round" />
+          </svg>
+        </div>
+        {/* "PILLAR by PVA" wordmark */}
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", marginBottom: 28 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: th.text, letterSpacing: "-0.04em", margin: 0, fontFamily: FONT }}>PILLAR</h1>
+          <span style={{ fontSize: 9, color: th.dim, letterSpacing: "0.18em", fontWeight: 700, marginLeft: 7, fontFamily: FONT }}>by PVA</span>
+        </div>
         <div style={{
           fontSize: 10, fontWeight: 700, letterSpacing: "0.32em",
           color: th.dim, textTransform: "uppercase", marginBottom: 36,
